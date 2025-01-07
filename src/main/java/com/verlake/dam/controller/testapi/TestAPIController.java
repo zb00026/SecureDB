@@ -1,4 +1,4 @@
-package dam.verlake.com.testapi;
+package com.verlake.dam.controller.testapi;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
