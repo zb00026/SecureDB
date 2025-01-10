@@ -22,7 +22,11 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-
+        
+    # Give execute permission to gradlew
+    - name: Grant execute permission for gradlew
+      run: chmod +x ./gradlew
+      
     # Cache Gradle dependencies
     - name: Cache Gradle dependencies
       uses: actions/cache@v3
