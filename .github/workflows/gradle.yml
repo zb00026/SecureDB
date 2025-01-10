@@ -11,7 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
+    services:
+       mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_ROOT_PASSWORD: ""
+          MYSQL_DATABASE: dam
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
     steps:
     # Check out the code from the repository
     - uses: actions/checkout@v4
