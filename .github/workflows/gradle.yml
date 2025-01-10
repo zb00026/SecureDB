@@ -69,22 +69,3 @@ jobs:
         name: test-results
         path: build/test-results/test
 
-  dependency-submission:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-    # Check out the code from the repository
-    - uses: actions/checkout@v4
-
-    # Set up Java JDK 17
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    # Generate and submit dependency graph for Dependabot
-    - name: Generate and submit dependency graph
-      uses: gradle/actions/dependency-submission@v4.0.0
