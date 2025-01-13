@@ -28,7 +28,14 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.+'
 	implementation 'org.projectlombok:lombok:1.+'
 	annotationProcessor 'org.projectlombok:lombok:1.+'
-
+	implementation 'org.springframework.boot:spring-boot-starter-security:3.+'
+	implementation 'org.keycloak:keycloak-spring-boot-starter:23.+'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client:3.+'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server:3.+'
+	implementation 'org.springframework.security:spring-security-oauth2-jose:6.+'
+	testImplementation 'org.testcontainers:testcontainers:1.+'
+	testImplementation 'org.testcontainers:junit-jupiter:1.+'
+	testImplementation 'org.testcontainers:mysql:1.+'
 }
 
 tasks.named('test') {

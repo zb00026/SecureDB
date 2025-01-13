@@ -16,4 +16,7 @@ public class User {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    @Column(name = "keycloak_id", unique = true)
+    private String keycloakId;
 }
