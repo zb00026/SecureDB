@@ -1,6 +1,7 @@
 package com.verlake.dam.controller;
 
 import com.verlake.dam.entity.User;
+import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.utils.Constants;
 import org.springframework.http.HttpStatus;

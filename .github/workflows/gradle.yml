@@ -19,6 +19,9 @@ jobs:
       MYSQL_USERNAME: root
       MYSQL_PASSWORD: 
       KEYCLOAK_URL: http://localhost:8081
+      GOOGLE_ISSUE_URI: https://accounts.google.com
+      GOOGLE_JWKS_URI: https://www.googleapis.com/oauth2/v3/certs
+      AUTH_PROVIDER: keycloak
     steps:
       # Check out the code from the repository
       - uses: actions/checkout@v4

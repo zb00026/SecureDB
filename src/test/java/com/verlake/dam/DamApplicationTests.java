@@ -17,6 +17,15 @@ class DamApplicationTests {
 		registry.add("spring.datasource.password", () -> System.getenv("MYSQL_PASSWORD"));
 		registry.add("spring.security.oauth2.client.provider.keycloak.issuer-uri",
 				() -> System.getenv("KEYCLOAK_URL") + "/realms/DAM");
+		registry.add("google.oauth2.issuer-uri",
+				() -> System.getenv("GOOGLE_ISSUE_URI"));
+		//https://accounts.google.com
+		registry.add("google.oauth2.jwks-uri",
+				() -> System.getenv("GOOGLE_JWKS_URI"));
+		registry.add("auth.provider",
+				() -> System.getenv("AUTH_PROVIDER"));
+		//https://www.googleapis.com/oauth2/v3/certs
+
 	}
 
 	@Test

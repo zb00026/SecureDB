@@ -8,19 +8,20 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.stereotype.Component;
 
 @Component
-public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
+public class GoogleJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
+
     private final JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter;
 
-    public KeycloakJwtAuthenticationConverter() {
+    public GoogleJwtAuthenticationConverter() {
         this.jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
     }
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
-        
+        // Extract roles or permissions if necessary
         return new JwtAuthenticationToken(
             jwt,
             jwtGrantedAuthoritiesConverter.convert(jwt)
         );
     }
-} 
+}

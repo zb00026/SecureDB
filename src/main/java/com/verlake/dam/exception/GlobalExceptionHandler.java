@@ -1,5 +1,6 @@
 package com.verlake.dam.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -18,6 +20,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
         Map<String, String> errorResponse = new HashMap<>();
+        log.error("A database constraint was violated", ex);
         errorResponse.put("error", "A database constraint was violated");
         errorResponse.put("details", extractConstraintMessage(ex.getMessage())); // Extract meaningful message
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse); // Return 409 Conflict
@@ -27,6 +30,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> handleResponseStatusException(ResponseStatusException ex, WebRequest request) {
         Map<String, String> errorResponse = new HashMap<>();
+        log.error(ex.getReason(), ex);
         errorResponse.put("error", ex.getReason());
         errorResponse.put("status", ex.getStatusCode().toString());
         return ResponseEntity.status(ex.getStatusCode()).body(errorResponse);
@@ -36,6 +40,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex, WebRequest request) {
         Map<String, String> errorResponse = new HashMap<>();
+        log.error("An unexpected error occurred", ex);
         errorResponse.put("error", "An unexpected error occurred");
         errorResponse.put("details", ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);

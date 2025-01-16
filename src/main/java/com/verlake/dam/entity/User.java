@@ -1,5 +1,7 @@
 package com.verlake.dam.entity;
 
+import com.verlake.dam.enums.AuthProvider;
+
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -17,6 +19,4 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "keycloak_id", unique = true)
-    private String keycloakId;
 }
