@@ -1,44 +1,45 @@
-name: Java CI with Gradle
+name: Nightly Build with AWS SES Notification
 
 on:
+  schedule:
+    # Runs every day at midnight (UTC)
+    - cron: "0 0 * * *"  # Change if you want a different schedule
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+  workflow_dispatch:  # Allows manual trigger of the workflow
 
 jobs:
-  build:
+  backend_build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read  # To fetch repository content
     services:
       docker:
         image: docker:24.0
     env:
       MYSQL_URL: jdbc:mysql://localhost:3306/dam
       MYSQL_USERNAME: root
-      MYSQL_PASSWORD: 
+      MYSQL_PASSWORD:
       KEYCLOAK_URL: http://localhost:8081
       GOOGLE_ISSUE_URI: https://accounts.google.com
       GOOGLE_JWKS_URI: https://www.googleapis.com/oauth2/v3/certs
       AUTH_PROVIDER: keycloak
     steps:
-      # Check out the code from the repository
+      # Step 1: Checkout repository code
       - uses: actions/checkout@v4
 
-      # Install Docker Compose
+      # Step 2: Install Docker Compose and set up MySQL/Keycloak
       - name: Install Docker Compose
         run: |
           sudo apt-get update
           sudo apt-get install -y docker-compose
 
-      # Set up Docker Compose
       - name: Set up Docker Compose
         run: |
           docker-compose -f .github/docker-compose.yml up -d
 
-      # Wait for services
-      - name: Wait for MySQL and Keycloak
+      - name: Wait for MySQL and Keycloak to be ready
         run: |
           echo "Waiting for MySQL to be ready..."
           timeout 120s bash -c 'while ! mysqladmin ping -h127.0.0.1 --silent; do sleep 5; done'
@@ -51,16 +52,12 @@ jobs:
             echo "Waiting for Keycloak to be ready..."; sleep 5;
           done'
 
-      - name: Display Keycloak Logs
-        run: docker logs github_keycloak_1 || true
-
-      # Set up Java JDK 17
+      # Setup JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       # Import Keycloak Realm Configuration
       - name: Setup Keycloak Realm
         run: |
@@ -88,12 +85,10 @@ jobs:
             --data-binary "@src/main/resources/keycloak/realm-export.json"
 
           echo "Keycloak realm setup completed!"
-
-      # Grant execute permission for gradlew
+      # Build backend project with Gradle
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # Cache Gradle dependencies
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
         with:
@@ -102,22 +97,60 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Set up Gradle
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4.0.0
-
-      # Run Gradle build
       - name: Build with Gradle Wrapper
         run: ./gradlew build --stacktrace
 
-      # Run Tests and Capture Results
-      - name: Run Tests
-        run: ./gradlew test --stacktrace
+      # Bundle the build artifact (JAR) into a zip file
+      - name: Bundle backend build artifact
+        run: |
+          ls build/libs/
+          timestamp=$(date +'%Y-%m-%d-%H-%M')
+          zip -r "verlake-dam-backend-$timestamp.zip" build/libs/*.jar
 
-      # Publish Test Results
-      - name: Publish Test Results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: build/test-results/test
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Configure AWS CLI
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region ap-south-1
+      # Upload to AWS S3 using AWS Access and Secret keys
+      - name: Upload backend artifact to S3
+        run: |
+          timestamp=$(date +'%Y-%m-%d-%H-%M')
+          aws s3 cp "verlake-dam-backend-$timestamp.zip" s3://dam-bundle/ \
+            --region ap-south-1
+
+  notify_on_failure:
+    needs: backend_build
+    if: failure()  # Only runs if any of the previous jobs fail
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Configure AWS CLI
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region ap-south-1
+
+      - name: Send failure notification email using AWS SES
+        run: |
+          SUBJECT="Nightly Build Failure"
+          BODY="The nightly build for the backend has failed. Please check the logs for more details."
+          EMAIL_FROM="m_abhi@mindslake.com"  # Verified email address in SES
+          EMAIL_TO="abhinandanb@mindslake.com"  # Email to notify in case of failure
+
+          aws ses send-email \
+            --region ap-south-1 \
+            --from "$EMAIL_FROM" \
+            --destination "ToAddresses=$EMAIL_TO" \
+            --message "Subject={Data=$SUBJECT},Body={Text={Data=$BODY}}"

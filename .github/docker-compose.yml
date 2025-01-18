@@ -20,7 +20,7 @@ services:
     container_name: github_keycloak1
     environment:
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KEYCLOAK_ADMIN_PASSWORD: adminpassxyz
       KC_HEALTH_ENABLED: 'true'
       KC_METRICS_ENABLED: 'true'
       KC_FEATURES: "scripts"

@@ -1,36 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Console appender -->
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+    <property name="LOG_PATH" value="logs" />
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] %-40.40logger{39} : %msg%n%throwable" />
+
+    <!-- Console appender with ANSI colors -->
+    <appender name="consoleLog" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %d{yyyy-MM-dd HH:mm:ss} [%thread] %magenta(%-5level) %green([%-50.50class]) >>> %cyan(%msg) %n
+            </pattern>
+        </encoder>
     </appender>
 
-    <!-- File appender -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/application.log</file>
+    <!-- File appender with TimeBasedRollingPolicy (removes the %i pattern) -->
+    <appender name="fileLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/cms.log</file> <!-- Base log file name -->
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/application-%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>30</maxHistory>
+            <!-- Roll files based on date (daily rotation) -->
+            <fileNamePattern>${LOG_PATH}/cms.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory> <!-- Retain 30 days of logs -->
         </rollingPolicy>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
     </appender>
-
-    <!--    LOGSTASH Configuration-->
-<!--    <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">-->
-<!--        <destination>127.0.0.1:5044</destination>-->
-<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />-->
-<!--    </appender>-->
-
-    <!-- Logger configuration -->
-    <logger name="com.verlake.dam" level="DEBUG" additivity="false">
-        <appender-ref ref="CONSOLE" />
-        <appender-ref ref="FILE" />
-    </logger>
 
     <!-- Root logger -->
     <root level="INFO">
-        <appender-ref ref="CONSOLE" />
-        <appender-ref ref="FILE" />
-<!--        <appender-ref ref="LOGSTASH" />-->
+        <appender-ref ref="consoleLog" />
+        <appender-ref ref="fileLog" />
     </root>
+
+    <!-- Optional logger for your specific package (com.verlake.dam) -->
+    <logger name="com.verlake.dam" level="DEBUG" additivity="false">
+        <appender-ref ref="consoleLog" />
+        <appender-ref ref="fileLog" />
+    </logger>
 </configuration>

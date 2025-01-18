@@ -13,6 +13,7 @@ import com.verlake.dam.entity.TokenDto;
 import com.verlake.dam.entity.User;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.UserService;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class AuthController {
@@ -33,23 +34,22 @@ public class AuthController {
         tokenDto.setAuthorized(false);
         TokenService tokenService = tokenServiceManager.getService(authProvider);
         if (tokenService == null) {
-            tokenDto.setError(tokenDto.getAuthProvider() + " is unsupported auth provider");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(tokenDto);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, tokenDto.getAuthProvider() + " is unsupported auth provider");
         } else {
             if(tokenService.verifyToken(tokenDto.getToken())) {
                 String email = tokenService.getEmailFromToken(tokenDto.getToken());
                 User user = userService.findByEmail(email);
                 if (user != null) {
                     tokenDto.setAuthorized(true);
-                    tokenDto.setMessage("User logged in successfully");
                     return ResponseEntity.ok().body(tokenDto);
                 } else {
-                    tokenDto.setError("Email not registered");
-                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(tokenDto);
+                    throw new ResponseStatusException(
+                            HttpStatus.FORBIDDEN, "Email not registered");
                 }
             } else {
-                tokenDto.setError("Invalid " + authProvider + " token");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(tokenDto);
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "Invalid " + authProvider + " token");
             }
         }
     }
