@@ -1,5 +1,6 @@
 package com.verlake.dam.security;
 
+import com.verlake.dam.enums.Roles;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,7 +11,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -24,13 +24,10 @@ public class SecurityConfiguration {
     @Value("${google.oauth2.jwks-uri}")
     private String jwksUri;
 
-    private final KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter;
-    private final GoogleJwtAuthenticationConverter googleJwtAuthenticationConverter;
+    private final CustomJwtAuthenticationConverter jwtAuthenticationConverter;
 
-    public SecurityConfiguration(KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter,
-                                 GoogleJwtAuthenticationConverter googleJwtAuthenticationConverter) {
-        this.keycloakJwtAuthenticationConverter = keycloakJwtAuthenticationConverter;
-        this.googleJwtAuthenticationConverter = googleJwtAuthenticationConverter;
+    public SecurityConfiguration(CustomJwtAuthenticationConverter jwtAuthenticationConverter) {
+        this.jwtAuthenticationConverter = jwtAuthenticationConverter;
     }
 
     @Bean
@@ -40,7 +37,12 @@ public class SecurityConfiguration {
                 .cors(cors -> cors.disable()) // Disable CORS (optional, enable as per your requirements)
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/public/**", "/api/auth/verifyToken").permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Roles.ADMIN.name())
+                        .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Roles.DEVELOPER.name())
+                        .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Roles.APPROVER.name())
+                        .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Roles.AUDITOR.name())
+                        .requestMatchers("/api" + Roles.RESOURCE_OWNER.getAvailablePath()).hasAuthority(Roles.RESOURCE_OWNER.name())
+                        .anyRequest().denyAll()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Optional: Use stateless session
@@ -48,10 +50,9 @@ public class SecurityConfiguration {
                         .jwt(jwtConfig -> jwtConfig
                                 .jwtAuthenticationConverter(jwt -> {
                                     String issuer = jwt.getClaimAsString("iss");
-                                    if (keycloakIssuerUri.equals(issuer)) {
-                                        return keycloakJwtAuthenticationConverter.convert(jwt);
-                                    } else if (jwksUri.equals(issuer) || issuer.equals("https://accounts.google.com")) {
-                                        return googleJwtAuthenticationConverter.convert(jwt);
+                                    if (keycloakIssuerUri.equals(issuer) ||
+                                            jwksUri.equals(issuer) || issuer.equals("https://accounts.google.com")) {
+                                        return jwtAuthenticationConverter.convert(jwt);
                                     }
                                     throw new IllegalArgumentException("Unknown token issuer: " + issuer);
                                 })
@@ -68,4 +69,5 @@ public class SecurityConfiguration {
                 NimbusJwtDecoder.withJwkSetUri(jwksUri).build()
         );
     }
+
 }

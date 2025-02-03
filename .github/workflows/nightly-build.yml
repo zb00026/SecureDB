@@ -7,7 +7,14 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:  # Allows manual trigger of the workflow
+
+env:
+  GOOGLE_ISSUE_URI: https://accounts.google.com
+  GOOGLE_JWKS_URI: https://www.googleapis.com/oauth2/v3/certs
+  KEYCLOAK_URL: http://localhost:8081
 
 jobs:
   backend_build:
@@ -17,27 +24,49 @@ jobs:
     services:
       docker:
         image: docker:24.0
-    env:
-      MYSQL_URL: jdbc:mysql://localhost:3306/dam
-      MYSQL_USERNAME: root
-      MYSQL_PASSWORD:
-      KEYCLOAK_URL: http://localhost:8081
-      GOOGLE_ISSUE_URI: https://accounts.google.com
-      GOOGLE_JWKS_URI: https://www.googleapis.com/oauth2/v3/certs
-      AUTH_PROVIDER: keycloak
+    outputs:
+      timestamp: ${{ steps.timestamp_output.outputs.timestamp }}
     steps:
-      # Step 1: Checkout repository code
+      # Checkout repository code
       - uses: actions/checkout@v4
 
-      # Step 2: Install Docker Compose and set up MySQL/Keycloak
-      - name: Install Docker Compose
+      - name: Load .env variables
+        run: |
+          # Load the .env file
+          set -o allexport
+          source .env
+          set +o allexport
+          # Save the variables to GITHUB_ENV
+          echo "AUTH_PROVIDER=$AUTH_PROVIDER" >> $GITHUB_ENV
+          echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
+          echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
+          echo "KEYCLOAK_ADMIN_USER_PASSWORD=$KEYCLOAK_ADMIN_USER_PASSWORD" >> $GITHUB_ENV
+          echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
+          echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
+          echo "MYSQL_PASSWORD=$MYSQL_PASSWORD" >> $GITHUB_ENV
+          echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
+          echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
+          
+
+      - name: Set timestamp variable
+        id: timestamp
+        run: echo "timestamp=$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_ENV
+
+      # Set timestamp as output for the next job
+      - name: Set timestamp as output for next job
+        id: timestamp_output
+        run: echo "timestamp=${{ env.timestamp }}" >> "$GITHUB_OUTPUT"
+
+      # Install Docker Compose and set up MySQL/Keycloak
+      - name: Install Docker Compose and AWS CLI
         run: |
           sudo apt-get update
-          sudo apt-get install -y docker-compose
+          sudo apt-get install -y docker-compose python3 python3-pip
+          sudo pip3 install awscli --upgrade --user
 
       - name: Set up Docker Compose
         run: |
-          docker-compose -f .github/docker-compose.yml up -d
+          docker-compose --env-file .env -f .github/docker-compose.yml up -d
 
       - name: Wait for MySQL and Keycloak to be ready
         run: |
@@ -48,7 +77,7 @@ jobs:
       - name: Wait for Keycloak to be ready
         run: |
           echo "Waiting for Keycloak to be ready..."
-          timeout 120s bash -c 'until curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/realms/master | grep -q "200"; do
+          timeout 120s bash -c 'until curl -s -o /dev/null -w "%{http_code}" ${{ env.KEYCLOAK_URL }}/realms/master | grep -q "200"; do
             echo "Waiting for Keycloak to be ready..."; sleep 5;
           done'
 
@@ -62,10 +91,10 @@ jobs:
       - name: Setup Keycloak Realm
         run: |
           echo "Fetching admin token..."
-          TOKEN=$(curl -s -X POST http://localhost:8081/realms/master/protocol/openid-connect/token \
+          TOKEN=$(curl -s -X POST ${{ env.KEYCLOAK_URL }}/realms/master/protocol/openid-connect/token \
             -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "username=admin" \
-            -d "password=adminpassxyz" \
+            -d "username=${{ env.KEYCLOAK_ADMIN_USERNAME }}" \
+            -d "password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }}" \
             -d "grant_type=password" \
             -d "client_id=admin-cli" | jq -r '.access_token')
 
@@ -79,7 +108,7 @@ jobs:
 
           # Create Keycloak realm
           echo "Setting up Keycloak realm..."
-          curl -s -X POST http://localhost:8081/admin/realms \
+          curl -s -X POST ${{ env.KEYCLOAK_URL }}/admin/realms \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             --data-binary "@src/main/resources/keycloak/realm-export.json"
@@ -98,19 +127,14 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Build with Gradle Wrapper
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build --stacktrace -Dspring-boot.run.profiles=dev
 
       # Bundle the build artifact (JAR) into a zip file
       - name: Bundle backend build artifact
         run: |
           ls build/libs/
-          timestamp=$(date +'%Y-%m-%d-%H-%M')
-          zip -r "verlake-dam-backend-$timestamp.zip" build/libs/*.jar
+          zip -r "${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" build/libs/*.jar
 
-      - name: Install AWS CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
 
       - name: Configure AWS CLI
         run: |
@@ -120,8 +144,7 @@ jobs:
       # Upload to AWS S3 using AWS Access and Secret keys
       - name: Upload backend artifact to S3
         run: |
-          timestamp=$(date +'%Y-%m-%d-%H-%M')
-          aws s3 cp "verlake-dam-backend-$timestamp.zip" s3://dam-bundle/ \
+          aws s3 cp "${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" s3://${{ env.S3_BUCKET_NAME }}/ \
             --region ap-south-1
 
   notify_on_failure:
@@ -134,7 +157,8 @@ jobs:
       - name: Install AWS CLI
         run: |
           sudo apt-get update
-          sudo apt-get install -y awscli
+          sudo apt-get install -y python3 python3-pip
+          sudo pip3 install awscli --upgrade --user
 
       - name: Configure AWS CLI
         run: |
@@ -154,3 +178,65 @@ jobs:
             --from "$EMAIL_FROM" \
             --destination "ToAddresses=$EMAIL_TO" \
             --message "Subject={Data=$SUBJECT},Body={Text={Data=$BODY}}"
+
+  deploy_to_ec2:
+   needs: backend_build
+   if: success()
+   runs-on: ubuntu-latest
+   steps:
+     - name: Checkout repository
+       uses: actions/checkout@v4
+
+     - name: Set environment variable
+       run: |
+         echo "timestamp=$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_ENV
+
+     - name: Load .env variables
+       run: |
+         # Load the .env file
+         set -o allexport
+         source .env
+         set +o allexport
+         # Save the variables to GITHUB_ENV
+         echo "HOST_DOMAIN=$HOST_DOMAIN" >> $GITHUB_ENV
+         echo "HOST_IP_ADDRESS=$HOST_IP_ADDRESS" >> $GITHUB_ENV
+         echo "HOST_USER=$HOST_USER" >> $GITHUB_ENV
+         echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
+         echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
+         echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
+         echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
+         echo "MYSQL_PASSWORD=$MYSQL_PASSWORD" >> $GITHUB_ENV
+         echo "MYSQL_DB_NAME=$MYSQL_DB_NAME" >> $GITHUB_ENV
+         echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
+         echo "KEYCLOAK_ADMIN_USER_PASSWORD=$KEYCLOAK_ADMIN_USER_PASSWORD" >> $GITHUB_ENV
+         echo "KEYCLOAK_CLIENT_SECRET=$KEYCLOAK_CLIENT_SECRET" >> $GITHUB_ENV
+         echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
+
+     - name: Update and install Ansible
+       run: |
+         sudo apt-get update
+         sudo apt-get install -y ansible
+
+     - name: Set up SSH for EC2
+       run: |
+         mkdir -p ~/.ssh
+         echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+         chmod 600 ~/.ssh/id_rsa
+         ssh-keyscan -H ${{ env.HOST_DOMAIN }} >> ~/.ssh/known_hosts
+
+     - name: Generate inventory.ini from template
+       run: |
+         export HOST_DOMAIN=${{ env.HOST_DOMAIN }}
+         export HOST_USER=${{ env.HOST_USER }}
+         envsubst < ansible/inventory.ini.j2 > ansible/inventory.ini
+         cat ansible/inventory.ini
+
+     - name: Upload realm-export.json to EC2
+       run: |
+         scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_DOMAIN }}:/tmp/realm-export.json
+
+     - name: Deploy to EC2 using Ansible
+       run: |
+         ansible-playbook -i ansible/inventory.ini ansible/mysql_install.yml -e "db_name=${{ env.MYSQL_DB_NAME }} db_password=${{ env.MYSQL_PASSWORD }}"
+         ansible-playbook -i ansible/inventory.ini ansible/keycloak_install.yml -e "host_domain=${{ env.HOST_DOMAIN }} ec2_ip=${{ env.HOST_IP_ADDRESS }} s3_bucket=${{ env.S3_BUCKET_NAME }} keycloak_admin_user=${{ env.KEYCLOAK_ADMIN_USERNAME }} keycloak_admin_password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }} keycloak_client_secret=${{ env.KEYCLOAK_CLIENT_SECRET }} realm_name=${{ env.KEYCLOAK_REALM_NAME }}"
+         ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"

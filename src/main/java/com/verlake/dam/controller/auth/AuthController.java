@@ -42,6 +42,7 @@ public class AuthController {
                 User user = userService.findByEmail(email);
                 if (user != null) {
                     tokenDto.setAuthorized(true);
+                    tokenDto.setUser(user);
                     return ResponseEntity.ok().body(tokenDto);
                 } else {
                     throw new ResponseStatusException(

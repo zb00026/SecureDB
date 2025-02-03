@@ -1,25 +1,37 @@
-package com.verlake.dam.controller;
+package com.verlake.dam.controller.admin;
 
+import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.User;
-import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
+import com.verlake.dam.service.KeycloakService;
 import com.verlake.dam.utils.Constants;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/admin/users")
 public class UserController {
 
     private final UserRepository userRepository;
 
-    public UserController(UserRepository userRepository) {
+    private final RoleRepository roleRepository;
+
+    @Autowired
+    private KeycloakService keycloakService;
+
+    @Value("${auth.provider}")
+    private String authProvider;
+
+    public UserController(UserRepository userRepository, RoleRepository roleRepository) {
+        this.roleRepository = roleRepository;
         this.userRepository = userRepository;
     }
 
@@ -41,9 +53,16 @@ public class UserController {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
-
+        if(authProvider.equals("keycloak")) {
+            keycloakService.createUser(user.getEmail(),
+                    user.getEmail(),
+                    user.getName(),
+                    user.getName(),
+                    user.getPassword());
+        }
         // Save the new user
         User createdUser = userRepository.save(user);
+
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
     }
@@ -54,6 +73,22 @@ public class UserController {
                 .map(user -> {
                     user.setName(userDetails.getName());
                     user.setEmail(userDetails.getEmail());
+                    if (userDetails.getRoles() != null && !userDetails.getRoles().isEmpty()) {
+                        Set<Long> roleIds = userDetails.getRoles().stream()
+                                .map(Role::getId)
+                                .collect(Collectors.toSet());
+
+                        // Fetch roles from the database
+                        Set<Role> roles = new HashSet<>(roleRepository.findAllById(roleIds));
+
+                        // Ensure all requested roles exist
+                        if (roles.size() != roleIds.size()) {
+                            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "One or more roles not found");
+                        }
+
+                        // Assign new roles to user
+                        user.setRoles(roles);
+                    }
                     return userRepository.save(user);
                 })
                 .orElseThrow(() -> new ResponseStatusException(

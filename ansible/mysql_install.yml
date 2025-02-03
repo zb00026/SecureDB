@@ -1,0 +1,116 @@
+---
+- name: Install MySQL server on EC2 instance
+  hosts: ec2
+  become: true
+  vars:
+    mysql_rpm_url: "https://dev.mysql.com/get/mysql80-community-release-el9-3.noarch.rpm"
+    mysql_rpm_file: "mysql80-community-release-el9-3.noarch.rpm"
+
+  tasks:
+
+    - name: Update EC2 system packages
+      dnf:
+        name: "*"
+        state: latest
+    - name: Install required packages
+      dnf:
+        name:
+          - java-17-amazon-corretto
+          - nginx
+          - aws-cli
+          - python3
+          - python3-pip
+        state: present
+
+    ######## Install and configure MySQL ########
+
+    - name: Check if MySQL service is running
+      systemd:
+        name: mysqld
+        state: started
+      register: mysql_service
+      ignore_errors: yes
+
+    - name: Check if MySQL 8.0 repository RPM is already downloaded
+      stat:
+        path: "{{ mysql_rpm_file }}"
+      register: mysql_rpm_check
+      when: mysql_service.failed
+
+    - name: Download MySQL 8.0 repository RPM if not present
+      shell:
+        wget "{{ mysql_rpm_url }}" -O "{{ mysql_rpm_file }}"
+      when: mysql_service.failed and mysql_rpm_check.stat.exists == False
+      register: mysql_rpm_download
+
+    - name: Install MySQL 8.0 repository RPM
+      when: mysql_service.failed and (mysql_rpm_check.stat.exists or mysql_rpm_download.changed)
+      shell: |
+        sudo dnf install mysql80-community-release-el9-3.noarch.rpm -y
+
+    - name: Import MySQL GPG key
+      when: mysql_service.failed
+      shell: |
+        sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
+
+    - name: Install MySQL server if not installed
+      dnf:
+        name: mysql-community-server
+        state: present
+      when: mysql_service.failed  # Only install if the service is not running
+
+    - name: Ensure MySQL is started and enabled
+      systemd:
+        name: mysqld
+        state: started
+        enabled: yes
+      when: mysql_service.failed  # Only start and enable if MySQL is newly installed
+
+    - name: Install PyMySQL
+      pip:
+        name: PyMySQL
+        executable: pip3
+
+    - name: Get the temporary MySQL root password
+      shell: |
+        sudo grep 'temporary password' /var/log/mysqld.log | tail -n 1 | awk '{print $NF}'
+      register: mysql_temp_password
+      changed_when: false
+
+    - name: Set MySQL root password if MySQL is newly installed
+      mysql_user:
+        name: root
+        password: "{{ db_password }}"
+        login_user: root
+        login_password: "{{ mysql_temp_password.stdout }}"
+        state: present
+      when: mysql_temp_password.stdout  # Only set if MySQL is newly installed and temp password exists
+      ignore_errors: yes
+
+    - name: Check if MySQL root password has expired
+      shell: |
+        mysql -u root -p'{{ mysql_temp_password.stdout }}' --connect-expired-password -e "SELECT user, host, password_expired FROM mysql.user WHERE user='root';"
+      register: password_expired_check
+      when: mysql_temp_password.stdout
+      ignore_errors: yes
+
+    - name: Set new password if expired
+      shell: |
+        sudo mysql -u root --password="{{ mysql_temp_password.stdout }}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ db_password }}';" --connect-expired-password
+      ignore_errors: yes
+
+    - name: Check if the database exists
+      shell: |
+        mysql -u root --password='{{ db_password }}' -e "SHOW DATABASES LIKE '{{ db_name }}';"
+      register: db_check
+      ignore_errors: yes
+      failed_when: false
+
+    - name: Create database if it does not exist
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_user: root
+        login_password: "{{ db_password }}"
+      ignore_errors: yes
+

@@ -1,0 +1,94 @@
+---
+- name: Deploy Backend on EC2 Instance
+  hosts: ec2
+  become: true
+  tasks:
+    - name: Install boto3 and botocore Python libraries
+      pip:
+        name:
+          - boto3
+          - botocore
+        state: latest
+
+    - name: Printing backend artifact
+      shell:
+        echo "{{ backend_artifact }}"
+
+    - name: Ensure the backend directory exists
+      file:
+        path: "/var/www"
+        state: directory
+        mode: '0770'
+
+    - name: Ensure the backend directory exists
+      file:
+        path: "/var/www/backend"
+        state: directory
+        mode: '0770'
+
+    - name: Stop any existing Java processes
+      shell: |
+        pkill -f 'java -jar /var/www/backend/build/libs/DAM-0.0.1-SNAPSHOT.jar'
+        sudo systemctl stop dam-backend
+      ignore_errors: yes
+
+    - name: Download the latest backend artifact from S3tail
+      aws_s3:
+        bucket: "{{ s3_bucket }}"
+        object: "{{ backend_artifact }}"
+        dest: "/tmp/{{ backend_artifact }}"
+        mode: get
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "ap-south-1"
+
+    - name: Unzip backend artifact
+      unarchive:
+        src: "/tmp/{{ backend_artifact }}"
+        dest: "/var/www/backend"
+        remote_src: yes
+
+    - name: Install DAM Backend service
+      shell: |
+        
+        sudo chown -R /var/www/backend
+        sudo chown -R /var/www/backend/build/libs
+
+        sudo systemctl stop dam_backend
+
+        # Create a service file for DAM Backend
+        echo "[Unit]
+          Description=Spring Boot Application
+          After=syslog.target
+          After=network.target
+
+          [Service]
+          User=ec2-user
+          WorkingDirectory=/var/www/backend
+          ExecStart=/usr/bin/java -jar /var/www/backend/build/libs/DAM-0.0.1-SNAPSHOT.jar -Dspring.profiles.active=prod
+          SuccessExitStatus=143
+          TimeoutStopSec=10
+          Restart=always
+          RestartSec=10
+          StandardOutput=syslog
+          StandardError=syslog
+
+          [Install]
+          WantedBy=multi-user.target" | sudo tee /etc/systemd/system/dam_backend.service > /dev/null
+
+        # Reload systemd to apply the service
+        sudo systemctl daemon-reload
+        sudo systemctl enable dam_backend
+
+        # Start Keycloak service
+        sudo systemctl start dam_backend
+
+
+        echo "DAM Backend Service is ready."
+      ignore_errors: yes
+      register: dam_backend_service
+
+    - name: Debug DAM Backend Service status
+      debug:
+        msg: "DAM Backend Service: {{ dam_backend_service.stdout }}"
+      when: dam_backend_service.stdout is defined

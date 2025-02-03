@@ -7,5 +7,6 @@ import lombok.Data;
 public class TokenDto {
     private String token;
     private AuthProvider authProvider;
+    private User user;
     private boolean isAuthorized;
 }

@@ -1,0 +1,82 @@
+---
+- name: Configure HTTPS on EC2 Instance for Keycloak and Frontend
+  hosts: ec2
+  become: true
+  vars:
+    keycloak_port: 8081
+    frontend_port: 443
+    https_keycloak_port: 8443
+
+  tasks:
+    # Update and install required packages
+    - name: Update system packages
+      dnf:
+        name: "*"
+        state: latest
+
+    - name: Install required packages
+      dnf:
+        name:
+          - nginx
+          - openssl
+        state: present
+
+
+    # Configure Nginx for Frontend and Keycloak
+    - name: Configure Nginx
+      copy:
+        dest: /etc/nginx/nginx.conf
+        content: |
+          user nginx;
+          worker_processes auto;
+          error_log /var/log/nginx/error.log;
+          pid /run/nginx.pid;
+
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              include       /etc/nginx/mime.types;
+              default_type  application/octet-stream;
+
+
+              # Redirect HTTP traffic to HTTPS
+              server {
+                  listen 80;
+                   server_name _;
+                   root /var/www/frontend;
+                   
+                   location / {
+                   try_files \$uri \$uri/ /index.html;
+                   index index.html;
+                   }
+              }
+          }
+
+    # Restart Nginx
+    - name: Restart and enable Nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: true
+
+    # Ensure Keycloak service is running
+    - name: Ensure Keycloak is running
+      shell: |
+        systemctl is-active --quiet keycloak || systemctl start keycloak
+      register: keycloak_status
+      changed_when: keycloak_status.rc == 0
+
+    # Open required ports in firewall
+    - name: Open HTTPS port for frontend
+      shell: |
+        firewall-cmd --permanent --add-port={{ frontend_port }}/tcp
+        firewall-cmd --reload
+      ignore_errors: true
+
+    - name: Open HTTPS port for Keycloak
+      shell: |
+        firewall-cmd --permanent --add-port={{ https_keycloak_port }}/tcp
+        firewall-cmd --reload
+      ignore_errors: true

@@ -4,8 +4,8 @@ services:
     image: mysql:8.0
     container_name: github_mysql1
     environment:
-      MYSQL_DATABASE: dam
-      MYSQL_ROOT_PASSWORD: ''
+      MYSQL_DATABASE: "${MYSQL_DB_NAME}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_PASSWORD}"
       MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
     ports:
       - "3306:3306"
@@ -19,8 +19,8 @@ services:
     image: quay.io/keycloak/keycloak:latest
     container_name: github_keycloak1
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: adminpassxyz
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN_USERNAME}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_USER_PASSWORD}"
       KC_HEALTH_ENABLED: 'true'
       KC_METRICS_ENABLED: 'true'
       KC_FEATURES: "scripts"
