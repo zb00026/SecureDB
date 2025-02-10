@@ -1,6 +1,7 @@
 package com.verlake.dam.service;
 
 
+import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.OAuth2Constants;
@@ -21,7 +22,7 @@ import java.util.Arrays;
 
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "auth.provider", havingValue = "keycloak")
+@ConditionalOnAuthProviderParam(field = "auth.provider", containProvider = "keycloak")
 public class KeycloakService {
 
     private final String authServerUrl;

@@ -2,6 +2,7 @@ package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.User;
+import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.service.KeycloakService;
@@ -24,7 +25,7 @@ public class UserController {
 
     private final RoleRepository roleRepository;
 
-    @Autowired
+    @Autowired(required = false)
     private KeycloakService keycloakService;
 
     @Value("${auth.provider}")
@@ -53,7 +54,7 @@ public class UserController {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
-        if(authProvider.equals("keycloak")) {
+        if(authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
             keycloakService.createUser(user.getEmail(),
                     user.getEmail(),
                     user.getName(),

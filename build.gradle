@@ -21,6 +21,7 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web:3.+'
 	implementation 'org.springframework.boot:spring-boot-devtools:3.+'
+	implementation 'org.springframework.boot:spring-boot-autoconfigure:3.+'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test:3.+'
 	implementation 'org.springframework.boot:spring-boot-starter-logging:3.+'
 	implementation 'org.liquibase:liquibase-core:4.+'
@@ -36,6 +37,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server:3.+'
 	implementation 'org.springframework.security:spring-security-oauth2-jose:6.+'
 	implementation 'org.projectlombok:lombok:1.+'
+	implementation 'me.paulschwarz:spring-dotenv:4.+'
 	implementation 'io.github.cdimascio:dotenv-java:3.+'
 	testImplementation 'org.testcontainers:testcontainers:1.+'
 	testImplementation 'org.testcontainers:junit-jupiter:1.11.4'

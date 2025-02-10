@@ -1,5 +1,6 @@
 package com.verlake.dam.service.impl;
 
+import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.TokenService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -9,7 +10,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
-@ConditionalOnProperty(name = "auth.provider", havingValue = "keycloak")
+@ConditionalOnAuthProviderParam(field = "auth.provider", containProvider = "keycloak")
 public class KeycloakTokenService implements TokenService {
     
     private final JwtDecoder jwtDecoder;

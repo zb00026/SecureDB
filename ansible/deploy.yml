@@ -16,19 +16,23 @@
 
     - name: Ensure the backend directory exists
       file:
-        path: "/var/www"
+        path: "/var/spring_backend"
         state: directory
         mode: '0770'
+        owner: "{{ host_user }}"
+        group: "{{ host_user }}"
 
     - name: Ensure the backend directory exists
       file:
-        path: "/var/www/backend"
+        path: "/var/spring_backend/backend"
         state: directory
         mode: '0770'
+        owner: "{{ host_user }}"
+        group: "{{ host_user }}"
 
     - name: Stop any existing Java processes
       shell: |
-        pkill -f 'java -jar /var/www/backend/build/libs/DAM-0.0.1-SNAPSHOT.jar'
+        pkill -f 'java -jar /var/spring_backend/backend/DAM-0.0.1-SNAPSHOT.jar'
         sudo systemctl stop dam-backend
       ignore_errors: yes
 
@@ -45,33 +49,31 @@
     - name: Unzip backend artifact
       unarchive:
         src: "/tmp/{{ backend_artifact }}"
-        dest: "/var/www/backend"
+        dest: "/var/spring_backend/backend"
         remote_src: yes
 
     - name: Install DAM Backend service
       shell: |
         
-        sudo chown -R /var/www/backend
-        sudo chown -R /var/www/backend/build/libs
+        sudo chown -R /var/spring_backend/backend
 
         sudo systemctl stop dam_backend
 
         # Create a service file for DAM Backend
         echo "[Unit]
-          Description=Spring Boot Application
+          Description=Spring Boot DAM Backend Application
           After=syslog.target
           After=network.target
 
           [Service]
-          User=ec2-user
-          WorkingDirectory=/var/www/backend
-          ExecStart=/usr/bin/java -jar /var/www/backend/build/libs/DAM-0.0.1-SNAPSHOT.jar -Dspring.profiles.active=prod
+          User={{ host_user }}
+          Group={{ host_user }}
+          WorkingDirectory=/var/spring_backend/backend
+          ExecStart=/usr/bin/java -jar /var/spring_backend/backend/DAM-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
           SuccessExitStatus=143
           TimeoutStopSec=10
           Restart=always
           RestartSec=10
-          StandardOutput=syslog
-          StandardError=syslog
 
           [Install]
           WantedBy=multi-user.target" | sudo tee /etc/systemd/system/dam_backend.service > /dev/null

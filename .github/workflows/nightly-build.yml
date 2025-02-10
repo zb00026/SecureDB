@@ -132,8 +132,12 @@ jobs:
       # Bundle the build artifact (JAR) into a zip file
       - name: Bundle backend build artifact
         run: |
-          ls build/libs/
-          zip -r "${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" build/libs/*.jar
+          ls -la
+          cp .env build/libs/
+          cd build/libs/
+          ls -la
+          zip -r "../../${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" ./* .env
+          cd ../..
 
 
       - name: Configure AWS CLI
@@ -239,4 +243,4 @@ jobs:
        run: |
          ansible-playbook -i ansible/inventory.ini ansible/mysql_install.yml -e "db_name=${{ env.MYSQL_DB_NAME }} db_password=${{ env.MYSQL_PASSWORD }}"
          ansible-playbook -i ansible/inventory.ini ansible/keycloak_install.yml -e "host_domain=${{ env.HOST_DOMAIN }} ec2_ip=${{ env.HOST_IP_ADDRESS }} s3_bucket=${{ env.S3_BUCKET_NAME }} keycloak_admin_user=${{ env.KEYCLOAK_ADMIN_USERNAME }} keycloak_admin_password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }} keycloak_client_secret=${{ env.KEYCLOAK_CLIENT_SECRET }} realm_name=${{ env.KEYCLOAK_REALM_NAME }}"
-         ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"
+         ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} host_user=${{ env.HOST_USER }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"

@@ -1,5 +1,6 @@
 package com.verlake.dam.service.impl;
 
+import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.TokenService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -10,7 +11,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.Map;
 
 @Service
-@ConditionalOnProperty(name = "auth.provider", havingValue = "google")
+@ConditionalOnAuthProviderParam(field = "auth.provider", containProvider = "google")
 public class GoogleTokenService implements TokenService {
     private static final String GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo";
 
