@@ -1,0 +1,70 @@
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <!-- Create the roles table -->
+    <changeSet id="1" author="admin">
+        <createTable tableName="emails">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="email_to" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email_type" type="ENUM('INVITATION', 'OTHER')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="subject" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="metadata" type="json">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sent_at" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Modify the users table to replace the name field with first_name and last_name -->
+    <changeSet id="2" author="admin">
+        <addColumn tableName="users">
+            <column name="first_name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_name" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <dropColumn tableName="users" columnName="name"/>
+    </changeSet>
+
+    <!-- Update users table for email invitation -->
+    <changeSet id="3" author="admin">
+        <addColumn tableName="users">
+            <column name="is_active" type="bool"/>
+        </addColumn>
+        <addColumn tableName="users">
+            <column name="invite_email_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="users"
+                                 baseColumnNames="invite_email_id"
+                                 constraintName="fk_user_invite_email"
+                                 referencedTableName="emails"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="4" author="admin">
+        <update tableName="users" >
+            <column name="is_active" value="1"/>
+            <column name="first_name" value="Admin"/>
+            <column name="last_name" value="Admin"/>
+            <where>`id` = 1</where>
+        </update>
+    </changeSet>
+</databaseChangeLog>

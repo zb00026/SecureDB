@@ -135,7 +135,7 @@
 
     - name: Check if DAM admin user exists in Keycloak
       shell: |
-        curl -s -X GET {{ local_keycloak_url }}/realms/{{ realm_name }}/users -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/response.json
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/response.json
         jq '.[] | select(.username=="admin") | .username' /tmp/response.json
       register: admin_user_check
       failed_when: false
@@ -149,12 +149,16 @@
 
     - name: Create DAM admin user if not exist in Keycloak
       shell: |
-        curl -s -X POST {{ local_keycloak_url }}/realms/{{ realm_name }}/users \
+        curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users \
         -H "Authorization: Bearer {{ keycloak_token.stdout }}" \
         -d '{{ keycloak_user_data }}' -H 'Content-Type: application/json'
       when: admin_user_check is defined and admin_user_check.stdout == ""
       register: create_user_response
 
+    - name: Creating Default DAM Realm Admin User result
+      debug:
+        msg: "DAM Admin User Exist: {{ admin_user_check.stdout }}"
+      when: admin_user_check is defined
 
     - name: Ignore Keycloak HTTPS service
       shell: |

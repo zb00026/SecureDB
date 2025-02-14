@@ -2,9 +2,11 @@ package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.User;
+import com.verlake.dam.entity.UserDto;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
+import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.KeycloakService;
 import com.verlake.dam.utils.Constants;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +30,9 @@ public class UserController {
     @Autowired(required = false)
     private KeycloakService keycloakService;
 
+    @Autowired
+    private EmailService emailService;
+
     @Value("${auth.provider}")
     private String authProvider;
 
@@ -48,31 +53,53 @@ public class UserController {
                         HttpStatus.NOT_FOUND, "User ID " + id + " does not exist"));
     }
 
+    @PostMapping("/createUserAndSendInvite")
+    public ResponseEntity<Object> createUserAndSendInvite(@RequestBody UserDto userDto) {
+        User user = userDto.getUser();
+        AuthProvider userAuthProvider = userDto.getAuthProvider();
+        if (userRepository.existsByEmail(user.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
+        }
+        if (userAuthProvider == AuthProvider.KEYCLOAK) {
+            keycloakService.createUser(user.getEmail(), user.getEmail(),
+                    user.getFirstName(),
+                    user.getLastName(),
+                    user.getPassword(), true);
+        }
+        user.setIsActive(false);
+        userRepository.save(user);
+        String emailTmplFile = "google-invite";
+        if (userAuthProvider == AuthProvider.KEYCLOAK) {
+            emailTmplFile = "keycloak-invite";
+        }
+        emailService.sendInvitationEmail(user, emailTmplFile);
+        return ResponseEntity.status(HttpStatus.OK).body(user);
+    }
+
     @PostMapping
-    public ResponseEntity<Object> createUser(@RequestBody User user) {
+    public User createUser(@RequestBody User user) {
 
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
-        if(authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
+        if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
             keycloakService.createUser(user.getEmail(),
                     user.getEmail(),
-                    user.getName(),
-                    user.getName(),
-                    user.getPassword());
+                    user.getFirstName(),
+                    user.getLastName(),
+                    user.getPassword(), false);
         }
         // Save the new user
-        User createdUser = userRepository.save(user);
-
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
+        user.setIsActive(true);
+        return userRepository.save(user);
     }
 
     @PutMapping("/{id}")
     public User updateUser(@PathVariable Long id, @RequestBody User userDetails) {
         return userRepository.findById(id)
                 .map(user -> {
-                    user.setName(userDetails.getName());
+                    user.setFirstName(userDetails.getFirstName());
+                    user.setLastName(userDetails.getLastName());
                     user.setEmail(userDetails.getEmail());
                     if (userDetails.getRoles() != null && !userDetails.getRoles().isEmpty()) {
                         Set<Long> roleIds = userDetails.getRoles().stream()

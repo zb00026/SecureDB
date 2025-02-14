@@ -14,8 +14,11 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String name;
+    @Column(name="first_name", nullable = false)
+    private String firstName;
+
+    @Column(name="last_name", nullable = false)
+    private String lastName;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -30,4 +33,11 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<Role> roles = new HashSet<>();
+
+    @ManyToOne
+    @JoinColumn(name = "invite_email_id")
+    private Email inviteEmail;
+
+    @Column(name="is_active")
+    private Boolean isActive;
 }

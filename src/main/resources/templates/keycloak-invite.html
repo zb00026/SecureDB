@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Invitation</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+<div style="background-color: #f7f7f7; padding: 20px;">
+    <h2 style="color: #4CAF50;">Welcome to Our Application!</h2>
+    <p>Dear <strong th:text="${userName}"></strong>,</p>
+    <p>We are excited to have you on board. Please click the link below to activate your account:</p>
+    <a th:href="@{${redirectLink}}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Activate Account</a>
+    <p style="margin-top: 10px">You can log in with this temporary password: <span style="color: #a0a0a0; font-size: 14px; font-weight: bold;" th:text="${tempPassword}"></span> </p>
+    <p style="margin-top: 10px; color: #a0a0a0;">If you didn’t request this, please ignore this email.</p>
+    <p style="margin-top: 10px;">Best Regards, <br> The Team</p>
+</div>
+</body>
+</html>

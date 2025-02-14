@@ -42,7 +42,7 @@ public class KeycloakService {
     }
 
     // Method to create a new user in Keycloak
-    public void createUser(String username, String email, String firstName, String lastName, String password) {
+    public void createUser(String username, String email, String firstName, String lastName, String password, boolean isTemporaryPsd) {
         Keycloak keycloak = KeycloakBuilder.builder()
                 .serverUrl(authServerUrl)
                 .realm(realmName)
@@ -64,7 +64,7 @@ public class KeycloakService {
         CredentialRepresentation credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(password);
-        credential.setTemporary(false);  // Temporary is false since this is the user's permanent password
+        credential.setTemporary(isTemporaryPsd);
 
         user.setCredentials(Arrays.asList(credential));  // Set the credentials (password) for the user
 

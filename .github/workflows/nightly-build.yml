@@ -15,6 +15,8 @@ env:
   GOOGLE_ISSUE_URI: https://accounts.google.com
   GOOGLE_JWKS_URI: https://www.googleapis.com/oauth2/v3/certs
   KEYCLOAK_URL: http://localhost:8081
+  HOST_DOMAIN_URI: http://localhost
+  MAIL_SENDER: test@dam.com
 
 jobs:
   backend_build:
@@ -38,15 +40,19 @@ jobs:
           set +o allexport
           # Save the variables to GITHUB_ENV
           echo "AUTH_PROVIDER=$AUTH_PROVIDER" >> $GITHUB_ENV
+          echo "HOST_REGION=$HOST_REGION" >> $GITHUB_ENV
           echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
           echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
-          echo "KEYCLOAK_ADMIN_USER_PASSWORD=$KEYCLOAK_ADMIN_USER_PASSWORD" >> $GITHUB_ENV
           echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
           echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
-          echo "MYSQL_PASSWORD=$MYSQL_PASSWORD" >> $GITHUB_ENV
           echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
           echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
-          
+          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "MAIL_SENDER=${{ secrets.MAIL_SENDER }}" >> $GITHUB_ENV
+          echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> $GITHUB_ENV
+          echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> $GITHUB_ENV
 
       - name: Set timestamp variable
         id: timestamp
@@ -133,6 +139,14 @@ jobs:
       - name: Bundle backend build artifact
         run: |
           ls -la
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env
+          echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> .env
+          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> .env
+          echo "MAIL_SENDER=${{ secrets.MAIL_SENDER }}" >> .env
+          echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
+          echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
           cp .env build/libs/
           cd build/libs/
           ls -la
@@ -144,12 +158,12 @@ jobs:
         run: |
           aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set region ap-south-1
+          aws configure set region ${{ env.HOST_REGION }}
       # Upload to AWS S3 using AWS Access and Secret keys
       - name: Upload backend artifact to S3
         run: |
           aws s3 cp "${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" s3://${{ env.S3_BUCKET_NAME }}/ \
-            --region ap-south-1
+            --region ${{ env.HOST_REGION }}
 
   notify_on_failure:
     needs: backend_build
@@ -163,12 +177,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
           sudo pip3 install awscli --upgrade --user
+      - name: Load .env variables
+        run: |
+          # Load the .env file
+          set -o allexport
+          source .env
+          set +o allexport
+          # Save the variables to GITHUB_ENV
+          echo "HOST_REGION=$HOST_REGION" >> $GITHUB_ENV
 
       - name: Configure AWS CLI
         run: |
           aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set region ap-south-1
+          aws configure set region ${{ env.HOST_REGION }}
 
       - name: Send failure notification email using AWS SES
         run: |
@@ -178,69 +200,70 @@ jobs:
           EMAIL_TO="abhinandanb@mindslake.com"  # Email to notify in case of failure
 
           aws ses send-email \
-            --region ap-south-1 \
+            --region ${{ env.HOST_REGION }} \
             --from "$EMAIL_FROM" \
             --destination "ToAddresses=$EMAIL_TO" \
             --message "Subject={Data=$SUBJECT},Body={Text={Data=$BODY}}"
 
   deploy_to_ec2:
-   needs: backend_build
-   if: success()
-   runs-on: ubuntu-latest
-   steps:
-     - name: Checkout repository
-       uses: actions/checkout@v4
+    needs: backend_build
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-     - name: Set environment variable
-       run: |
-         echo "timestamp=$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_ENV
+      - name: Set environment variable
+        run: |
+          echo "timestamp=$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_ENV
 
-     - name: Load .env variables
-       run: |
-         # Load the .env file
-         set -o allexport
-         source .env
-         set +o allexport
-         # Save the variables to GITHUB_ENV
-         echo "HOST_DOMAIN=$HOST_DOMAIN" >> $GITHUB_ENV
-         echo "HOST_IP_ADDRESS=$HOST_IP_ADDRESS" >> $GITHUB_ENV
-         echo "HOST_USER=$HOST_USER" >> $GITHUB_ENV
-         echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
-         echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
-         echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
-         echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
-         echo "MYSQL_PASSWORD=$MYSQL_PASSWORD" >> $GITHUB_ENV
-         echo "MYSQL_DB_NAME=$MYSQL_DB_NAME" >> $GITHUB_ENV
-         echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
-         echo "KEYCLOAK_ADMIN_USER_PASSWORD=$KEYCLOAK_ADMIN_USER_PASSWORD" >> $GITHUB_ENV
-         echo "KEYCLOAK_CLIENT_SECRET=$KEYCLOAK_CLIENT_SECRET" >> $GITHUB_ENV
-         echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
+      - name: Load .env variables
+        run: |
+          # Load the .env file
+          set -o allexport
+          source .env
+          set +o allexport
+          # Save the variables to GITHUB_ENV
+          echo "HOST_DOMAIN=$HOST_DOMAIN" >> $GITHUB_ENV
+          echo "HOST_IP_ADDRESS=$HOST_IP_ADDRESS" >> $GITHUB_ENV
+          echo "HOST_USER=$HOST_USER" >> $GITHUB_ENV
+          echo "HOST_REGION=$HOST_REGION" >> $GITHUB_ENV
+          echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
+          echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
+          echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
+          echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
+          echo "MYSQL_DB_NAME=$MYSQL_DB_NAME" >> $GITHUB_ENV
+          echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
+          echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
+          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
 
-     - name: Update and install Ansible
-       run: |
-         sudo apt-get update
-         sudo apt-get install -y ansible
+      - name: Update and install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
 
-     - name: Set up SSH for EC2
-       run: |
-         mkdir -p ~/.ssh
-         echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-         chmod 600 ~/.ssh/id_rsa
-         ssh-keyscan -H ${{ env.HOST_DOMAIN }} >> ~/.ssh/known_hosts
+      - name: Set up SSH for EC2
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.HOST_DOMAIN }} >> ~/.ssh/known_hosts
 
-     - name: Generate inventory.ini from template
-       run: |
-         export HOST_DOMAIN=${{ env.HOST_DOMAIN }}
-         export HOST_USER=${{ env.HOST_USER }}
-         envsubst < ansible/inventory.ini.j2 > ansible/inventory.ini
-         cat ansible/inventory.ini
+      - name: Generate inventory.ini from template
+        run: |
+          export HOST_DOMAIN=${{ env.HOST_DOMAIN }}
+          export HOST_USER=${{ env.HOST_USER }}
+          envsubst < ansible/inventory.ini.j2 > ansible/inventory.ini
+          cat ansible/inventory.ini
 
-     - name: Upload realm-export.json to EC2
-       run: |
-         scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_DOMAIN }}:/tmp/realm-export.json
+      - name: Upload realm-export.json to EC2
+        run: |
+          scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_DOMAIN }}:/tmp/realm-export.json
 
-     - name: Deploy to EC2 using Ansible
-       run: |
-         ansible-playbook -i ansible/inventory.ini ansible/mysql_install.yml -e "db_name=${{ env.MYSQL_DB_NAME }} db_password=${{ env.MYSQL_PASSWORD }}"
-         ansible-playbook -i ansible/inventory.ini ansible/keycloak_install.yml -e "host_domain=${{ env.HOST_DOMAIN }} ec2_ip=${{ env.HOST_IP_ADDRESS }} s3_bucket=${{ env.S3_BUCKET_NAME }} keycloak_admin_user=${{ env.KEYCLOAK_ADMIN_USERNAME }} keycloak_admin_password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }} keycloak_client_secret=${{ env.KEYCLOAK_CLIENT_SECRET }} realm_name=${{ env.KEYCLOAK_REALM_NAME }}"
-         ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} host_user=${{ env.HOST_USER }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"
+      - name: Deploy to EC2 using Ansible
+        run: |
+          ansible-playbook -i ansible/inventory.ini ansible/mysql_install.yml -e "db_name=${{ env.MYSQL_DB_NAME }} db_password=${{ env.MYSQL_PASSWORD }}"
+          ansible-playbook -i ansible/inventory.ini ansible/keycloak_install.yml -e "host_domain=${{ env.HOST_DOMAIN }} ec2_ip=${{ env.HOST_IP_ADDRESS }} s3_bucket=${{ env.S3_BUCKET_NAME }} keycloak_admin_user=${{ env.KEYCLOAK_ADMIN_USERNAME }} keycloak_admin_password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }} keycloak_client_secret=${{ env.KEYCLOAK_CLIENT_SECRET }} realm_name=${{ env.KEYCLOAK_REALM_NAME }}"
+          ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} host_user=${{ env.HOST_USER }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"

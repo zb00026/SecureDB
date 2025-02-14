@@ -25,7 +25,10 @@ class DamApplicationTests {
 				() -> System.getenv("AUTH_PROVIDER"));
 		registry.add("keycloak.auth-server-url",
 				() -> System.getenv("KEYCLOAK_URL"));
-
+		registry.add("HOST_DOMAIN_URI",
+				() -> System.getenv("HOST_DOMAIN_URI"));
+		registry.add("MAIL_SENDER",
+				() -> System.getenv("MAIL_SENDER"));
 	}
 
 	@Test

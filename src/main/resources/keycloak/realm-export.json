@@ -585,7 +585,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "**********",
+      "secret": "uXGN4bmUo1kUdKGWNWSZJGePE8CxKczj",
       "redirectUris": [
         "http://localhost:8080/*"
       ],
@@ -758,8 +758,8 @@
       "clientId": "frontend-client",
       "name": "Frontend Client",
       "description": "",
-      "rootUrl": "https://ec2-13-201-174-59.ap-south-1.compute.amazonaws.com/",
-      "adminUrl": "https://ec2-13-201-174-59.ap-south-1.compute.amazonaws.com/",
+      "rootUrl": "https://ec2-13-234-12-46.ap-south-1.compute.amazonaws.com/",
+      "adminUrl": "https://ec2-13-234-12-46.ap-south-1.compute.amazonaws.com/",
       "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
@@ -767,11 +767,11 @@
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
         "http://localhost:5173/*",
-        "https://ec2-13-201-174-59.ap-south-1.compute.amazonaws.com/*"
+        "https://ec2-13-234-12-46.ap-south-1.compute.amazonaws.com/*"
       ],
       "webOrigins": [
         "http://localhost:5173",
-        "https://ec2-13-201-174-59.ap-south-1.compute.amazonaws.com"
+        "https://ec2-13-234-12-46.ap-south-1.compute.amazonaws.com"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -1625,7 +1625,7 @@
     "referrerPolicy": "no-referrer",
     "xRobotsTag": "none",
     "xFrameOptions": "SAMEORIGIN",
-    "contentSecurityPolicy": "frame-ancestors 'self' http://localhost:5173 https://ec2-13-201-174-59.ap-south-1.compute.amazonaws.com/",
+    "contentSecurityPolicy": "frame-ancestors 'self' http://localhost:5173 https://ec2-13-234-12-46.ap-south-1.compute.amazonaws.com/",
     "xXSSProtection": "1; mode=block",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
