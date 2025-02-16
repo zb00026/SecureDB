@@ -44,6 +44,8 @@ dependencies {
 	implementation 'org.projectlombok:lombok:1.+'
 	implementation 'me.paulschwarz:spring-dotenv:4.+'
 	implementation 'io.github.cdimascio:dotenv-java:3.+'
+	implementation group: 'com.javax0.license3j', name: 'license3j', version: '3.3.+'
+
 	testImplementation 'org.testcontainers:testcontainers:1.+'
 	testImplementation 'org.testcontainers:junit-jupiter:1.11.4'
 	testImplementation 'org.testcontainers:mysql:1.+'

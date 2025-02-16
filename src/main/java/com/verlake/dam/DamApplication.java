@@ -5,10 +5,11 @@ import io.github.cdimascio.dotenv.DotenvEntry;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.core.env.Environment;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = "com.verlake.dam")
+@EnableScheduling
 @EnableJpaRepositories(basePackages = "com.verlake.dam.repository")
 @EntityScan(basePackages = "com.verlake.dam.entity")
 public class DamApplication {
