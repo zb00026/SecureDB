@@ -36,4 +36,8 @@
         <appender-ref ref="consoleLog" />
         <appender-ref ref="fileLog" />
     </logger>
+
+    <Logger name="co.elastic.apm" level="INFO" additivity="false">
+        <AppenderRef ref="Console"/>
+    </Logger>
 </configuration>

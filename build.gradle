@@ -23,8 +23,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-devtools:3.+'
 	implementation 'org.springframework.boot:spring-boot-autoconfigure:3.+'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test:3.+'
-	implementation 'org.springframework.boot:spring-boot-starter-logging:3.+'
 	implementation 'org.springframework.boot:spring-boot-starter-mail:3.+'
+	implementation 'org.slf4j:slf4j-api:2.+'
+	implementation 'ch.qos.logback:logback-classic:1.+'
+	implementation 'ch.qos.logback:logback-core:1.+'
 	implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.+'
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf:3.+'
 	implementation 'org.springframework.boot:spring-boot-starter-mail:3.+'
@@ -41,14 +43,16 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client:3.+'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server:3.+'
 	implementation 'org.springframework.security:spring-security-oauth2-jose:6.+'
-	implementation 'org.projectlombok:lombok:1.+'
 	implementation 'me.paulschwarz:spring-dotenv:4.+'
 	implementation 'io.github.cdimascio:dotenv-java:3.+'
 	implementation group: 'com.javax0.license3j', name: 'license3j', version: '3.3.+'
+	implementation 'co.elastic.apm:apm-agent-api:1.+'
+	implementation 'co.elastic.apm:apm-agent-attach:1.+'
 
 	testImplementation 'org.testcontainers:testcontainers:1.+'
 	testImplementation 'org.testcontainers:junit-jupiter:1.11.4'
 	testImplementation 'org.testcontainers:mysql:1.+'
+	testImplementation 'org.mockito:mockito-core:4.0.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
 	testRuntimeOnly 'org.junit.platform:junit-platform-engine:1.11.4'
 }
@@ -59,4 +63,11 @@ tasks.named('test') {
 
 tasks.withType(JavaCompile).configureEach {
 	options.compilerArgs << "-parameters";
+}
+
+configurations {
+	configureEach {
+		// Exclude log4j-to-slf4j globally
+		exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+	}
 }

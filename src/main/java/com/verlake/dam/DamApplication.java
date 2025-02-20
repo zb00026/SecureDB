@@ -1,5 +1,7 @@
 package com.verlake.dam;
 
+
+import co.elastic.apm.attach.ElasticApmAttacher;
 import io.github.cdimascio.dotenv.Dotenv;
 import io.github.cdimascio.dotenv.DotenvEntry;
 import org.springframework.boot.SpringApplication;
@@ -15,25 +17,22 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class DamApplication {
 
 	public static void main(String[] args) {
-		Dotenv.configure().load();
-		String activeProfile = "dev";  // Default profile
-
-		// Check if the args contain the --spring.profiles.active parameter
-		for (String arg : args) {
-			if (arg.startsWith("--spring.profiles.active=")) {
-				activeProfile = arg.split("=")[1];
-				break;
-			}
-		}
-		if (activeProfile.equals("dev")) {
-			Dotenv devDotEnv = Dotenv.configure().directory("./").filename(".env.dev").load();
-			for(DotenvEntry entry: devDotEnv.entries()) {
-
-				System.out.println(entry.getKey() + ": " + entry.getValue());
-				System.setProperty(entry.getKey(), entry.getValue());
-			}
-		}
+		loadEnvironmentVariables();
+		ElasticApmAttacher.attach();
 		SpringApplication.run(DamApplication.class, args);
+	}
+
+	private static void loadEnvironmentVariables() {
+		Dotenv dotEnv = Dotenv.configure().directory("./").filename(".env").load();
+		for(DotenvEntry entry: dotEnv.entries()) {
+			System.setProperty(entry.getKey(), entry.getValue());
+		}
+
+		System.setProperty("elastic.apm.server_urls", System.getProperty("APM_SERVER_URL"));
+		System.setProperty("elastic.apm.service_name", System.getProperty("APM_SERVICE_NAME"));
+		System.setProperty("elastic.apm.application_packages", System.getProperty("APM_APPLICATION_PACKAGES"));
+		System.setProperty("elastic.apm.secret_token", System.getProperty("APM_SECRET_TOKEN"));
+
 	}
 
 }

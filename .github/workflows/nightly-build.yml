@@ -141,12 +141,13 @@ jobs:
           ls -la
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
-          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env
+          echo "MYSQL_PASSWORD=\"${{ secrets.MYSQL_PASSWORD }}\"" >> .env
           echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> .env
           echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> .env
           echo "MAIL_SENDER=${{ secrets.MAIL_SENDER }}" >> .env
           echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
           echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
+          echo "APM_SECRET_TOKEN=\"${{ secrets.APM_SECRET_TOKEN }}\"" >> .env
           cp .env build/libs/
           cd build/libs/
           ls -la
@@ -249,18 +250,18 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ env.HOST_DOMAIN }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.HOST_IP_ADDRESS }} >> ~/.ssh/known_hosts
 
       - name: Generate inventory.ini from template
         run: |
-          export HOST_DOMAIN=${{ env.HOST_DOMAIN }}
+          export HOST_IP_ADDRESS=${{ env.HOST_IP_ADDRESS }}
           export HOST_USER=${{ env.HOST_USER }}
           envsubst < ansible/inventory.ini.j2 > ansible/inventory.ini
           cat ansible/inventory.ini
 
       - name: Upload realm-export.json to EC2
         run: |
-          scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_DOMAIN }}:/tmp/realm-export.json
+          scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }}:/tmp/realm-export.json
 
       - name: Deploy to EC2 using Ansible
         run: |
