@@ -18,6 +18,11 @@ repositories {
 	mavenCentral()
 }
 
+configurations {
+	e2eTestImplementation.extendsFrom testImplementation
+	e2eTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web:3.+'
 	implementation 'org.springframework.boot:spring-boot-devtools:3.+'
@@ -55,6 +60,35 @@ dependencies {
 	testImplementation 'org.mockito:mockito-core:4.0.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
 	testRuntimeOnly 'org.junit.platform:junit-platform-engine:1.11.4'
+
+	// E2E test dependencies
+	e2eTestImplementation 'io.github.bonigarcia:webdrivermanager:5.+'
+	e2eTestImplementation 'org.seleniumhq.selenium:selenium-java:4.+'
+	e2eTestImplementation 'org.springframework.boot:spring-boot-starter-test'
+	e2eTestImplementation 'org.testcontainers:testcontainers:1.16.0'
+	e2eTestImplementation 'org.testcontainers:junit-jupiter:1.16.0'
+}
+
+sourceSets {
+	e2eTest {
+		java {
+			srcDir 'src/e2eTest/java'
+		}
+		resources {
+			srcDir 'src/e2eTest/resources'
+		}
+	}
+}
+
+tasks.register('e2eTest', Test) {
+	description = 'Runs the end-to-end tests.'
+	group = 'verification'
+	testClassesDirs = sourceSets.e2eTest.output.classesDirs
+	classpath = sourceSets.e2eTest.runtimeClasspath
+	useJUnitPlatform()
+	testLogging {
+		exceptionFormat = 'full'
+	}
 }
 
 tasks.named('test') {

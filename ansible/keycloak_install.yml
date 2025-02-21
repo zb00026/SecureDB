@@ -147,13 +147,20 @@
         msg: "DAM Admin User Exist: {{ admin_user_check.stdout }}"
       when: admin_user_check is defined
 
+    - name: Create Keycloak root admin user token
+      shell: |
+        curl -s -X POST {{ local_keycloak_url }}/realms/master/protocol/openid-connect/token -d 'username={{ keycloak_admin_user }}' -d 'password={{ keycloak_admin_password }}' -d 'grant_type=password' -d 'client_id=admin-cli' | jq -r '.access_token'
+      register: new_keycloak_token
+      failed_when: "'error' in new_keycloak_token.stderr"
+      ignore_errors: yes
+
     - name: Create DAM admin user if not exist in Keycloak
       shell: |
         curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users \
-        -H "Authorization: Bearer {{ keycloak_token.stdout }}" \
+        -H "Authorization: Bearer {{ new_keycloak_token.stdout }}" \
         -d '{{ keycloak_user_data }}' -H 'Content-Type: application/json'
-      when: admin_user_check is defined and admin_user_check.stdout == ""
       register: create_user_response
+      ignore_errors: yes
 
     - name: Creating Default DAM Realm Admin User result
       debug:

@@ -36,7 +36,7 @@ public class AuthController {
         TokenService tokenService = getTokenService(userDto.getAuthProvider());
         validateToken(userDto, tokenService);
         User user = getUserFromToken(userDto.getToken(), tokenService);
-        validateUser(user);
+        validateUser(user, userDto.getInviteCode());
         handleInviteCode(userDto, user);
         return ResponseEntity.ok().body(userDto);
     }
@@ -67,8 +67,8 @@ public class AuthController {
         return user;
     }
 
-    private void validateUser(User user) {
-        if (user.getIsActive() == null || !user.getIsActive()) {
+    private void validateUser(User user, String inviteCode) {
+        if (inviteCode == null && (user.getIsActive() == null || !user.getIsActive())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "User is not activated");
         }
