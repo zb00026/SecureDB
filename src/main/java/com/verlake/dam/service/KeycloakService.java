@@ -8,6 +8,7 @@ import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -41,8 +43,7 @@ public class KeycloakService {
         this.clientSecret = clientSecret;
     }
 
-    // Method to create a new user in Keycloak
-    public void createUser(String username, String email, String firstName, String lastName, String password, boolean isTemporaryPsd) {
+    public void saveUser(String username, String email, String firstName, String lastName, String password, boolean isTemporaryPsd) {
         Keycloak keycloak = KeycloakBuilder.builder()
                 .serverUrl(authServerUrl)
                 .realm(realmName)
@@ -52,7 +53,29 @@ public class KeycloakService {
                 .build();
         RealmResource realmResource = keycloak.realm(realmName);
 
-        // Create user representation
+        // Check if user exists by username or email
+        UsersResource usersResource = realmResource.users();
+        UserRepresentation existingUser = findUserByUsernameOrEmail(usersResource, username);
+
+        if (existingUser != null) {
+            // User exists, so update the user
+            updateUser(usersResource, existingUser.getId(), firstName, lastName, password, isTemporaryPsd);
+        } else {
+            // User doesn't exist, create new user
+            createNewUser(usersResource, username, email, firstName, lastName, password, isTemporaryPsd);
+        }
+    }
+
+    private UserRepresentation findUserByUsernameOrEmail(UsersResource usersResource, String username) {
+        // Find user by username first
+        List<UserRepresentation> users = usersResource.search(username);
+        if (users != null && !users.isEmpty()) {
+            return users.get(0);  // Return the first matched user
+        }
+        return null;  // No user found
+    }
+
+    private void createNewUser(UsersResource usersResource, String username, String email, String firstName, String lastName, String password, boolean isTemporaryPsd) {
         UserRepresentation user = new UserRepresentation();
         user.setUsername(username);
         user.setEmail(email);
@@ -60,15 +83,14 @@ public class KeycloakService {
         user.setLastName(lastName);
         user.setEnabled(true);
 
-        // Create CredentialRepresentation for password
+        // Set password credentials
         CredentialRepresentation credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(password);
         credential.setTemporary(isTemporaryPsd);
 
-        user.setCredentials(Arrays.asList(credential));  // Set the credentials (password) for the user
+        user.setCredentials(Arrays.asList(credential));
 
-        UsersResource usersResource = realmResource.users();
         // Create the user in Keycloak
         Response response = usersResource.create(user);
         if (response.getStatus() == Response.Status.CREATED.getStatusCode()) {
@@ -78,6 +100,26 @@ public class KeycloakService {
             log.error("Failed to create user in Keycloak: {}", errorMessage);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create user in Keycloak : " + errorMessage);
         }
+    }
 
+    private void updateUser(UsersResource usersResource, String userId, String firstName, String lastName, String password, boolean isTemporaryPsd) {
+        // Retrieve existing user
+        UserResource userResource = usersResource.get(userId);
+        UserRepresentation user = userResource.toRepresentation();
+
+        // Update user information
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+
+        // Update credentials (password)
+        CredentialRepresentation credential = new CredentialRepresentation();
+        credential.setType(CredentialRepresentation.PASSWORD);
+        credential.setValue(password);
+        credential.setTemporary(isTemporaryPsd);
+
+        user.setCredentials(Arrays.asList(credential));
+
+        // Update the user in Keycloak
+        userResource.update(user);
     }
 }

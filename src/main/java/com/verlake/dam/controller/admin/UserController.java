@@ -61,7 +61,7 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
         if (userAuthProvider == AuthProvider.KEYCLOAK) {
-            keycloakService.createUser(user.getEmail(), user.getEmail(),
+            keycloakService.saveUser(user.getEmail(), user.getEmail(),
                     user.getFirstName(),
                     user.getLastName(),
                     user.getPassword(), true);
@@ -83,7 +83,7 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
         if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
-            keycloakService.createUser(user.getEmail(),
+            keycloakService.saveUser(user.getEmail(),
                     user.getEmail(),
                     user.getFirstName(),
                     user.getLastName(),

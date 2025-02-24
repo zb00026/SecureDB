@@ -21,13 +21,6 @@ This project is a Spring Boot application that demonstrates:
 1. Clone the repository:
    ```bash
    git clone git@github.com:Mindslake/DAM.git
-   cd DAM
-2. Build and run the app using Gradle:
-   ```bash
-   ./gradlew bootRun
-3. Test REST API point:
-   ```bash
-   http://localhost:8080/api/test
 ---
 
 ### **2. Enable Auto-Build in IntelliJ**
@@ -86,14 +79,14 @@ This project is a Spring Boot application that demonstrates:
    - Go to Client Scopes
    - Add 'email' and 'profile' to default scopes for both clients
 
-4. Create Test User
+4. Create Admin User of DAM Realm
    - Go to Users → Add User
-   - Username: testuser
-   - Email: test@example.com
+   - Username: admin
+   - Email: admin@example.com
    - Email Verified: ON
    - Click Save
    - Go to Credentials tab
-   - Set password: testpass
+   - Set password: `your_keycloak_dam_realm_admin_password`
    - Temporary: OFF
 
 5. Update Application Properties
@@ -104,7 +97,29 @@ This project is a Spring Boot application that demonstrates:
      spring.security.oauth2.client.registration.keycloak.client-secret=your_client_secret
      ```
 
-## Running the Application
+## Running the Application in IntelliJ
 1. Ensure KeyCloak is running
-2. Start the Spring Boot application: `./gradlew bootRun`
-3. Access the application at http://localhost:8080
+2. Ensure MySQL is running
+3. Start the Spring Boot application
+   <img width="907" alt="image" src="https://github.com/user-attachments/assets/9ba9c094-d9ed-4cbc-9e9b-459cec097897" />
+   1. Set `Program Arguments` as following.
+   `--spring.profiles.active=dev`
+
+   2. Set `Environment Variables` as following.      `MYSQL_PASSWORD=your_mysql_db_password;KEYCLOAK_ADMIN_USER_PASSWORD=your_keycloak_dam_realm_admin_password;KEYCLOAK_CLIENT_SECRET=your_client_secret;MAIL_SENDER=your_email;MAIL_USERNAME=AWS_SES_USERNAME;MAIL_PASSWORD=AWS_SES_USER_PASSWORD;APM_SECRET_TOKEN=elastic_apm_token;APM_SERVICE_NAME=dev_dam`
+   3. Run Application.
+   
+4. Start E2E Test
+   Run following gradlew command
+   `gradlew e2eTest --refresh-dependencies --stacktrace`
+   
+6. Start Clean, Test and Build
+   <img width="816" alt="image" src="https://github.com/user-attachments/assets/7afa3d14-ef3a-49f6-98be-831ec8bad98a" />
+
+   1. Set following parameters
+   `clean build --refresh-dependencies --stacktrace`
+
+   2. Set environment variables
+   `MAIL_SENDER=your_email;MYSQL_PASSWORD=your_mysql_db_password;GOOGLE_ISSUE_URI=https://accounts.google.com;KEYCLOAK_REALM_NAME=DAM;MYSQL_URL=jdbc:mysql://localhost:3306/dam;spring-boot.run.profiles=dev;MYSQL_USERNAME=root;AUTH_PROVIDER=keycloak;GOOGLE_JWKS_URI=https://www.googleapis.com/oauth2/v3/certs;HOST_DOMAIN_URI=http://localhost:5173;KEYCLOAK_URL=http://localhost:8081`
+
+   3. Run
+   

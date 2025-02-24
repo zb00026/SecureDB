@@ -33,7 +33,7 @@
           - python3-pip
         state: present
 
-#    ######## Install and configure Keycloak ########
+    #    ######## Install and configure Keycloak ########
     - name: Check if Keycloak service is already running
       shell: |
         systemctl is-active --quiet keycloak || echo "Keycloak not running"
@@ -88,7 +88,7 @@
         echo "Waiting for Keycloak to be fully ready..."
         sleep 5
         done
-       
+        
         echo "Keycloak is ready."
 
     - name: Wait for Keycloak to be ready
@@ -133,6 +133,63 @@
         --data-binary @/tmp/realm-export.json
       when: keycloak_token.stdout is defined
 
+    - name: Get DAM realm client list
+      shell: |
+        curl -s -X GET "{{ local_keycloak_url }}/admin/realms/master/clients" \
+        -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/clients.json
+        cat /tmp/clients.json
+      register: dam_client_list
+      failed_when: false
+      changed_when: false
+
+    - name: Get the dam_client_id for the DAM client
+      shell: |
+        jq '.[] | select(.clientId=="{{ realm_name }}-realm") | .id' /tmp/clients.json
+      register: dam_client_id
+      failed_when: false
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display dam_client_id
+      debug:
+        var: dam_client_id.stdout
+
+    - name: Get the manage-users role ID from DAM realm
+      shell: |
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/clients/{{ dam_client_id.stdout }}/roles -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/roles.json
+        jq '.[] | select(.name=="manage-users") | .id' /tmp/roles.json
+      register: dam_users_management_role
+      failed_when: false
+      changed_when: false
+
+    - name: Get the admin user ID from the master realm
+      shell: |
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/master/users -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/admin_users.json
+        jq '.[] | select(.username=="admin") | .id' /tmp/admin_users.json
+      register: master_admin_user_id
+      failed_when: false
+      changed_when: false
+      ignore_errors: true
+
+    - name: Debug dam_users_management_role ID
+      debug:
+        msg: "Role ID: {{ dam_users_management_role.stdout }}"
+
+    - name: Debug master_admin_user_id ID
+      debug:
+        msg: "Admin User ID: {{ master_admin_user_id.stdout }}"
+
+    - name: Assign manage-users role to the master realm admin user
+      shell: |
+        curl -v -s -X POST {{ local_keycloak_url }}/admin/realms/master/users/{{ master_admin_user_id.stdout }}/role-mappings/clients/{{ dam_client_id.stdout }} \
+        -H "Authorization: Bearer {{ keycloak_token.stdout }}" \
+        -H "Content-Type: application/json" \
+        -d "[{\"id\": \"{{ dam_users_management_role.stdout | replace('\"', '') }}\", \"name\": \"manage-users\"}]"
+      when: master_admin_user_id.stdout != "" and dam_users_management_role.stdout != ""
+      register: role_assignment_result
+      changed_when: true
+      ignore_errors: true
+
     - name: Check if DAM admin user exists in Keycloak
       shell: |
         curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/response.json
@@ -147,25 +204,26 @@
         msg: "DAM Admin User Exist: {{ admin_user_check.stdout }}"
       when: admin_user_check is defined
 
-    - name: Create Keycloak root admin user token
-      shell: |
-        curl -s -X POST {{ local_keycloak_url }}/realms/master/protocol/openid-connect/token -d 'username={{ keycloak_admin_user }}' -d 'password={{ keycloak_admin_password }}' -d 'grant_type=password' -d 'client_id=admin-cli' | jq -r '.access_token'
-      register: new_keycloak_token
-      failed_when: "'error' in new_keycloak_token.stderr"
-      ignore_errors: yes
-
     - name: Create DAM admin user if not exist in Keycloak
       shell: |
         curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users \
-        -H "Authorization: Bearer {{ new_keycloak_token.stdout }}" \
-        -d '{{ keycloak_user_data }}' -H 'Content-Type: application/json'
+        -H "Authorization: Bearer {{ keycloak_token.stdout }}" \
+        -d "{\"username\": \"{{ keycloak_admin_user }}\", \
+          \"enabled\": true, \
+          \"firstName\": \"Admin\", \
+          \"lastName\": \"Admin\", \
+          \"email\": \"admin@admin.com\", \
+          \"credentials\": [{ \
+            \"type\":\"password\", \
+            \"value\":\"{{ keycloak_admin_password }}\", \
+            \"temporary\":false \
+          }]}" -H 'Content-Type: application/json'
       register: create_user_response
       ignore_errors: yes
 
-    - name: Creating Default DAM Realm Admin User result
+    - name: Display create_user_response result
       debug:
-        msg: "DAM Admin User Exist: {{ admin_user_check.stdout }}"
-      when: admin_user_check is defined
+        var: create_user_response
 
     - name: Ignore Keycloak HTTPS service
       shell: |
