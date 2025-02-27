@@ -1,0 +1,55 @@
+---
+- name: Install and configure Logstash
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Add Logstash YUM repository
+      yum_repository:
+        name: elastic-8.x
+        description: Elastic repository for 8.x packages
+        baseurl: https://artifacts.elastic.co/packages/8.x/yum
+        enabled: 1
+        gpgcheck: 1
+        gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    - name: Install required packages
+      dnf:
+        name:
+          - java-17-amazon-corretto
+          - logstash
+        state: present
+
+    - name: Create Logstash configuration directory
+      file:
+        path: /etc/logstash/conf.d
+        state: directory
+        owner: "logstash"
+        group: "logstash"
+        mode: '0700'
+
+    - name: Copy Logstash configuration file with sudo
+      command: sudo cp /tmp/logstash.conf /etc/logstash/conf.d/logstash.conf
+
+    - name: Set ownership and permissions for logstash.conf
+      command: sudo chown logstash:logstash /etc/logstash/conf.d/logstash.conf
+
+    - name: Set file permissions for logstash.conf
+      command: sudo chmod 640 /etc/logstash/conf.d/logstash.conf
+
+    - name: Enable and start Logstash service
+      systemd:
+        name: logstash
+        enabled: yes
+        state: started
+
+    - name: Verify Logstash status
+      command: systemctl status logstash
+      register: logstash_status
+      changed_when: false
+      failed_when: "'active (running)' not in logstash_status.stdout"
+
+    - name: Output Logstash status
+      debug:
+        msg: "{{ logstash_status.stdout }}"

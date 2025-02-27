@@ -4,19 +4,6 @@
   become: true
   vars:
     local_keycloak_url: "http://localhost:8081"
-    keycloak_user_data: |
-      {
-        "username": "{{ keycloak_admin_user }}",
-        "enabled": true,
-        "firstName": "Admin",
-        "lastName": "Admin",
-        "email": "admin@admin.com",
-        "credentials": [{
-          "type":"password",
-          "value":"{{ keycloak_admin_password }}",
-          "temporary":false
-        }]
-      }
   tasks:
 
     - name: Update EC2 system packages

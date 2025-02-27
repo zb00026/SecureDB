@@ -45,14 +45,12 @@ jobs:
           echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
           echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
           echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
+          echo "HOST_IP_ADDRESS=$HOST_IP_ADDRESS" >> $GITHUB_ENV
           echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
           echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
           echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
-          echo "MAIL_SENDER=${{ secrets.MAIL_SENDER }}" >> $GITHUB_ENV
-          echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> $GITHUB_ENV
-          echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> $GITHUB_ENV
 
       - name: Set timestamp variable
         id: timestamp
@@ -239,6 +237,8 @@ jobs:
           echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "ELASTICSEARCH_URL=$ELASTICSEARCH_URL" >> $GITHUB_ENV
+          echo "ELASTIC_PASSWORD=${{ secrets.APM_AUTH_PASSWORD }}" >> $GITHUB_ENV
 
       - name: Update and install Ansible
         run: |
@@ -258,13 +258,22 @@ jobs:
           export HOST_USER=${{ env.HOST_USER }}
           envsubst < ansible/inventory.ini.j2 > ansible/inventory.ini
           cat ansible/inventory.ini
+          
+      - name: Generate logstash.conf from template
+        run: |
+          export ELASTICSEARCH_URL=${{ env.ELASTICSEARCH_URL }}
+          export ELASTIC_PASSWORD=${{ env.ELASTIC_PASSWORD }}
+          envsubst < ./src/main/resources/logstash/logstash_temp.conf > logstash.conf
+          cat logstash.conf
 
-      - name: Upload realm-export.json to EC2
+      - name: Upload realm-export.json and logstash.conf to EC2
         run: |
           scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }}:/tmp/realm-export.json
+          scp -i ~/.ssh/id_rsa logstash.conf ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }}:/tmp/logstash.conf
 
       - name: Deploy to EC2 using Ansible
         run: |
           ansible-playbook -i ansible/inventory.ini ansible/mysql_install.yml -e "db_name=${{ env.MYSQL_DB_NAME }} db_password=${{ env.MYSQL_PASSWORD }}"
           ansible-playbook -i ansible/inventory.ini ansible/keycloak_install.yml -e "host_domain=${{ env.HOST_DOMAIN }} ec2_ip=${{ env.HOST_IP_ADDRESS }} s3_bucket=${{ env.S3_BUCKET_NAME }} keycloak_admin_user=${{ env.KEYCLOAK_ADMIN_USERNAME }} keycloak_admin_password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }} keycloak_client_secret=${{ env.KEYCLOAK_CLIENT_SECRET }} realm_name=${{ env.KEYCLOAK_REALM_NAME }}"
           ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} host_user=${{ env.HOST_USER }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"
+          ansible-playbook -i ansible/inventory.ini ansible/logstash_install.yml -e host_user=${{ env.HOST_USER }}

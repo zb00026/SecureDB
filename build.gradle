@@ -53,6 +53,7 @@ dependencies {
 	implementation group: 'com.javax0.license3j', name: 'license3j', version: '3.3.+'
 	implementation 'co.elastic.apm:apm-agent-api:1.+'
 	implementation 'co.elastic.apm:apm-agent-attach:1.+'
+	implementation 'net.logstash.logback:logstash-logback-encoder:8.+'
 
 	testImplementation 'org.testcontainers:testcontainers:1.+'
 	testImplementation 'org.testcontainers:junit-jupiter:1.11.4'
