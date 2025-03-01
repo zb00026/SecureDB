@@ -2,6 +2,7 @@ package com.verlake.dam.service;
 
 
 import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
+import com.verlake.dam.utils.Constants;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.OAuth2Constants;
@@ -19,8 +20,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Arrays;
-import java.util.List;
+import java.security.SecureRandom;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -43,7 +44,7 @@ public class KeycloakService {
         this.clientSecret = clientSecret;
     }
 
-    public void saveUser(String username, String email, String firstName, String lastName, String password, boolean isTemporaryPsd) {
+    public RealmResource getRealmInstance() {
         Keycloak keycloak = KeycloakBuilder.builder()
                 .serverUrl(authServerUrl)
                 .realm(realmName)
@@ -51,11 +52,32 @@ public class KeycloakService {
                 .clientSecret(clientSecret)
                 .grantType(OAuth2Constants.CLIENT_CREDENTIALS)
                 .build();
-        RealmResource realmResource = keycloak.realm(realmName);
+        return keycloak.realm(realmName);
+    }
+
+    public RealmResource getRealmInstance(String jwtToken) {
+        Keycloak keycloak = KeycloakBuilder.builder()
+                .serverUrl(authServerUrl)
+                .realm(realmName)
+                .authorization("Bearer " + jwtToken) // Use the user’s JWT token here
+                .build();
+        return keycloak.realm(realmName);
+    }
+
+    UserRepresentation getKeycloakUser(String username) {
+        RealmResource realmResource = getRealmInstance();
 
         // Check if user exists by username or email
         UsersResource usersResource = realmResource.users();
-        UserRepresentation existingUser = findUserByUsernameOrEmail(usersResource, username);
+        return findUserByUsernameOrEmail(usersResource, username);
+    }
+
+    public void saveUser(String username, String email, String firstName, String lastName, String password, boolean isTemporaryPsd) {
+        RealmResource realmResource = getRealmInstance();
+
+        // Check if user exists by username or email
+        UsersResource usersResource = realmResource.users();
+        UserRepresentation existingUser = getKeycloakUser(username);
 
         if (existingUser != null) {
             // User exists, so update the user
@@ -121,5 +143,41 @@ public class KeycloakService {
 
         // Update the user in Keycloak
         userResource.update(user);
+    }
+
+    public void updateUserKey(String userId, String jwtToken) {
+        // Fetch user by userId
+        RealmResource realmResource = getRealmInstance(jwtToken);
+        UsersResource usersResource = realmResource.users();
+        UserResource userResource = usersResource.get(userId);
+
+        // Get user representation
+        UserRepresentation userRepresentation = userResource.toRepresentation();
+        Map<String, List<String>> attributes = userRepresentation.getAttributes();
+        if(attributes == null) {
+            attributes = new HashMap<>();
+        }
+        // Check if user has 'user-key' attribute and if it is null or empty
+        String userKey = attributes.get(Constants.KEYCLOAK_USER_KEY) != null ? attributes.get(Constants.KEYCLOAK_USER_KEY).get(0) : null;
+
+        if (userKey == null || userKey.isEmpty()) {
+            // Generate a random 20-character alphanumeric key2
+            String newUserKey = generateRandomUserKey();
+
+            // Update the user's 'user-key' attribute
+            attributes.put(Constants.KEYCLOAK_USER_KEY, Collections.singletonList(newUserKey));
+            UserRepresentation updateRepresentation = new UserRepresentation();
+            updateRepresentation.setAttributes(attributes);
+            userResource.update(userRepresentation);
+
+            log.info("User key updated for userId: {}", userId);
+        }
+    }
+
+    private String generateRandomUserKey() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[20];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); // Random 20-character key
     }
 }

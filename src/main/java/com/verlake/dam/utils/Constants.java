@@ -4,6 +4,8 @@ public class Constants {
     public static String STATUS_SUCCESS = "success";
     public static String STATUS_FAIL = "fail";
 
+    public static String KEYCLOAK_USER_KEY = "user-key";
+
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte [] LIC_PUBLIC_KEY = new byte[] {
         (byte)0x52, 
