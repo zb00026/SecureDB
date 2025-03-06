@@ -29,6 +29,12 @@ class DamApplicationTests {
 				() -> System.getenv("HOST_DOMAIN_URI"));
 		registry.add("MAIL_SENDER",
 				() -> System.getenv("MAIL_SENDER"));
+		registry.add("aws.accessKeyId",
+				() -> System.getenv("AWS_ACCESS_KEY_ID"));
+		registry.add("aws.secretKey",
+				() -> System.getenv("AWS_SECRET_ACCESS_KEY"));
+		registry.add("aws.region",
+				() -> System.getenv("HOST_REGION"));
 	}
 
 	@Test

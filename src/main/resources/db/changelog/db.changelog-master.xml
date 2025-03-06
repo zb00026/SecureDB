@@ -8,4 +8,5 @@
     <include file="db/changelog/db.changelog-create-user-table.xml"/>
     <include file="db/changelog/db.changelog-create-roles-table.xml"/>
     <include file="/db/changelog/db.changelog-email-invitation.xml"/>
+    <include file="db/changelog/db.changelog-create-s3-settings-table.xml"/>
 </databaseChangeLog>

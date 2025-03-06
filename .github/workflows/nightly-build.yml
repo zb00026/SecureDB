@@ -17,6 +17,8 @@ env:
   KEYCLOAK_URL: http://localhost:8081
   HOST_DOMAIN_URI: http://localhost
   MAIL_SENDER: test@dam.com
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
   backend_build:
