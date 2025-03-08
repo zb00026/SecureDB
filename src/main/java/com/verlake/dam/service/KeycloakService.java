@@ -13,9 +13,7 @@ import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,7 +31,6 @@ public class KeycloakService {
     private final String clientSecret;
     private final String realmName;
 
-    @Autowired
     public KeycloakService(@Value("${keycloak.auth-server-url}") String keycloakAuthServerUrl,
                            @Value("${spring.security.oauth2.client.registration.keycloak.client-id}") String clientId,
                            @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}") String clientSecret,

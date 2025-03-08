@@ -5,11 +5,9 @@ import com.verlake.dam.e2etest.packageobjects.DashboardPage;
 import com.verlake.dam.e2etest.packageobjects.KeycloakLoginPage;
 import com.verlake.dam.e2etest.packageobjects.MainPage;
 import io.github.cdimascio.dotenv.Dotenv;
-import io.github.cdimascio.dotenv.DotenvEntry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.test.context.TestPropertySource;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 

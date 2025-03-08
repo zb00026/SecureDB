@@ -3,12 +3,16 @@ package com.verlake.dam.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.verlake.dam.listener.AuditEntityListener;
+import com.verlake.dam.annotation.Audited;
 
 import java.util.*;
 
 @Entity
 @Table(name = "users")
 @Data
+@EntityListeners(AuditEntityListener.class)
+@Audited(entity = "USER")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

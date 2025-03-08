@@ -1,7 +1,6 @@
 package com.verlake.dam.controller.auth;
 
 import com.verlake.dam.entity.UserDto;
-import com.verlake.dam.repository.EmailRepository;
 import com.verlake.dam.service.TokenService;
 import com.verlake.dam.service.manager.TokenServiceManager;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,10 +22,7 @@ public class AuthController {
     private UserService userService;
 
     private final TokenServiceManager tokenServiceManager;
-    @Autowired
-    private EmailRepository emailRepository;
-
-    @Autowired
+    
     public AuthController(TokenServiceManager tokenServiceManager) {
         this.tokenServiceManager = tokenServiceManager;
     }

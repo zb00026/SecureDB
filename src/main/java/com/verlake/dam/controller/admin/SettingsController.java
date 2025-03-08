@@ -10,16 +10,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 
 @RestController
 @RequestMapping("/api/admin/settings")
 @Slf4j
+@RefreshScope
 public class SettingsController {
     @Autowired
     private S3Service s3Service;
 
     @Autowired
     private S3SettingsService settingsService;
+
+
+    public SettingsController() {
+
+    }
 
     @PostMapping("/update-audit-log-storage")
     public ResponseEntity<?> updateAuditLogStorage(@RequestBody S3BucketSettings request) {
@@ -50,4 +57,5 @@ public class SettingsController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
 }

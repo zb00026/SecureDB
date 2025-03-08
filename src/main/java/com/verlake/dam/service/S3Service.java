@@ -8,16 +8,21 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
+import com.verlake.dam.repository.S3BucketSettingsRepository;
+
 import java.util.UUID;
 
 @Service
 public class S3Service {
     private final S3Client s3Client;
+    private final S3BucketSettingsRepository s3BucketSettingsRepository;
 
     public S3Service(
             @Value("${aws.accessKeyId:#{null}}") String accessKey,
             @Value("${aws.secretKey:#{null}}") String secretKey,
-            @Value("${aws.region}") String region) {
+            @Value("${aws.region}") String region,
+            S3BucketSettingsRepository s3BucketSettingsRepository) {
+        this.s3BucketSettingsRepository = s3BucketSettingsRepository;
         AwsCredentialsProvider credentialsProvider = accessKey != null && secretKey != null
                 ? StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey))
                 : DefaultCredentialsProvider.create();
@@ -60,7 +65,6 @@ public class S3Service {
 
     public void checkPermissions(String bucketName) throws S3Exception {
         String testKey = "test-permissions-" + UUID.randomUUID() + ".txt";
-        
         // Test write
         try {
             PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -101,5 +105,21 @@ public class S3Service {
         } catch (S3Exception e) {
             // Expected - delete should fail
         }
+    }
+
+    public void uploadFile(String fileName, byte[] data) {
+        String bucketName = s3BucketSettingsRepository.findLatestSettings()
+                .orElseThrow(() -> S3Exception.builder()
+                        .message("No active S3 bucket configured")
+                        .build())
+                .getBucketName();
+
+        String key = "audit-logs/" + fileName;
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .build();
+
+        s3Client.putObject(request, RequestBody.fromBytes(data));
     }
 }

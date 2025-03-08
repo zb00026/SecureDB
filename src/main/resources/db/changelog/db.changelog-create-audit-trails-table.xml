@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-audit-trails-table" author="verlake">
+        <createTable tableName="audit_trails">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="timestamp" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="instance_id" type="varchar(255)"/>
+            <column name="user" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="action" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="previous_value" type="text"/>
+            <column name="new_value" type="text"/>
+            <column name="action_metadata" type="text"/>
+            <column name="synced" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ip_address" type="varchar(255)"/>
+        </createTable>
+
+        <createIndex tableName="audit_trails" indexName="idx_audit_trails_synced">
+            <column name="synced"/>
+        </createIndex>
+        
+        <createIndex tableName="audit_trails" indexName="idx_audit_trails_timestamp">
+            <column name="timestamp"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog> 

@@ -4,7 +4,6 @@ import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.KeycloakService;
 import com.verlake.dam.service.TokenService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.Jwt;
