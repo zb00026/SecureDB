@@ -2,15 +2,19 @@ package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.User;
-import com.verlake.dam.entity.UserDto;
+import com.verlake.dam.entity.dto.PageRequestDTO;
+import com.verlake.dam.entity.dto.UserDto;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.KeycloakService;
 import com.verlake.dam.utils.Constants;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/admin/users")
 public class UserController {
@@ -42,8 +47,10 @@ public class UserController {
     }
 
     @GetMapping
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    public Page<User> getAllUsers(PageRequestDTO pageRequest) {
+        PageRequest validPageRequest = pageRequest.toPageRequest();
+        Page<User> result = userRepository.findAll(validPageRequest);
+        return result;
     }
 
     @GetMapping("/{id}")

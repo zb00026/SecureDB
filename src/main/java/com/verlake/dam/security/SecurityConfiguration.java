@@ -42,6 +42,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Roles.APPROVER.name())
                         .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Roles.AUDITOR.name())
                         .requestMatchers("/api" + Roles.RESOURCE_OWNER.getAvailablePath()).hasAuthority(Roles.RESOURCE_OWNER.name())
+                        .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.AUDITOR.name())  // Add this specific rule
                         .anyRequest().denyAll()
                 )
                 .sessionManagement(session -> session

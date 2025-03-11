@@ -1,5 +1,6 @@
-package com.verlake.dam.entity;
+package com.verlake.dam.entity.dto;
 
+import com.verlake.dam.entity.User;
 import com.verlake.dam.enums.AuthProvider;
 import lombok.Data;
 

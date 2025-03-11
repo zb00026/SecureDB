@@ -71,7 +71,7 @@ dependencies {
 	e2eTestImplementation 'org.seleniumhq.selenium:selenium-java:4.+'
 	e2eTestImplementation 'org.springframework.boot:spring-boot-starter-test'
 	e2eTestImplementation 'org.testcontainers:testcontainers:1.+'
-	e2eTestImplementation 'org.testcontainers:junit-jupiter:1.+ll'
+	e2eTestImplementation 'org.testcontainers:junit-jupiter:1+'
 
 	// Parquet dependencies
 	implementation 'org.apache.parquet:parquet-avro:1.+'

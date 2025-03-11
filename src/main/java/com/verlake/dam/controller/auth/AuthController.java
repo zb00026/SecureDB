@@ -1,6 +1,6 @@
 package com.verlake.dam.controller.auth;
 
-import com.verlake.dam.entity.UserDto;
+import com.verlake.dam.entity.dto.UserDto;
 import com.verlake.dam.service.TokenService;
 import com.verlake.dam.service.manager.TokenServiceManager;
 import org.springframework.beans.factory.annotation.Autowired;

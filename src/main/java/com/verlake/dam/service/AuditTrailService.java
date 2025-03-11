@@ -1,6 +1,7 @@
 package com.verlake.dam.service;
 
 import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.utils.Constants;
 
@@ -16,6 +17,8 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -124,5 +127,15 @@ public class AuditTrailService {
 
     public AuditTrail save(AuditTrail audit) {
         return auditTrailRepository.save(audit);
+    }
+
+    public Page<AuditTrail> findAll(AuditTrailFilter filter) {
+        log.debug("Searching with filter: {}", filter);
+        Page<AuditTrail> result = auditTrailRepository.findAll(
+            filter.toSpecification(), 
+            filter.toPageRequest(Sort.by(Sort.Direction.DESC, "timestamp"))
+        );
+        log.debug("Found {} results", result.getTotalElements());
+        return result;
     }
 }
