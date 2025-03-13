@@ -1,4 +1,4 @@
-package com.verlake.dam.e2etest.packageobjects;
+package com.verlake.dam.e2etest.pageobjects;
 
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -9,7 +9,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
-public class KeycloakLoginPage {
+public class KeycloakLoginPage extends BasePage {
 
     @FindBy(id="username")
     public WebElement usernameField;
@@ -25,6 +25,7 @@ public class KeycloakLoginPage {
     private String keycloakAuthUrl;
 
     public KeycloakLoginPage(WebDriver browser, String keycloakAuthUrl) {
+        super(browser);
         PageFactory.initElements(browser, this);
         this.keycloakAuthUrl = keycloakAuthUrl;
         this.browser = browser;

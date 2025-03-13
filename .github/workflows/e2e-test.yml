@@ -24,9 +24,10 @@ jobs:
 
       - name: Run E2E tests
         env:
-          KEYCLOAK_E2ETEST_PASSWORD: ${{ secrets.KEYCLOAK_E2ETEST_PASSWORD }}
+          KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
         run: |
-          ./gradlew clean e2etest
+          ./gradlew e2eTest --rerun-tasks -Dtest.profile=dev --info
 
       - name: Upload test results
         uses: actions/upload-artifact@v2
