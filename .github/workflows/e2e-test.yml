@@ -4,8 +4,7 @@ on:
   schedule:
     # Runs every night at 2 AM UTC
     - cron: '0 2 * * *'
-  workflow_dispatch:
-  
+
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
@@ -19,19 +18,38 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'  # Added cache for better performance
 
-      - name: Install Gradle
-        uses: gradle/wrapper-validation-action@v4
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2  # Updated from wrapper-validation-action
+        with:
+          gradle-version: wrapper
+          cache-read-only: false
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Run E2E tests
         env:
           KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
         run: |
-          ./gradlew e2eTest --rerun-tasks -Dtest.profile=dev --info
+          ./gradlew e2eTest --rerun-tasks -Dtest.profile=qa --info
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        if: always()  # Upload results even if tests fail
+        uses: actions/upload-artifact@v4  # Updated to v4
         with:
           name: e2e-test-results
-          path: build/test-results/
+          path: |
+            build/reports/tests/e2eTest/
+            build/test-results/e2eTest/
+          retention-days: 14  # Added retention period
+
+      - name: Publish Test Report
+        if: always()
+        uses: mikepenz/action-junit-report@v4  # Added test report publishing
+        with:
+          report_paths: 'build/test-results/e2eTest/TEST-*.xml'
+          detailed_summary: true
+          include_passed: true
