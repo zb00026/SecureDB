@@ -1,0 +1,37 @@
+---
+- name: Seed E2E Test Database
+  hosts: ec2
+  become: true
+  vars:
+    mysql_user: root
+  tasks:
+    - name: Copy SQL commands to temporary file
+      copy:
+        content: |
+          SET FOREIGN_KEY_CHECKS = 0;
+          TRUNCATE TABLE audit_trails;
+          TRUNCATE TABLE user_roles;
+          TRUNCATE TABLE users;
+          TRUNCATE TABLE s3_bucket_settings;
+          SET FOREIGN_KEY_CHECKS = 1;
+
+          INSERT INTO users (email, first_name, last_name, is_active)
+          VALUES ('admin@admin.com', 'E2E', 'Admin', true);
+
+          INSERT INTO user_roles (user_id, role_id)
+          VALUES (1, 1);
+        dest: /tmp/e2e_seed.sql
+        mode: '0644'
+
+    - name: Execute SQL commands
+      mysql_db:
+        login_user: "{{ mysql_user }}"
+        login_password: "{{ mysql_password }}"
+        name: dam
+        state: import
+        target: /tmp/e2e_seed.sql
+
+    - name: Remove temporary SQL file
+      file:
+        path: /tmp/e2e_seed.sql
+        state: absent 

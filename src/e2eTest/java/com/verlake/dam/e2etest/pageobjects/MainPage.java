@@ -12,11 +12,15 @@ public class MainPage extends BasePage {
         PageFactory.initElements(browser, this);
     }
 
-    @FindBy(tagName = "button")
+    @FindBy(id = "btnLogin")
     public WebElement keycloakButton;
+
+    @FindBy(className = "chakra-spinner")
+    public WebElement chakraSpinner;
 
     public void clickKeycloakButton() {
         wait.until(ExpectedConditions.elementToBeClickable(keycloakButton));
+        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         keycloakButton.click();
     }
 }

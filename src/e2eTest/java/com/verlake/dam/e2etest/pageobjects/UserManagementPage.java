@@ -19,6 +19,9 @@ public class UserManagementPage extends BasePage {
     @FindBy(id = "flexUserForm")
     private WebElement userForm;
 
+    @FindBy(className = "chakra-spinner")
+    public WebElement chakraSpinner;
+
     public UserManagementPage(WebDriver driver, String baseUrl) {
         super(driver);
         this.baseUrl = baseUrl;
@@ -26,25 +29,66 @@ public class UserManagementPage extends BasePage {
 
     public void navigateToUserManagement() {
         driver.get(baseUrl + "/admin/users");
+        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(usersTitle));
         wait.until(ExpectedConditions.visibilityOf(btnSaveUser));
     }
 
-    public void createUser(String email, String firstName, String lastName, String password, String role) {
-        // Fill in user form
-        driver.findElement(By.id("inputEmail")).sendKeys(email);
-        driver.findElement(By.id("inputFirstName")).sendKeys(firstName);
-        driver.findElement(By.id("inputLastName")).sendKeys(lastName);
-        driver.findElement(By.id("inputPassword")).sendKeys(password);
+    public void createUser(String email, String firstName, String lastName, String password, String role) throws InterruptedException {
+        try {
+            // Wait for form elements to be visible and interactable
+            wait.until(ExpectedConditions.visibilityOf(userForm));
+            
+            // Fill in user form with explicit waits
+            WebElement emailInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputEmail")));
+            emailInput.clear();
+            emailInput.sendKeys(email);
 
-        // Select roles (assuming multi-select)
-        WebElement rolesSelect = driver.findElement(By.id("selectRoles"));
-        rolesSelect.click();
-        wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//div[contains(text(), '" + role + "')]"))).click();
+            WebElement firstNameInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputFirstName")));
+            firstNameInput.clear();
+            firstNameInput.sendKeys(firstName);
 
-        // Save user
-        btnSaveUser.click();
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
+            WebElement lastNameInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputLastName")));
+            lastNameInput.clear();
+            lastNameInput.sendKeys(lastName);
+
+            WebElement passwordInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputPassword")));
+            passwordInput.clear();
+            passwordInput.sendKeys(password);
+
+            // Select roles with explicit wait
+            WebElement rolesSelect = wait.until(ExpectedConditions.elementToBeClickable(By.id("selectRoles")));
+            rolesSelect.click();
+
+            // Wait for role options to be visible and click the specific role
+            WebElement roleOption = wait.until(ExpectedConditions.elementToBeClickable(
+                By.xpath("//div[contains(text(), '" + role + "')]")));
+            roleOption.click();
+
+            // Try different approaches to click the save button
+            try {
+                // First attempt: Wait and click using WebDriverWait
+                wait.until(ExpectedConditions.elementToBeClickable(btnSaveUser));
+                Thread.sleep(500); // Small pause
+                btnSaveUser.click();
+            } catch (Exception e) {
+                // Second attempt: Find button again and click
+                WebElement saveButton = driver.findElement(By.id("btnSaveUser"));
+                wait.until(ExpectedConditions.elementToBeClickable(saveButton));
+                saveButton.click();
+            }
+
+            // Wait for spinner to disappear and success toast to appear
+            wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
+
+            // Add small delay to ensure form is reset
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            System.out.println("Failed to create user: " + email);
+            System.out.println("Error: " + e.getMessage());
+            throw e;
+        }
     }
 
     public void modifyUser(String email, String newFirstName, String newLastName) {

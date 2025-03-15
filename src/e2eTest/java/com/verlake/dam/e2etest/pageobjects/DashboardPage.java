@@ -16,6 +16,9 @@ public class DashboardPage extends BasePage {
     @FindBy(id="btnLogout")
     public WebElement btnLogout;
 
+    @FindBy(className = "chakra-spinner")
+    public WebElement chakraSpinner;
+
     private WebDriver browser;
 
     public DashboardPage(WebDriver browser, String baseUrl) {
@@ -31,12 +34,14 @@ public class DashboardPage extends BasePage {
         // Wait for the URL to change to localhost:8081 (Keycloak login page)
         wait.until(ExpectedConditions.urlMatches("^" + baseUrl));
 
+        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         // Wait for the username field to be visible
         wait.until(ExpectedConditions.visibilityOf(btnLogout));
     }
 
     public void logout() {
         browser.navigate().to(baseUrl);
+        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.elementToBeClickable(btnLogout));
         btnLogout.click();
     }

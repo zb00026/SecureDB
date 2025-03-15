@@ -101,12 +101,22 @@ tasks.register('e2eTest', Test) {
 	testClassesDirs = sourceSets.e2eTest.output.classesDirs
 	classpath = sourceSets.e2eTest.runtimeClasspath
 	useJUnitPlatform()
+
+	// Replace System.setProperty with systemProperty
+	systemProperty('test.profile', System.getProperty('test.profile', 'dev'))
+
 	testLogging {
 		events "passed", "skipped", "failed", "standardOut", "standardError"
 		showExceptions true
 		showCauses true
 		showStackTraces true
 		exceptionFormat = 'full'
+	}
+
+	// Add more debug output
+	doFirst {
+		println "Running E2E tests with profile: ${System.getProperty('test.profile', 'dev')}"
+		println "Test system properties: ${systemProperties}"
 	}
 }
 

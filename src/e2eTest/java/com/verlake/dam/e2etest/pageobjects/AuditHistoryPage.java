@@ -17,6 +17,9 @@ public class AuditHistoryPage extends BasePage {
     @FindBy(id = "btnSearchAuditTrail")
     private WebElement btnSearchAuditTrail;
 
+    @FindBy(className = "chakra-spinner")
+    public WebElement chakraSpinner;
+
     private String baseUrl;
 
     public AuditHistoryPage(WebDriver driver, String baseUrl) {
@@ -26,6 +29,7 @@ public class AuditHistoryPage extends BasePage {
 
     public void navigateToAuditHistory() {
         driver.get(baseUrl + "/auditor/audit-trail");
+        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(btnSearchAuditTrail));
         wait.until(ExpectedConditions.visibilityOf(auditTable));
     }

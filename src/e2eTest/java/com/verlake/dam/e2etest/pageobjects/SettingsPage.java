@@ -16,11 +16,23 @@ public class SettingsPage extends BasePage {
     @FindBy(id = "btnApplyAuditLogStorage")
     private WebElement saveButton;
 
-    public SettingsPage(WebDriver driver) {
+    @FindBy(className = "chakra-spinner")
+    public WebElement chakraSpinner;
+
+    private String baseUrl;
+
+    public SettingsPage(WebDriver driver, String baseUrl) {
         super(driver);
+        this.baseUrl = baseUrl;
+    }
+
+
+    public void navigateToAuditHistory() {
+        driver.get(baseUrl + "/admin/settings");
     }
 
     public void waitForPageToLoad() {
+        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(settingsTitle));
     }
 
