@@ -5,6 +5,7 @@ import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.utils.Constants;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,8 +21,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +40,7 @@ import java.util.List;
 public class AuditTrailService {
     private final AuditTrailRepository auditTrailRepository;
     private final S3Service s3Service;
+    private final HttpServletRequest request;
 
     @Value("${AUDIT_RETENTION_DAYS:30}")
     private int retentionDays;
@@ -138,4 +143,5 @@ public class AuditTrailService {
         log.debug("Found {} results", result.getTotalElements());
         return result;
     }
+
 }

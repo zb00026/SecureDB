@@ -3,7 +3,8 @@ package com.verlake.dam.controller.admin;
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.User;
 import com.verlake.dam.entity.dto.PageRequestDTO;
-import com.verlake.dam.entity.dto.UserDto;
+import com.verlake.dam.entity.dto.UserDTO;
+import com.verlake.dam.entity.dto.UserFilter;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
@@ -15,17 +16,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Slf4j
 @RestController
 @RequestMapping("/api/admin/users")
+@Slf4j
 public class UserController {
 
     private final UserRepository userRepository;
@@ -47,10 +51,17 @@ public class UserController {
     }
 
     @GetMapping
-    public Page<User> getAllUsers(PageRequestDTO pageRequest) {
-        PageRequest validPageRequest = pageRequest.toPageRequest();
-        Page<User> result = userRepository.findAll(validPageRequest);
-        return result;
+    public Object getAllUsers(UserFilter filter) {
+        log.debug("Getting users with filter: {}", filter);
+        Pageable pageable = filter.toPageRequest(Sort.by(Sort.Direction.DESC, "id"));
+        
+        if (pageable.isUnpaged()) {
+            // Return List when unpaged
+            return userRepository.findAll(filter.toSpecification(), Sort.by(Sort.Direction.DESC, "id"));
+        } else {
+            // Return Page when paged
+            return userRepository.findAll(filter.toSpecification(), pageable);
+        }
     }
 
     @GetMapping("/{id}")
@@ -61,7 +72,7 @@ public class UserController {
     }
 
     @PostMapping("/createUserAndSendInvite")
-    public ResponseEntity<Object> createUserAndSendInvite(@RequestBody UserDto userDto) {
+    public ResponseEntity<Object> createUserAndSendInvite(@RequestBody UserDTO userDto) {
         User user = userDto.getUser();
         AuthProvider userAuthProvider = userDto.getAuthProvider();
         if (userRepository.existsByEmail(user.getEmail())) {

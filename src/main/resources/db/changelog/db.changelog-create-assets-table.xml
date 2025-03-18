@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="create-asset-tables" author="admin">
+        <!-- Assets table -->
+        <createTable tableName="assets">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="text"/>
+            <column name="type" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="database_type" type="varchar(50)"/>
+            <column name="host_address" type="varchar(255)"/>
+            <column name="is_deleted" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Asset Credentials table -->
+        <createTable tableName="asset_credentials">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="asset_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_asset_credentials_asset"
+                             references="assets(id)"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints nullable="false"
+                             foreignKeyName="fk_asset_credentials_user"
+                             references="users(id)"/>
+            </column>
+            <column name="username" type="varchar(255)"/>
+            <column name="password" type="varchar(255)"/>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

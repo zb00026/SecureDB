@@ -3,10 +3,16 @@ package com.verlake.dam.utils;
 import org.apache.avro.Schema;
 
 public class Constants {
-    public static String STATUS_SUCCESS = "success";
-    public static String STATUS_FAIL = "fail";
+    public static final String STATUS_SUCCESS = "success";
+    public static final String STATUS_FAIL = "fail";
+    public static final String STATUS_NAME = "status";
+    public static final String ERROR_MSG_NAME = "error_message";
+    public static final String ASSET_NOT_FOUND = "Asset not found";
 
-    public static String KEYCLOAK_USER_KEY = "user-key";
+    public static final  String KEYCLOAK_USER_KEY = "user-key";
+
+    public static final String ASSET_ADD_NAME = "Add";
+    public static final String ASSET_REMOVE_NAME = "Remove";
 
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {

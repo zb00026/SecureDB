@@ -1,6 +1,6 @@
 package com.verlake.dam.controller.auth;
 
-import com.verlake.dam.entity.dto.UserDto;
+import com.verlake.dam.entity.dto.UserDTO;
 import com.verlake.dam.service.TokenService;
 import com.verlake.dam.service.manager.TokenServiceManager;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +28,7 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/verifyToken")
-    public ResponseEntity<UserDto> verifyToken(@RequestBody UserDto userDto) {
+    public ResponseEntity<UserDTO> verifyToken(@RequestBody UserDTO userDto) {
         TokenService tokenService = getTokenService(userDto.getAuthProvider());
         validateToken(userDto, tokenService);
         User user = getUserFromToken(userDto.getToken(), tokenService);
@@ -46,7 +46,7 @@ public class AuthController {
         return tokenService;
     }
 
-    private void validateToken(UserDto userDto, TokenService tokenService) {
+    private void validateToken(UserDTO userDto, TokenService tokenService) {
         if (!tokenService.verifyToken(userDto.getToken())) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "Invalid " + userDto.getAuthProvider() + " token");
@@ -70,7 +70,7 @@ public class AuthController {
         }
     }
 
-    private void handleInviteCode(UserDto userDto, User user) {
+    private void handleInviteCode(UserDTO userDto, User user) {
         if (userDto.getInviteCode() != null) {
             user.setIsActive(true);
             userService.saveUser(user);

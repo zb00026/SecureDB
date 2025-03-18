@@ -5,7 +5,7 @@ import com.verlake.dam.enums.AuthProvider;
 import lombok.Data;
 
 @Data
-public class UserDto {
+public class UserDTO {
     private String token;
     private AuthProvider authProvider;
     private User user;

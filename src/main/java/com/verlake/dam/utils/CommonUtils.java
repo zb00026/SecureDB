@@ -1,7 +1,11 @@
 package com.verlake.dam.utils;
 
 
+import org.springframework.http.ResponseEntity;
+
 import java.security.SecureRandom;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class CommonUtils {
 
@@ -19,4 +23,10 @@ public class CommonUtils {
         return hexCode.toString().toUpperCase(); // Convert to uppercase
     }
 
+    public static ResponseEntity<Map<String, Object>> getSuccessResponse() {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put(Constants.STATUS_NAME, Constants.STATUS_SUCCESS);
+        response.put(Constants.ERROR_MSG_NAME, "");
+        return ResponseEntity.ok(response);
+    }
 }
