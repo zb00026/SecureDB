@@ -56,7 +56,7 @@ public class KeycloakService {
         Keycloak keycloak = KeycloakBuilder.builder()
                 .serverUrl(authServerUrl)
                 .realm(realmName)
-                .authorization("Bearer " + jwtToken) // Use the user’s JWT token here
+                .authorization("Bearer " + jwtToken) // Use the user's JWT token here
                 .build();
         return keycloak.realm(realmName);
     }
@@ -163,8 +163,7 @@ public class KeycloakService {
 
             // Update the user's 'user-key' attribute
             attributes.put(Constants.KEYCLOAK_USER_KEY, Collections.singletonList(newUserKey));
-            UserRepresentation updateRepresentation = new UserRepresentation();
-            updateRepresentation.setAttributes(attributes);
+            userRepresentation.setAttributes(attributes);
             userResource.update(userRepresentation);
 
             log.info("User key updated for userId: {}", userId);
@@ -176,5 +175,20 @@ public class KeycloakService {
         byte[] bytes = new byte[20];
         random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); // Random 20-character key
+    }
+
+    public String getUserKey(String userId) {
+        // Fetch user by userId
+        RealmResource realmResource = getRealmInstance(); // Assuming you have a method to get the realm instance
+        UsersResource usersResource = realmResource.users();
+        UserResource userResource = usersResource.get(userId);
+
+        // Get user representation
+        UserRepresentation userRepresentation = userResource.toRepresentation();
+        Map<String, List<String>> attributes = userRepresentation.getAttributes();
+        if (attributes != null && attributes.containsKey(Constants.KEYCLOAK_USER_KEY)) {
+            return attributes.get(Constants.KEYCLOAK_USER_KEY).get(0);
+        }
+        return null;
     }
 }

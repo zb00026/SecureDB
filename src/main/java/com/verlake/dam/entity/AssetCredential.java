@@ -3,6 +3,8 @@ package com.verlake.dam.entity;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.listener.AuditEntityListener;
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -18,6 +20,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @EntityListeners(AuditEntityListener.class)
 @Audited(entity = "ASSET_CREDENTIAL")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class AssetCredential {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,7 +28,6 @@ public class AssetCredential {
 
     @ManyToOne
     @JoinColumn(name = "asset_id", nullable = false)
-    @JsonBackReference
     private Asset asset;
 
     @ManyToOne

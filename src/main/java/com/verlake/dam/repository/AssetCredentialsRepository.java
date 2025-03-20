@@ -1,6 +1,8 @@
 package com.verlake.dam.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import com.verlake.dam.entity.AssetCredential;
 import org.springframework.data.jpa.repository.Modifying;
@@ -15,6 +17,17 @@ public interface AssetCredentialsRepository extends JpaRepository<AssetCredentia
     void deleteByAssetId(Long assetId);
     void deleteByAssetIdAndUserId(Long assetId, Long userId);
     boolean existsByAssetIdAndUserId(Long assetId, Long userId);
+
+    @Query("SELECT ac FROM AssetCredential ac " +
+           "LEFT JOIN FETCH ac.asset a " +
+           "LEFT JOIN FETCH ac.user u " +
+           "WHERE ac.user.id = :userId " +
+           "AND ac.username IS NULL " +
+           "AND ac.password IS NULL " +
+           "AND ac.asset.deleted = false")
+    List<AssetCredential> findNewAssignedCredentials(@Param("userId") Long userId);
+
+    List<AssetCredential> findByUserId(Long userId);
 
     @Modifying
     @Transactional

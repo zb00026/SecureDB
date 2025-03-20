@@ -2,9 +2,13 @@ package com.verlake.dam.service;
 
 import com.verlake.dam.entity.dto.AssetDTO;
 import com.verlake.dam.entity.dto.AssetOwnerUpdateDTO;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +20,8 @@ import com.verlake.dam.repository.AssetCredentialsRepository;
 import com.verlake.dam.entity.Asset;
 import com.verlake.dam.entity.AssetCredential;
 import com.verlake.dam.entity.User;
+import org.springframework.security.oauth2.jwt.Jwt;
+
 @Service
 @Slf4j
 public class AssetService {
@@ -117,5 +123,50 @@ public class AssetService {
         asset.setHostAddress(updateDTO.getHostAddress());
         
         assetRepository.save(asset);
+    }
+
+    /**
+     * Gets asset credentials that need to be set up for the current user
+     * @return List of asset credentials that need setup
+     */
+    public List<AssetCredential> getNewAssignedCredentials() {
+        String email = CommonUtils.getEmailFromSession();
+
+        User currentUser = userService.findByEmail(email);
+        if (currentUser == null) {
+            throw new AccessDeniedException("User not found");
+        }
+
+        return credentialsRepository.findNewAssignedCredentials(currentUser.getId());
+    }
+
+    /**
+     * Gets asset credentials that need to be set up for the current user
+     * @return List of asset credentials that need setup
+     */
+    public List<AssetCredential> getAssignedCredentials() {
+        String email = CommonUtils.getEmailFromSession();
+
+        User currentUser = userService.findByEmail(email);
+        if (currentUser == null) {
+            throw new AccessDeniedException("User not found");
+        }
+
+        List<AssetCredential> credentials = credentialsRepository.findByUserId(currentUser.getId());
+        credentials.sort((c1, c2) -> {
+            boolean c1Null = c1.getUsername() == null && c1.getPassword() == null;
+            boolean c2Null = c2.getUsername() == null && c2.getPassword() == null;
+            return Boolean.compare(c2Null, c1Null);
+        });
+        return credentials;
+    }
+
+    public AssetCredential findCredentialById(Long credentialId) {
+        return credentialsRepository.findById(credentialId)
+                .orElse(null);
+    }
+
+    public void saveCredential(AssetCredential assetCredential) {
+        credentialsRepository.save(assetCredential);
     }
 } 

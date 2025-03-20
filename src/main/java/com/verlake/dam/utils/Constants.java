@@ -14,6 +14,9 @@ public class Constants {
     public static final String ASSET_ADD_NAME = "Add";
     public static final String ASSET_REMOVE_NAME = "Remove";
 
+    public static final String AUTH_PROVIDER_KEYCLOAK = "keycloak";
+    public static final String AUTH_PROVIDER_GOOGLE = "google";
+
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {
             (byte) 0x52,

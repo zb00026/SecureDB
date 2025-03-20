@@ -4,6 +4,8 @@ import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.listener.AuditEntityListener;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.*;
@@ -23,6 +25,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @EntityListeners(AuditEntityListener.class)
 @Audited(entity = "ASSET")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 
 public class Asset {
     @Id
