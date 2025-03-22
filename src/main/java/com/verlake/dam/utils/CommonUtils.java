@@ -75,7 +75,7 @@ public class CommonUtils {
         SecretKeySpec secretKey = generateKeyFromPassword(password);
 
         // Create AES cipher instance with secure padding
-        Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
         // Encrypt the data
@@ -93,7 +93,7 @@ public class CommonUtils {
         SecretKeySpec secretKey = generateKeyFromPassword(password);
 
         // Create AES cipher instance with secure padding
-        Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE, secretKey);
 
         // Decode the Base64 encoded data

@@ -1,5 +1,6 @@
 package com.verlake.dam.entity.dto;
 
+import com.verlake.dam.entity.User;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 
@@ -17,5 +18,5 @@ public class AssetDTO {
     private AssetType type;
     private DatabaseType databaseType;
     private String hostAddress;
-    private List<UserDTO> owners;
+    private List<User> owners;
 }

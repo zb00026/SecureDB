@@ -28,7 +28,7 @@ public class AssetController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Asset>> getAllAssets() {
+    public ResponseEntity<List<AssetDTO>> getAllAssets() {
         return ResponseEntity.ok(assetService.getAllAssets());
     }
     

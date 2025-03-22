@@ -30,18 +30,21 @@
             <column name="id" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="asset_id" type="bigint">
-                <constraints nullable="false"
-                             foreignKeyName="fk_asset_credentials_asset"
-                             references="assets(id)"/>
-            </column>
-            <column name="user_id" type="bigint">
-                <constraints nullable="false"
-                             foreignKeyName="fk_asset_credentials_user"
-                             references="users(id)"/>
-            </column>
+            <column name="asset_id" type="bigint"/>
+            <column name="user_id" type="bigint"/>
+
             <column name="username" type="varchar(255)"/>
             <column name="password" type="varchar(255)"/>
         </createTable>
+        <addForeignKeyConstraint baseTableName="asset_credentials"
+                                 baseColumnNames="asset_id"
+                                 constraintName="fk_asset_credentials_asset"
+                                 referencedTableName="assets"
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="asset_credentials"
+                                 baseColumnNames="user_id"
+                                 constraintName="fk_asset_credentials_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"/>
     </changeSet>
 </databaseChangeLog>

@@ -1,5 +1,6 @@
 package com.verlake.dam.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
@@ -13,6 +14,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
@@ -48,18 +50,4 @@ public class Asset {
 
     @Column(name = "is_deleted")
     private boolean deleted;
-
-    @OneToMany(mappedBy = "asset", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private List<AssetCredential> assetCredentials = new ArrayList<>();
-
-    @Transient
-    public List<User> getOwners() {
-        if(assetCredentials != null) {
-            return assetCredentials.stream()
-                    .map(AssetCredential::getUser)
-                    .collect(Collectors.toList());
-        }
-        return new ArrayList<>();
-    }
 } 

@@ -2,15 +2,21 @@ package com.verlake.dam.controller.resource_owner;
 
 import com.verlake.dam.entity.Asset;
 import com.verlake.dam.entity.AssetCredential;
+import com.verlake.dam.entity.User;
 import com.verlake.dam.entity.dto.AssetCredentialDTO;
+import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.AssetService;
+import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.KeycloakService;
+import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,15 +35,19 @@ import static com.verlake.dam.utils.Constants.AUTH_PROVIDER_KEYCLOAK;
 @RequestMapping("/api/resource_owner/assets")
 public class OwnerAssetController {
     private final AssetService assetService;
+    private final EmailService emailService;
+    private final UserService userService;
     private final KeycloakService keycloakService;
 
     @Value("${auth.provider}")
     private String authProvider;
 
     @Autowired
-    public OwnerAssetController(AssetService assetService, KeycloakService keycloakService) {
+    public OwnerAssetController(AssetService assetService, KeycloakService keycloakService, EmailService emailService, UserService userService) {
         this.assetService = assetService;
         this.keycloakService = keycloakService;
+        this.emailService = emailService;
+        this.userService = userService;
     }
 
 
@@ -49,6 +59,29 @@ public class OwnerAssetController {
     @GetMapping("/credentials")
     public ResponseEntity<List<AssetCredential>> getAllAssetCredentials() {
         return ResponseEntity.ok(assetService.getAssignedCredentials());
+    }
+
+    @DeleteMapping("/credentials/{credentialId}")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> deleteCredentialInfo(@PathVariable Long credentialId) {
+        AssetCredential existingCredential = assetService.findCredentialById(credentialId);
+        if (existingCredential == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Asset Credential not found in database");
+        }
+        assetService.deleteAssetCredential(existingCredential);
+        List<User> admins = userService.getAdminRoleUsers();
+        String myEmail = CommonUtils.getEmailFromSession();
+        User currentUser = userService.findByEmail(myEmail);
+        if (currentUser == null) {
+            throw new AccessDeniedException("Current User not found");
+        }
+        String emailTmplFile = "relinquish-asset-credential";
+        if(admins != null) {
+            for (User admin : admins) {
+                emailService.sendAssetRelinquishEmail(admin, currentUser, existingCredential, emailTmplFile);
+            }
+        }
+        return CommonUtils.getSuccessResponse();
     }
 
     @PostMapping("/credentials/{credentialId}")

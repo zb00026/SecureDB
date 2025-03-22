@@ -24,11 +24,11 @@ configurations {
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-web:3.+'
-	implementation 'org.springframework.boot:spring-boot-devtools:3.+'
-	implementation 'org.springframework.boot:spring-boot-autoconfigure:3.+'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test:3.+'
-	implementation 'org.springframework.boot:spring-boot-starter-mail:3.+'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-devtools'
+	implementation 'org.springframework.boot:spring-boot-autoconfigure'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.slf4j:slf4j-api:2.+'
 	implementation 'ch.qos.logback:logback-classic:1.+'
 	implementation 'ch.qos.logback:logback-core:1.+'

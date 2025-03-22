@@ -2,6 +2,8 @@ package com.verlake.dam.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.verlake.dam.entity.Asset;
+import com.verlake.dam.entity.AssetCredential;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.User;
 import com.verlake.dam.enums.EmailType;
@@ -9,6 +11,7 @@ import com.verlake.dam.repository.EmailRepository;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,6 +52,38 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
+    private Email createEmailEntity(User user,
+                                    EmailType emailType,
+                                    String emailSubject,
+                                    ObjectNode metaData,
+                                    String htmlContent) {
+        // Create Email entity and store in the database
+        Email email = new Email();
+        email.setEmailTo(user.getEmail());
+        email.setEmailType(emailType);  // Use the enum for email type
+        email.setSubject(emailSubject);
+        email.setMetadata(metaData);
+        email.setSentAt(LocalDateTime.now());
+        emailRepository.save(email);  // Save email record in the database
+
+        metaData.put("mailContent", htmlContent);
+        email.setMetadata(metaData);
+        emailRepository.save(email);
+        return email;
+    }
+
+    private void sendEmail(String emailAddress, String emailSubject, String htmlContent) throws MessagingException {
+        MimeMessage message = emailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+        helper.setFrom(mailSender);
+        helper.setTo(emailAddress);
+        helper.setSubject(emailSubject);
+        helper.setText(htmlContent, true);  // true indicates HTML content
+
+        // Send the email
+        emailSender.send(message);
+    }
+
     public void sendInvitationEmail(User user, String emailTmplFile) {
         // Prepare Thymeleaf context for email content
         Context context = new Context();
@@ -65,37 +100,46 @@ public class EmailService {
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put("inviteCode", inviteCode);
         metaData.put("redirectLink", redirectLink);
-        // Create Email entity and store in the database
-        Email email = new Email();
-        email.setEmailTo(user.getEmail());
-        email.setEmailType(EmailType.INVITATION);  // Use the enum for email type
-        email.setSubject(emailSubject);
-        email.setMetadata(metaData);
-        email.setSentAt(LocalDateTime.now());
-        emailRepository.save(email);  // Save email record in the database
 
         String htmlContent = templateEngine.process(emailTmplFile, context);
-        metaData.put("mailContent", htmlContent);
-        email.setMetadata(metaData);
-        emailRepository.save(email);
 
-        // Create MimeMessage to send email
-        MimeMessage message = emailSender.createMimeMessage();
+        // Create Email entity and store in the database
+        Email email = createEmailEntity(user, EmailType.INVITATION, emailSubject, metaData, htmlContent);
+
         try {
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
-            helper.setFrom(mailSender);
-            helper.setTo(user.getEmail());
-            helper.setSubject(emailSubject);
-            helper.setText(htmlContent, true);  // true indicates HTML content
-
-            // Send the email
-            emailSender.send(message);
+            sendEmail(user.getEmail(), emailSubject, htmlContent);
         } catch (Exception e) {
             emailRepository.delete(email);
             userRepository.delete(user);
-            log.error("Failed to send invitation email to {} : {}", user.getEmail(), e.getMessage());
+            log.error("Failed to send invitation email to {} ", user.getEmail(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send invitation email to " + user.getEmail());
         }
 
+    }
+
+    public void sendAssetRelinquishEmail(User admin, User owner, AssetCredential assetCredential, String emailTmplFile) {
+        // Prepare Thymeleaf context for email content
+        Context context = new Context();
+        context.setVariable("adminName", admin.getFirstName() + " " + admin.getLastName());
+        context.setVariable("ownerName", owner.getFirstName() + " " + owner.getLastName());
+        context.setVariable("assetName", assetCredential.getAsset().getName());
+
+        String emailSubject = "Relinquish Asset";
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode metaData = objectMapper.createObjectNode();
+        metaData.put("assetName", assetCredential.getAsset().getName());
+        metaData.put("assetCredentialId", assetCredential.getId());
+
+
+        String htmlContent = templateEngine.process(emailTmplFile, context);
+        metaData.put("mailContent", htmlContent);
+        createEmailEntity(admin, EmailType.RELINQUISH_ASSET_CREDENTIAL, emailSubject, metaData, emailTmplFile);
+
+        try {
+            sendEmail(admin.getEmail(), emailSubject, htmlContent);
+        } catch (Exception e) {
+            log.error("Failed to send relinquish asset email to {} ", admin.getEmail(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send invitation email to " + admin.getEmail());
+        }
     }
 }

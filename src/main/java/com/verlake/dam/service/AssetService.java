@@ -30,9 +30,9 @@ public class AssetService {
     private final UserService userService;
 
     @Autowired
-    public AssetService(AssetRepository assetRepository, 
-                       AssetCredentialsRepository credentialsRepository,
-                       UserService userService) {
+    public AssetService(AssetRepository assetRepository,
+                        AssetCredentialsRepository credentialsRepository,
+                        UserService userService) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
         this.userService = userService;
@@ -48,7 +48,7 @@ public class AssetService {
                 .hostAddress(assetDTO.getHostAddress())
                 .deleted(false)
                 .build();
-        
+
         return assetRepository.save(asset);
     }
 
@@ -92,13 +92,13 @@ public class AssetService {
     public void deleteAsset(Long id) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
-        
+
         // Soft delete the asset
         asset.setDeleted(true);
-        
+
         // Wipe all credentials
         credentialsRepository.resetCredentialsByAssetId(asset.getId());
-        
+
         assetRepository.save(asset);
     }
 
@@ -107,21 +107,41 @@ public class AssetService {
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
     }
 
-    public List<Asset> getAllAssets() {
-        return assetRepository.findByDeletedFalse();
+    public List<AssetDTO> getAllAssets() {
+        List<Asset> lstAssets = assetRepository.findByDeletedFalse();
+        return lstAssets.stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    private AssetDTO convertToDTO(Asset asset) {
+        List<AssetCredential> credentials = credentialsRepository.findByAssetId(asset.getId());
+        List<User> owners = credentials.stream()
+                .map(AssetCredential::getUser)
+                .toList();
+
+        return AssetDTO.builder()
+                .id(asset.getId())
+                .name(asset.getName())
+                .description(asset.getDescription())
+                .type(asset.getType())
+                .databaseType(asset.getDatabaseType())
+                .hostAddress(asset.getHostAddress())
+                .owners(owners)
+                .build();
     }
 
     @Transactional
     public void updateAsset(Long id, AssetDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
-        
+
         asset.setName(updateDTO.getName());
         asset.setDescription(updateDTO.getDescription());
         asset.setType(updateDTO.getType());
         asset.setDatabaseType(updateDTO.getDatabaseType());
         asset.setHostAddress(updateDTO.getHostAddress());
-        
+
         assetRepository.save(asset);
     }
 
@@ -169,4 +189,8 @@ public class AssetService {
     public void saveCredential(AssetCredential assetCredential) {
         credentialsRepository.save(assetCredential);
     }
-} 
+
+    public void deleteAssetCredential(AssetCredential credential) {
+        credentialsRepository.delete(credential);
+    }
+}
