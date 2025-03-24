@@ -1,8 +1,11 @@
 package com.verlake.dam.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.converter.JsonAttributeConverter;
 import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.listener.AuditEntityListener;
+
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -10,6 +13,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "emails")
+@EntityListeners(AuditEntityListener.class)
+@Audited(entity = "EMAIL")
 @Data
 public class Email {
     @Id

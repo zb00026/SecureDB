@@ -7,14 +7,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Audit Trail")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS) 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Order(1)
 public class AuditTrailE2ETest extends BaseLoginTest {
     private KeycloakLoginPage keycloakLoginPage;
     private SettingsPage settingsPage;
     private UserManagementPage userPage;
     private AuditHistoryPage auditPage;
 
-    private String keycloakAuthUrl;
     private String auditorUsername;
     private String auditorPassword;
     private String developerUsername;

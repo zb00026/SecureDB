@@ -7,6 +7,7 @@ import org.openqa.selenium.support.PageFactory;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
 public class MainPage extends BasePage {
+    
     public MainPage(WebDriver browser) {
         super(browser);
         PageFactory.initElements(browser, this);
@@ -17,6 +18,10 @@ public class MainPage extends BasePage {
 
     @FindBy(className = "chakra-spinner")
     public WebElement chakraSpinner;
+
+    public void navigate() {
+        driver.navigate().to("/");
+    }
 
     public void clickKeycloakButton() {
         wait.until(ExpectedConditions.elementToBeClickable(keycloakButton));

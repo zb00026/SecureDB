@@ -1,6 +1,7 @@
 package com.verlake.dam.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.enums.AuditAction;
@@ -48,6 +49,7 @@ public class AuditEntityListener {
             EntityManager em = SpringContext.getBean(EntityManager.class);
             Object id = target.getClass().getMethod("getId").invoke(target);
             Object originalEntity = em.find(target.getClass(), id);
+            mapper.registerModule(new JavaTimeModule());
             return mapper.writeValueAsString(originalEntity);
         } catch (Exception e) {
             // If the previous entity is not found, return null, ex: create entity
@@ -62,11 +64,18 @@ public class AuditEntityListener {
             String username = getCurrentUsername();
             String ipAddress = getCurrentIpAddress();
             
+            // Format the instanceId as "ENTITY NAME(6)"
+            String entityName = audited.entity();
+            String entityId = getEntityId(target);
+            String formattedInstanceId = String.format("%s(%s)", entityName, entityId);
+
+            mapper.registerModule(new JavaTimeModule());
+            
             AuditTrail audit = AuditTrail.builder()
                 .timestamp(LocalDateTime.now())
                 .user(username)
                 .action(action.name())
-                .instanceId(getEntityId(target))
+                .instanceId(formattedInstanceId)
                 .actionMetadata(audited.entity())
                 .previousValue(previousValue)
                 .newValue(action != AuditAction.DELETE ? mapper.writeValueAsString(target) : null)

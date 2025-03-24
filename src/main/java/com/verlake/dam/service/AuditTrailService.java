@@ -138,7 +138,7 @@ public class AuditTrailService {
         log.debug("Searching with filter: {}", filter);
         Page<AuditTrail> result = auditTrailRepository.findAll(
             filter.toSpecification(), 
-            filter.toPageRequest(Sort.by(Sort.Direction.DESC, "timestamp"))
+            filter.toPageRequest(Sort.by(Sort.Direction.DESC, "id"))
         );
         log.debug("Found {} results", result.getTotalElements());
         return result;

@@ -28,6 +28,10 @@ public class DashboardPage extends BasePage {
         this.browser = browser;
     }
 
+    public void navigateToDashboard() {
+        browser.navigate().to(baseUrl);
+    }
+
 
     // Wait for the login page to load by checking the URL and visibility of the username field
     public void waitForDashboadPage() {
