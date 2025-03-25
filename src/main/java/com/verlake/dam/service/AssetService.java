@@ -1,40 +1,41 @@
 package com.verlake.dam.service;
 
-import com.verlake.dam.entity.dto.AssetDTO;
-import com.verlake.dam.entity.dto.AssetOwnerUpdateDTO;
+import com.verlake.dam.entity.assets.AssetApprover;
+import com.verlake.dam.entity.assets.dto.AssetDTO;
+import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
+import com.verlake.dam.repository.AssetApproversRepository;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import com.verlake.dam.repository.AssetRepository;
 import com.verlake.dam.repository.AssetCredentialsRepository;
-import com.verlake.dam.entity.Asset;
-import com.verlake.dam.entity.AssetCredential;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.User;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 @Service
 @Slf4j
 public class AssetService {
     private final AssetRepository assetRepository;
     private final AssetCredentialsRepository credentialsRepository;
+    private final AssetApproversRepository assetApproversRepository;
     private final UserService userService;
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
                         AssetCredentialsRepository credentialsRepository,
+                        AssetApproversRepository assetApproversRepository,
                         UserService userService) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
+        this.assetApproversRepository = assetApproversRepository;
         this.userService = userService;
     }
 
@@ -53,7 +54,7 @@ public class AssetService {
     }
 
     @Transactional
-    public void updateAssetOwners(AssetOwnerUpdateDTO updateDTO) {
+    public void updateAssetOwners(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
         if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
@@ -82,6 +83,40 @@ public class AssetService {
             // Delete credentials for provided user IDs
             updateDTO.getUserIds().forEach(userId -> {
                 credentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
+            });
+        }
+
+        assetRepository.save(asset);
+    }
+
+    @Transactional
+    public void updateAssetApprovers(AssetUpdateDTO updateDTO) {
+        Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
+        if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
+            // Delete existing asset approvers for these users if they exist
+            updateDTO.getUserIds().forEach(userId -> {
+                assetApproversRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
+            });
+
+            // Create new approvers for provided user IDs
+            List<User> newApprovers = updateDTO.getUserIds().stream()
+                    .map(userId -> userService.findById(userId))
+                    .filter(user -> user != null)
+                    .toList();
+
+            // Create Asset Approver
+            for (User newApprover : newApprovers) {
+                AssetApprover approver = AssetApprover.builder()
+                        .asset(asset)
+                        .user(newApprover)
+                        .build();
+                assetApproversRepository.save(approver);
+            }
+        } else if (updateDTO.getMethod().equals(Constants.ASSET_REMOVE_NAME)) {
+            // Delete Approvers for provided user IDs
+            updateDTO.getUserIds().forEach(userId -> {
+                assetApproversRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
             });
         }
 
@@ -120,6 +155,11 @@ public class AssetService {
                 .map(AssetCredential::getUser)
                 .toList();
 
+        List<AssetApprover> assetApprovers = assetApproversRepository.findByAssetId(asset.getId());
+        List<User> approvers = assetApprovers.stream()
+                .map(AssetApprover::getUser)
+                .toList();
+
         return AssetDTO.builder()
                 .id(asset.getId())
                 .name(asset.getName())
@@ -128,6 +168,7 @@ public class AssetService {
                 .databaseType(asset.getDatabaseType())
                 .hostAddress(asset.getHostAddress())
                 .owners(owners)
+                .approvers(approvers)
                 .build();
     }
 

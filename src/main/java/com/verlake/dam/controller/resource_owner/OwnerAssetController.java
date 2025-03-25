@@ -1,10 +1,9 @@
 package com.verlake.dam.controller.resource_owner;
 
-import com.verlake.dam.entity.Asset;
-import com.verlake.dam.entity.AssetCredential;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.User;
-import com.verlake.dam.entity.dto.AssetCredentialDTO;
-import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.service.AssetService;
 import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.KeycloakService;
@@ -15,7 +14,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 

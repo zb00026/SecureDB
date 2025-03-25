@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="create-asset-approvers-tables" author="admin">
+
+        <!-- Asset Credentials table -->
+        <createTable tableName="asset_approvers">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="asset_id" type="bigint"/>
+            <column name="user_id" type="bigint"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="asset_approvers"
+                                 baseColumnNames="asset_id"
+                                 constraintName="fk_asset_approvers_asset"
+                                 referencedTableName="assets"
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="asset_approvers"
+                                 baseColumnNames="user_id"
+                                 constraintName="fk_asset_approvers_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

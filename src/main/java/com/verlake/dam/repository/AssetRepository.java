@@ -3,7 +3,7 @@ package com.verlake.dam.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.verlake.dam.entity.Asset;
+import com.verlake.dam.entity.assets.Asset;
 
 import java.util.List;
 import java.util.Optional;

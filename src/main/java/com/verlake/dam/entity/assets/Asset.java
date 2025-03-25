@@ -1,23 +1,17 @@
-package com.verlake.dam.entity;
+package com.verlake.dam.entity.assets;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.listener.AuditEntityListener;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 @Entity
 @Table(name = "assets")

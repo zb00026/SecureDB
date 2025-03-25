@@ -1,9 +1,7 @@
-package com.verlake.dam.entity.dto;
+package com.verlake.dam.entity.assets.dto;
 
 import lombok.Builder;
 import lombok.Data;
-
-import java.util.List;
 
 @Data
 @Builder

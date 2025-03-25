@@ -2,8 +2,8 @@ package com.verlake.dam.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.verlake.dam.entity.Asset;
-import com.verlake.dam.entity.AssetCredential;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.User;
 import com.verlake.dam.enums.EmailType;
@@ -140,6 +140,31 @@ public class EmailService {
         } catch (Exception e) {
             log.error("Failed to send relinquish asset email to {} ", admin.getEmail(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send invitation email to " + admin.getEmail());
+        }
+    }
+
+    public void sendAssetApproveNotifyEmail(Asset asset, User approver, String method, String emailTmplFile) {
+        Context context = new Context();
+        context.setVariable("assetName", asset.getName());
+        context.setVariable("approverName", approver.getFirstName() + " " + approver.getLastName());
+        context.setVariable("method", method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
+        
+        String emailSubject = "Asset Approve Notification";
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode metaData = objectMapper.createObjectNode();
+        metaData.put("assetName", asset.getName());
+        metaData.put("approverName", approver.getFirstName() + " " + approver.getLastName());
+        metaData.put("method", method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
+
+        String emailContent = templateEngine.process(emailTmplFile, context);
+        
+        createEmailEntity(approver, EmailType.ASSET_APPROVE_NOTIFY, emailSubject, metaData, emailContent);
+
+        try {
+            sendEmail(approver.getEmail(), emailSubject, emailContent);
+        } catch (Exception e) {
+            log.error("Failed to send assigning asset approver email to {} ", approver.getEmail(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send Asset Approver email to " + approver.getEmail());
         }
     }
 }
