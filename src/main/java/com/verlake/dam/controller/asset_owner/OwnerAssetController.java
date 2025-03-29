@@ -1,9 +1,9 @@
-package com.verlake.dam.controller.resource_owner;
+package com.verlake.dam.controller.asset_owner;
 
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.User;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.AssetService;
 import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.KeycloakService;
@@ -30,7 +30,7 @@ import static com.verlake.dam.utils.Constants.AUTH_PROVIDER_KEYCLOAK;
 
 
 @RestController
-@RequestMapping("/api/resource_owner/assets")
+@RequestMapping("/api/asset_owner/assets")
 public class OwnerAssetController {
     private final AssetService assetService;
     private final EmailService emailService;

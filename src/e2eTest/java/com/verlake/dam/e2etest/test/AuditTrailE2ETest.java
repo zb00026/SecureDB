@@ -1,14 +1,21 @@
 package com.verlake.dam.e2etest.test;
 
+import com.verlake.dam.e2etest.pageobjects.*;
+import org.junit.jupiter.api.*;
+import org.openqa.selenium.Dimension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
-import com.verlake.dam.e2etest.pageobjects. *;
-import org.junit.jupiter.api. *;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Audit Trail")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Order(1)
 public class AuditTrailE2ETest extends BaseLoginTest {
     private KeycloakLoginPage keycloakLoginPage;
     private SettingsPage settingsPage;
@@ -22,12 +29,41 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     private String testBucketName;
 
     @BeforeAll
-    void setupTestData() {
+    void setupTestData() throws SQLException {
+        if (activeProfile.equals("dev")) {
+            DriverManagerDataSource dataSource = new DriverManagerDataSource();
+            dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+            dataSource.setUrl(env.get("MYSQL_URL"));
+            dataSource.setUsername(env.get("MYSQL_USERNAME"));
+            dataSource.setPassword(env.get("MYSQL_PASSWORD"));
+
+            Connection conn = dataSource.getConnection();
+            Statement stmt = conn.createStatement();
+            String[] statements = {
+                    "SET FOREIGN_KEY_CHECKS = 0",
+                    "TRUNCATE TABLE audit_trails",
+                    "TRUNCATE TABLE user_roles",
+                    "TRUNCATE TABLE users",
+                    "TRUNCATE TABLE assets",
+                    "TRUNCATE TABLE asset_credentials",
+                    "TRUNCATE TABLE s3_bucket_settings",
+                    "SET FOREIGN_KEY_CHECKS = 1",
+                    "INSERT INTO users (email, first_name, last_name, is_active) VALUES ('chuc06872@gmail.com', 'E2E', 'Admin', true)",
+                    "INSERT INTO user_roles (user_id, role_id) VALUES (1, 1)"
+            };
+
+            for (String sql : statements) {
+                stmt.execute(sql);
+            }
+        }
+
     }
 
     @BeforeEach
     void beforeEach() {
         super.baseSetUp();
+        browser.manage().window().setSize(new Dimension(1920, 1080));  // Full HD resolution
+    
         keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
         auditorUsername = getEnvVariable("KEYCLOAK_AUDITOR_USER");
         auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
@@ -38,7 +74,7 @@ public class AuditTrailE2ETest extends BaseLoginTest {
 
     @Test
     @Order(1)
-    @DisplayName("Configure S3 and manage users as admin")
+    @DisplayName("Configure S3")
     void adminOperations() throws InterruptedException {
         super.loginAsAdmin();
         assertThat(dashboardPage.btnLogout.getText()).isEqualTo("Logout");
@@ -48,34 +84,40 @@ public class AuditTrailE2ETest extends BaseLoginTest {
         settingsPage.navigateToAuditHistory();
         settingsPage.waitForPageToLoad();
         settingsPage.configureS3Bucket(testBucketName);
+    }
+
+    @Test
+    @Order(2)
+    @DisplayName("Manage users as admin")
+    void managementUsers() throws InterruptedException {
 
         // Manage users
         userPage = new UserManagementPage(browser, baseUrl);
         userPage.navigateToUserManagement();
         assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/admin/users");
-        
+
         // Add delays between operations
         userPage.createUser(auditorUsername, "Test", "User1", auditorPassword, "Auditor");
         Thread.sleep(2000);
-        
+
         userPage.modifyUser(auditorUsername, "NewAuditorFName", "NewAuditorLName");
         Thread.sleep(2000);
-        
+
         userPage.createUser(developerUsername, "Test", "User2", developerPassword, "Developer");
         Thread.sleep(2000);
-        
+
         userPage.modifyUser(developerUsername, "NewDeveloperFName", "NewDeveloperLName");
         Thread.sleep(2000);
 
         userPage.createUser("test1@example.com", "Test", "User1", "password", "Approver");
         Thread.sleep(2000);
-        
+
         userPage.modifyUser("test1@example.com", "Modified", "User1");
         Thread.sleep(2000);
-        
-        userPage.createUser("test2@example.com", "Test", "User2", "password", "Resource Owner");
+
+        userPage.createUser("test2@example.com", "Test", "User2", "password", "Asset Owner");
         Thread.sleep(2000);
-        
+
         userPage.deleteUser("test2@example.com");
 
         // Logout
@@ -83,10 +125,11 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     @DisplayName("Verify audit trail as auditor")
     void auditVerification() {
         // Login as auditor
+        browser.get(baseUrl);
         homePage.clickKeycloakButton();
         keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
         keycloakLoginPage.login(auditorUsername, auditorPassword);
@@ -102,7 +145,8 @@ public class AuditTrailE2ETest extends BaseLoginTest {
         // Verify all actions are recorded
         System.out.println("TR Length");
         System.out.println(auditPage.getAuditEntries().size());
-//        assertThat(auditPage.getAuditEntries()).hasSize(9); // S3 config + 4 user actions
+        // assertThat(auditPage.getAuditEntries()).hasSize(9); // S3 config + 4 user
+        // actions
         assertThat(auditPage.verifyAuditEntry("CREATE", "test1@example.com")).isTrue();
         assertThat(auditPage.verifyAuditEntry("UPDATE", "test1@example.com")).isTrue();
         assertThat(auditPage.verifyAuditEntry("CREATE", "test2@example.com")).isTrue();

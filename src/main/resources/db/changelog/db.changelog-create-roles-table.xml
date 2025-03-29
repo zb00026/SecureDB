@@ -40,7 +40,7 @@
         </insert>
         <insert tableName="roles">
             <column name="id" value="3"/>
-            <column name="name" value="Resource Owner"/>
+            <column name="name" value="Asset Owner"/>
         </insert>
         <insert tableName="roles">
             <column name="id" value="4"/>

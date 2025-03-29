@@ -38,11 +38,12 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/public/**", "/api/auth/verifyToken").permitAll()
                         .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Roles.ADMIN.name())
+                        .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.ASSET_OWNER.name())
                         .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Roles.DEVELOPER.name())
                         .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Roles.APPROVER.name())
                         .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Roles.AUDITOR.name())
-                        .requestMatchers("/api" + Roles.RESOURCE_OWNER.getAvailablePath()).hasAuthority(Roles.RESOURCE_OWNER.name())
-                        .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.AUDITOR.name())  // Add this specific rule
+                        .requestMatchers("/api" + Roles.ASSET_OWNER.getAvailablePath()).hasAuthority(Roles.ASSET_OWNER.name())
+                        .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.AUDITOR.name())
                         .anyRequest().denyAll()
                 )
                 .sessionManagement(session -> session

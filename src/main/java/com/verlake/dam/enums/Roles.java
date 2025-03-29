@@ -3,7 +3,7 @@ package com.verlake.dam.enums;
 public enum Roles {
     ADMIN,
     DEVELOPER,
-    RESOURCE_OWNER,
+    ASSET_OWNER,
     APPROVER,
     AUDITOR;
 

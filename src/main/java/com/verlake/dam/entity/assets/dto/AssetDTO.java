@@ -1,6 +1,6 @@
 package com.verlake.dam.entity.assets.dto;
 
-import com.verlake.dam.entity.User;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 

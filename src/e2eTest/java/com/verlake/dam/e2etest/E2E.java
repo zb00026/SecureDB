@@ -9,6 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -31,6 +33,7 @@ public abstract class E2E {
 
     protected static WebDriver browser;
     protected static Dotenv env;
+    protected static String activeProfile;
 
     static {
         WebDriverManager.chromedriver().setup();
@@ -39,9 +42,8 @@ public abstract class E2E {
     @BeforeAll
     static void beforeAll() {
         // Load environment based on profile
-        String activeProfile = System.getProperty("test.profile", "dev");
+        activeProfile = System.getProperty("test.profile", "dev");
         String envFile = activeProfile.equals("dev") ? ".env.dev.e2etest" : ".env.qa.e2etest";
-
         env = Dotenv.configure()
                 .directory("./")
                 .filename(envFile)

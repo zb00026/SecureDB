@@ -1,12 +1,15 @@
 package com.verlake.dam.e2etest.pageobjects;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.Dimension;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 public class UserManagementPage extends BasePage {
     private final String baseUrl;
 
@@ -24,6 +27,7 @@ public class UserManagementPage extends BasePage {
 
     public UserManagementPage(WebDriver driver, String baseUrl) {
         super(driver);
+
         this.baseUrl = baseUrl;
     }
 
@@ -34,11 +38,12 @@ public class UserManagementPage extends BasePage {
         wait.until(ExpectedConditions.visibilityOf(btnSaveUser));
     }
 
-    public void createUser(String email, String firstName, String lastName, String password, String role) throws InterruptedException {
+    public void createUser(String email, String firstName, String lastName, String password, String role)
+            throws InterruptedException {
         try {
             // Wait for form elements to be visible and interactable
             wait.until(ExpectedConditions.visibilityOf(userForm));
-            
+
             // Fill in user form with explicit waits
             WebElement emailInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputEmail")));
             emailInput.clear();
@@ -62,7 +67,7 @@ public class UserManagementPage extends BasePage {
 
             // Wait for role options to be visible and click the specific role
             WebElement roleOption = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//div[contains(text(), '" + role + "')]")));
+                    By.xpath("//div[contains(text(), '" + role + "')]")));
             roleOption.click();
 
             // Try different approaches to click the save button
@@ -97,7 +102,6 @@ public class UserManagementPage extends BasePage {
                 By.xpath("//tr[contains(., '" + email + "')]")));
         userRow.click();
 
-
         // Clear and update fields
         WebElement firstNameInput = driver.findElement(By.id("inputFirstName"));
         firstNameInput.clear();
@@ -112,16 +116,31 @@ public class UserManagementPage extends BasePage {
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
     }
 
-    public void deleteUser(String email) {
-        // Find user row and click delete button
+    public void deleteUser(String email) throws InterruptedException {
+        driver.manage().window().setSize(new Dimension(1920, 1080));
+        driver.manage().window().maximize();
+
+        // Find user row with a more specific XPath that matches the table structure
+        String userRowXPath = "//tbody/tr[.//td[contains(text(), '" + email + "')]]";
         WebElement userRow = wait.until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//tr[contains(., '" + email + "')]")));
-        userRow.findElement(By.tagName("button")).click();
-        // Wait for confirmation dialog and confirm deletion
-        wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.xpath("//header[contains(text(), 'Delete User')]")));
-        wait.until(ExpectedConditions.elementToBeClickable(driver.findElement(By.id("btnConfirmDeleteUser"))));
-        driver.findElement(By.id("btnConfirmDeleteUser")).click();
+                By.xpath(userRowXPath)));
+
+        // Find the delete button - it's a Button with text "Delete"
+        WebElement deleteButton = userRow.findElement(
+                By.xpath(".//button[contains(text(), 'Delete') or .//FormattedMessage[@id='text.delete']]"));
+
+        // Scroll into view
+        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", deleteButton);
+        Thread.sleep(500);
+
+        // Click the delete button
+        deleteButton.click();
+
+        // Wait for the DamAlertDialog to appear and be clickable
+        wait.until(ExpectedConditions.elementToBeClickable(By.id("btnConfirmDeleteUser")))
+                .click();
+
+        // Wait for success toast
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
     }
 }

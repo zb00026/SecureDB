@@ -1,15 +1,16 @@
 package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.entity.Role;
-import com.verlake.dam.entity.User;
 import com.verlake.dam.entity.dto.PageRequestDTO;
-import com.verlake.dam.entity.dto.UserDTO;
-import com.verlake.dam.entity.dto.UserFilter;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.user.dto.UserDTO;
+import com.verlake.dam.entity.user.dto.UserFilter;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.KeycloakService;
+import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,10 +32,11 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/admin/users")
 @Slf4j
 public class UserController {
-
     private final UserRepository userRepository;
-
     private final RoleRepository roleRepository;
+
+    @Autowired
+    private UserService userService;
 
     @Autowired(required = false)
     private KeycloakService keycloakService;
@@ -52,23 +54,17 @@ public class UserController {
 
     @GetMapping
     public Object getAllUsers(UserFilter filter) {
-        log.debug("Getting users with filter: {}", filter);
-        Pageable pageable = filter.toPageRequest(Sort.by(Sort.Direction.DESC, "id"));
-        
-        if (pageable.isUnpaged()) {
-            // Return List when unpaged
-            return userRepository.findAll(filter.toSpecification(), Sort.by(Sort.Direction.DESC, "id"));
-        } else {
-            // Return Page when paged
-            return userRepository.findAll(filter.toSpecification(), pageable);
-        }
+        return userService.getAllUsers(filter);
     }
 
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "User ID " + id + " does not exist"));
+        User user = userService.findById(id);
+        if (user == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "User ID " + id + " does not exist");
+        }
+        return user;
     }
 
     @PostMapping("/createUserAndSendInvite")
@@ -153,4 +149,15 @@ public class UserController {
                 })
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User ID " + id + " does not exist."));
     }
+
+    @PutMapping("/setApprover/{id}/{approverId}")
+    public User setApproverOfUser(@PathVariable Long id, @PathVariable Long approverId) {
+        return userService.setApproverForUser(id, approverId);
+    }
+
+    @PutMapping("/unsetApprover/{id}")
+    public User unsetApproverOfUser(@PathVariable Long id) {
+        return userService.unsetApproverForUser(id);
+    }
+
 }

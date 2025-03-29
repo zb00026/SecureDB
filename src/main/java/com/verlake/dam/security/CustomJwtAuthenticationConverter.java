@@ -2,7 +2,7 @@ package com.verlake.dam.security;
 
 
 import com.verlake.dam.entity.Role;
-import com.verlake.dam.entity.User;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.convert.converter.Converter;

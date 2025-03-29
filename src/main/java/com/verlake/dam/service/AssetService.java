@@ -3,6 +3,7 @@ package com.verlake.dam.service;
 import com.verlake.dam.entity.assets.AssetApprover;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.AssetApproversRepository;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
@@ -18,7 +19,6 @@ import com.verlake.dam.repository.AssetRepository;
 import com.verlake.dam.repository.AssetCredentialsRepository;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.User;
 
 @Service
 @Slf4j

@@ -11,6 +11,8 @@
           SET FOREIGN_KEY_CHECKS = 0;
           TRUNCATE TABLE audit_trails;
           TRUNCATE TABLE user_roles;
+          TRUNCATE TABLE assets;
+          TRUNCATE TABLE asset_credentials;
           TRUNCATE TABLE users;
           TRUNCATE TABLE s3_bucket_settings;
           SET FOREIGN_KEY_CHECKS = 1;

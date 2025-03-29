@@ -1,8 +1,9 @@
 package com.verlake.dam.repository;
 
-import com.verlake.dam.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+import com.verlake.dam.entity.user.User;
 
 import java.util.Optional;
 

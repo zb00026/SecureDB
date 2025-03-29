@@ -46,14 +46,17 @@ public class AssetsPage extends BasePage {
         assetRow.click();
     }
 
-    public void checkResourceOwnerByCriteria(String firstName, String lastName, String email) {
+    public void checkAssetOwnerByCriteria(String firstName, String lastName, String email) {
         String inputChkXpath = String.format("//table[@id='tblAssetOwners']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s']]//input[@type='checkbox']", firstName, lastName, email);
         String btnChkXpath = String.format("//table[@id='tblAssetOwners']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s']]//label[contains(@class, 'chakra-checkbox')]", firstName, lastName, email);
         WebElement userCheckboxInput = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(inputChkXpath)));
         WebElement userCheckboxButton = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(btnChkXpath)));
         if (!userCheckboxInput.isSelected()) {
+            System.out.println("User checkbox is not selected");
             userCheckboxButton.click();
             wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
+        } else {
+            System.out.println("User checkbox is selected");
         }
     }
 
@@ -115,7 +118,7 @@ public class AssetsPage extends BasePage {
         wait.until(ExpectedConditions.visibilityOf(assetTypeForm));
 
         selectAssetByCriteria(assetName, dbType, hostAddress);
-        checkResourceOwnerByCriteria(ownerFirstName, ownerLastName, ownerEmail);
+        checkAssetOwnerByCriteria(ownerFirstName, ownerLastName, ownerEmail);
 
         // Wait for spinner to disappear and success toast to appear
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));

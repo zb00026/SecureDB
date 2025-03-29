@@ -3,7 +3,7 @@ package com.verlake.dam.entity.assets;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.verlake.dam.annotation.Audited;
-import com.verlake.dam.entity.User;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.listener.AuditEntityListener;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

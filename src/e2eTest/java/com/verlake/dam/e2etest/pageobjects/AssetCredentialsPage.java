@@ -28,7 +28,7 @@ public class AssetCredentialsPage extends BasePage {
 
 
     public void navigateToAssetsPage() {
-        driver.get(baseUrl + "/resource_owner");
+        driver.get(baseUrl + "/asset_owner");
     }
 
     private WebElement getCredentialButton(String assetName, String assetType, String hostAddress, String className) {

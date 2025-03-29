@@ -1,6 +1,7 @@
 package com.verlake.dam.controller.auth;
 
-import com.verlake.dam.entity.dto.UserDTO;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.service.TokenService;
 import com.verlake.dam.service.manager.TokenServiceManager;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.verlake.dam.entity.User;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.UserService;
 import org.springframework.web.server.ResponseStatusException;
@@ -58,7 +58,7 @@ public class AuthController {
         User user = userService.findByEmail(email);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Email not registered");
+                    HttpStatus.FORBIDDEN, "Email " + email + " not registered");
         }
         return user;
     }

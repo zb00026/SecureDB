@@ -1,9 +1,9 @@
 package com.verlake.dam.controller.admin;
 
-import com.verlake.dam.entity.User;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.AssetService;
 import com.verlake.dam.service.EmailService;
 import com.verlake.dam.service.UserService;

@@ -77,7 +77,7 @@ jobs:
         env:
           KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}
         run: |
-          ./gradlew e2eTest --rerun-tasks -Dtest.profile=qa --info
+          ./gradlew e2eTest --tests "com.verlake.dam.e2etest.test.E2ETestSuite" --rerun-tasks -Dtest.profile=qa
 
       - name: Upload test results
         if: always()  # Upload results even if tests fail

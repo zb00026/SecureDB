@@ -2,13 +2,12 @@ package com.verlake.dam.e2etest.test;
 
 import com.verlake.dam.e2etest.pageobjects.*;
 import org.junit.jupiter.api.*;
-
+import org.openqa.selenium.Dimension;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Asset/Owner/Audit Trail Test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Order(2)
 public class AssetE2ETest extends BaseLoginTest {
 
     private AssetsPage assetsPage;
@@ -34,6 +33,7 @@ public class AssetE2ETest extends BaseLoginTest {
     @BeforeEach
     void beforeEach() {
         super.baseSetUp();
+        browser.manage().window().setSize(new Dimension(1920, 1080));  // Full HD resolution
         keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
         auditorUsername = getEnvVariable("KEYCLOAK_AUDITOR_USER");
         auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
@@ -66,13 +66,13 @@ public class AssetE2ETest extends BaseLoginTest {
     @Order(2)
     @DisplayName("Assign owner to created asset")
     void createAnAssetOwner() throws InterruptedException {
-        // Create Resource Owner Account
+        // Create Asset Owner Account
         ownerCreatePage = new UserManagementPage(browser, baseUrl);
         ownerCreatePage.navigateToUserManagement();
         assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/admin/users");
 
         // Add delays between operations
-        ownerCreatePage.createUser(assetOwnerUsername, "E2E Asset", "E2E Owner", assetOwnerPassword, "Resource Owner");
+        ownerCreatePage.createUser(assetOwnerUsername, "E2E Asset", "E2E Owner", assetOwnerPassword, "Asset Owner");
         Thread.sleep(2000);
     }
 
