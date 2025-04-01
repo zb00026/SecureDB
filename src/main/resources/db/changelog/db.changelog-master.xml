@@ -14,4 +14,5 @@
     <include file="/db/changelog/db.changelog-update-email-type1.xml"/>
     <include file="db/changelog/db.changelog-create-asset-approvers-table.xml"/>
     <include file="db/changelog/db.changelog-add-approver-id-column.xml"/>
+    <include file="db/changelog/db.changelog-seed-db-access-level.xml"/>
 </databaseChangeLog>

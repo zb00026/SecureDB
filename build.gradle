@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.4.3'
+	id 'org.springframework.boot' version '3.4.4'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -43,7 +43,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok:1.+'
 	implementation 'org.springframework.boot:spring-boot-starter-security:3.+'
 	implementation 'org.keycloak:keycloak-spring-boot-starter:25.+'
-	implementation 'org.keycloak:keycloak-admin-client:23.+'
+	implementation 'org.keycloak:keycloak-admin-client:26.+'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client:3.+'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server:3.+'
 	implementation 'org.springframework.security:spring-security-oauth2-jose:6.+'
@@ -54,7 +54,7 @@ dependencies {
 	implementation 'co.elastic.apm:apm-agent-attach:1.+'
 	implementation 'net.logstash.logback:logstash-logback-encoder:8.+'
 
-	implementation platform('software.amazon.awssdk:bom:2.31.9')
+	implementation platform('software.amazon.awssdk:bom:2.31.12')
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:ses'
 
@@ -72,7 +72,7 @@ dependencies {
 	testImplementation 'org.junit.platform:junit-platform-suite-engine:1.+'
 
 	// E2E test dependencies
-	e2eTestImplementation 'io.github.bonigarcia:webdrivermanager:5.+'
+	e2eTestImplementation 'io.github.bonigarcia:webdrivermanager:6.+'
 	e2eTestImplementation 'org.seleniumhq.selenium:selenium-java:4.+'
 	e2eTestImplementation 'org.springframework.boot:spring-boot-starter-test'
 	e2eTestImplementation 'org.testcontainers:testcontainers:1.+'
