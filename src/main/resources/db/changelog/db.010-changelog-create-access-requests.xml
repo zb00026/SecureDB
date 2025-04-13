@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-access-requests-table" author="admin">
+        <createTable tableName="access_requests">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="asset_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="access_sql" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="requestor_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="request_time" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="request_reason" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="developer_approver_status" type="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="asset_approver_status" type="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint 
+            baseTableName="access_requests" 
+            baseColumnNames="asset_id" 
+            constraintName="fk_access_requests_asset" 
+            referencedTableName="assets"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint 
+            baseTableName="access_requests" 
+            baseColumnNames="requestor_id" 
+            constraintName="fk_access_requests_user" 
+            referencedTableName="users"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog> 

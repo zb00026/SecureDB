@@ -5,14 +5,18 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
 
-    <include file="db/changelog/db.changelog-create-user-table.xml"/>
-    <include file="db/changelog/db.changelog-create-roles-table.xml"/>
-    <include file="db/changelog/db.changelog-email-invitation.xml"/>
-    <include file="db/changelog/db.changelog-create-s3-settings-table.xml"/>
-    <include file="db/changelog/db.changelog-create-audit-trails-table.xml"/>
-    <include file="db/changelog/db.changelog-create-assets-table.xml"/>
-    <include file="/db/changelog/db.changelog-update-email-type1.xml"/>
-    <include file="db/changelog/db.changelog-create-asset-approvers-table.xml"/>
-    <include file="db/changelog/db.changelog-add-approver-id-column.xml"/>
-    <include file="db/changelog/db.changelog-seed-db-access-level.xml"/>
+    <include file="db/changelog/db.000-changelog-create-user-table.xml"/>
+    <include file="db/changelog/db.001-changelog-create-roles-table.xml"/>
+    <include file="db/changelog/db.002-changelog-email-invitation.xml"/>
+    <include file="db/changelog/db.003-changelog-create-s3-settings-table.xml"/>
+    <include file="db/changelog/db.004-changelog-create-audit-trails-table.xml"/>
+    <include file="db/changelog/db.005-changelog-create-assets-table.xml"/>
+    <include file="db/changelog/db.006-changelog-update-email-type.xml"/>
+    <include file="db/changelog/db.007-changelog-create-asset-approvers-table.xml"/>
+    <include file="db/changelog/db.008-changelog-add-approver-id-column.xml"/>
+    <include file="db/changelog/db.009-changelog-seed-db-access-level.xml"/>
+    <include file="db/changelog/db.010-changelog-create-access-requests.xml"/>
+    <include file="db/changelog/db.011-changelog-update-asset-type-to-enums.xml"/>
+    <include file="db/changelog/db.012-changelog-create-asset-db-objects-table.xml"/>
+    <include file="db/changelog/db.013-changelog-create-access-level-objects-table.xml"/>
 </databaseChangeLog>

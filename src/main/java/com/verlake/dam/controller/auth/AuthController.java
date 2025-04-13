@@ -1,9 +1,12 @@
 package com.verlake.dam.controller.auth;
 
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.service.TokenService;
 import com.verlake.dam.service.manager.TokenServiceManager;
+import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,15 +17,36 @@ import org.springframework.web.bind.annotation.RestController;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.UserService;
 import org.springframework.web.server.ResponseStatusException;
+import com.verlake.dam.service.DatabaseAccessService;
+import com.verlake.dam.service.AssetService;
+import com.verlake.dam.service.KeycloakService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.util.List;
+import org.springframework.core.task.AsyncTaskExecutor;
 
 @RestController
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private DatabaseAccessService databaseAccessService;
+
+    @Autowired
+    private AssetService assetService;
+
+    @Autowired
+    private KeycloakService keycloakService;
+
+    @Autowired
+    private AsyncTaskExecutor taskExecutor;
+
     private final TokenServiceManager tokenServiceManager;
-    
+
     public AuthController(TokenServiceManager tokenServiceManager) {
         this.tokenServiceManager = tokenServiceManager;
     }
@@ -34,6 +58,34 @@ public class AuthController {
         User user = getUserFromToken(userDto.getToken(), tokenService);
         validateUser(user, userDto.getInviteCode());
         handleInviteCode(userDto, user);
+
+        // Check if user has ASSET_OWNER role
+        if (user.getRoles().stream().anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()))) {
+            // Get user key and credentials before starting thread
+            final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+            final List<AssetCredential> credentials = assetService.getAssignedCredentials();
+
+            // Process credentials in separate thread
+            taskExecutor.execute(() -> {
+                try {
+                    credentials.stream()
+                        .filter(cred -> cred.getUsername() != null && !cred.getUsername().isEmpty()
+                                && cred.getPassword() != null && !cred.getPassword().isEmpty())
+                        .forEach(cred -> {
+                            try {
+                                String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+                                cred.setPassword(decryptedPassword);
+                                databaseAccessService.updateAssetObjects(cred);
+                            } catch (Exception e) {
+                                log.error("Failed to process credential: " + cred.getId(), e);
+                            }
+                        });
+                } catch (Exception e) {
+                    log.error("Failed to process asset owner credentials", e);
+                }
+            });
+        }
+
         return ResponseEntity.ok().body(userDto);
     }
 

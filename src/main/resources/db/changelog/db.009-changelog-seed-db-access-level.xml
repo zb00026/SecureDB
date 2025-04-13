@@ -13,7 +13,7 @@
             <column name="asset_type" type="varchar(50)">
                 <constraints nullable="false"/>
             </column>
-            <column name="sub_type" type="varchar(50)">
+            <column name="database_type" type="varchar(50)">
                 <constraints nullable="false"/>
             </column>
             <column name="object" type="varchar(100)">
@@ -27,78 +27,78 @@
     <changeSet id="seed-access-levels-mysql" author="admin">
         <!-- MySQL Table Level Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="SELECT"/>
             <column name="access_template" value="GRANT SELECT ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="INSERT"/>
             <column name="access_template" value="GRANT INSERT ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="UPDATE"/>
             <column name="access_template" value="GRANT UPDATE ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="DELETE"/>
             <column name="access_template" value="GRANT DELETE ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="DROP"/>
             <column name="access_template" value="GRANT DROP ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="ALTER"/>
             <column name="access_template" value="GRANT ALTER ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="INDEX"/>
             <column name="access_template" value="GRANT INDEX ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="CREATE VIEW"/>
             <column name="access_template" value="GRANT CREATE VIEW ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="SHOW VIEW"/>
             <column name="access_template" value="GRANT SHOW VIEW ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="TRIGGER"/>
             <column name="access_template" value="GRANT TRIGGER ON $DB.$TABLE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="REFERENCES"/>
             <column name="access_template" value="GRANT REFERENCES ON $DB.$TABLE TO '$USER'@'%';"/>
@@ -106,15 +106,15 @@
 
         <!-- MySQL View Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="VIEW"/>
             <column name="templates" value="SELECT"/>
             <column name="access_template" value="GRANT SELECT ON $DB.$VIEW TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="VIEW"/>
             <column name="templates" value="SHOW VIEW"/>
             <column name="access_template" value="GRANT SHOW VIEW ON $DB.$VIEW TO '$USER'@'%';"/>
@@ -122,22 +122,22 @@
 
         <!-- MySQL Procedure Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="PROCEDURE"/>
             <column name="templates" value="EXECUTE"/>
             <column name="access_template" value="GRANT EXECUTE ON PROCEDURE $DB.$PROCEDURE TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="PROCEDURE"/>
             <column name="templates" value="CREATE ROUTINE"/>
             <column name="access_template" value="GRANT CREATE ROUTINE ON $DB.* TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="PROCEDURE"/>
             <column name="templates" value="ALTER ROUTINE"/>
             <column name="access_template" value="GRANT ALTER ROUTINE ON PROCEDURE $DB.$PROCEDURE TO '$USER'@'%';"/>
@@ -145,22 +145,22 @@
 
         <!-- MySQL Special Access Levels -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="FULL ACCESS"/>
             <column name="access_template" value="GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, CREATE VIEW, SHOW VIEW, TRIGGER, REFERENCES, EXECUTE ON $DB.* TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="READ ACCESS"/>
             <column name="access_template" value="GRANT SELECT ON $DB.* TO '$USER'@'%';"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MySQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MYSQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="FETCH ACCESS"/>
             <column name="access_template" value="SHOW GRANTS FOR '$USER'@'%';"/>
@@ -171,50 +171,50 @@
     <changeSet id="seed-access-levels-postgresql" author="admin">
          <!-- PostgreSQL Table Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="SELECT"/>
             <column name="access_template" value="GRANT SELECT ON TABLE $SCHEMA.$TABLE TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="INSERT"/>
             <column name="access_template" value="GRANT INSERT ON TABLE $SCHEMA.$TABLE TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="UPDATE"/>
             <column name="access_template" value="GRANT UPDATE ON TABLE $SCHEMA.$TABLE TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="DELETE"/>
             <column name="access_template" value="GRANT DELETE ON TABLE $SCHEMA.$TABLE TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="TRUNCATE"/>
             <column name="access_template" value="GRANT TRUNCATE ON TABLE $SCHEMA.$TABLE TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="REFERENCES"/>
             <column name="access_template" value="GRANT REFERENCES ON TABLE $SCHEMA.$TABLE TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="TRIGGER"/>
             <column name="access_template" value="GRANT TRIGGER ON TABLE $SCHEMA.$TABLE TO $USER;"/>
@@ -222,15 +222,15 @@
 
         <!-- PostgreSQL Schema Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="SCHEMA"/>
             <column name="templates" value="USAGE"/>
             <column name="access_template" value="GRANT USAGE ON SCHEMA $SCHEMA TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="SCHEMA"/>
             <column name="templates" value="CREATE"/>
             <column name="access_template" value="GRANT CREATE ON SCHEMA $SCHEMA TO $USER;"/>
@@ -238,8 +238,8 @@
 
         <!-- PostgreSQL Function Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="FUNCTION"/>
             <column name="templates" value="EXECUTE"/>
             <column name="access_template" value="GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA $SCHEMA TO $USER;"/>
@@ -247,15 +247,15 @@
 
         <!-- PostgreSQL Special Access Levels -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="FULL ACCESS"/>
             <column name="access_template" value="GRANT ALL PRIVILEGES ON DATABASE $DB TO $USER; GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA $SCHEMA TO $USER; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA $SCHEMA TO $USER; GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA $SCHEMA TO $USER;"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="POSTGRESQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="POSTGRESQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="READ ACCESS"/>
             <column name="access_template" value="GRANT CONNECT ON DATABASE $DB TO $USER; GRANT USAGE ON SCHEMA $SCHEMA TO $USER; GRANT SELECT ON ALL TABLES IN SCHEMA $SCHEMA TO $USER;"/>
@@ -265,36 +265,36 @@
     <changeSet id="seed-access-levels-mssql" author="admin">
         <!-- MSSQL Table Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="SELECT"/>
             <column name="access_template" value="GRANT SELECT ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="INSERT"/>
             <column name="access_template" value="GRANT INSERT ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="UPDATE"/>
             <column name="access_template" value="GRANT UPDATE ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="DELETE"/>
             <column name="access_template" value="GRANT DELETE ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="REFERENCES"/>
             <column name="access_template" value="GRANT REFERENCES ON [$SCHEMA].[$TABLE] TO [$USER];"/>
@@ -302,8 +302,8 @@
 
         <!-- MSSQL Stored Procedure Permissions -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="PROCEDURE"/>
             <column name="templates" value="EXECUTE"/>
             <column name="access_template" value="GRANT EXECUTE ON [$SCHEMA].[$PROCEDURE] TO [$USER];"/>
@@ -311,22 +311,22 @@
 
         <!-- MSSQL Special Access Levels -->
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="FULL ACCESS"/>
             <column name="access_template" value="ALTER ROLE [db_owner] ADD MEMBER [$USER];"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="READ ACCESS"/>
             <column name="access_template" value="ALTER ROLE [db_datareader] ADD MEMBER [$USER];"/>
         </insert>
         <insert tableName="access_levels">
-            <column name="asset_type" value="DB"/>
-            <column name="sub_type" value="MSSQL"/>
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MSSQL"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="WRITE ACCESS"/>
             <column name="access_template" value="ALTER ROLE [db_datawriter] ADD MEMBER [$USER];"/>

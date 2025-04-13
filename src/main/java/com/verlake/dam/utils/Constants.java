@@ -17,6 +17,26 @@ public class Constants {
     public static final String AUTH_PROVIDER_KEYCLOAK = "keycloak";
     public static final String AUTH_PROVIDER_GOOGLE = "google";
 
+    public static final String ASSET_ACCESS_OBJECT_DATABASE = "DATABASE";
+    public static final String ASSET_ACCESS_OBJECT_TABLE = "TABLE";
+    public static final String ASSET_ACCESS_OBJECT_PROCEDURE = "PROCEDURE";
+    public static final String ASSET_ACCESS_OBJECT_VIEW = "VIEW";
+
+    public static final String ACCESS_OBJECT_ATTR_GRANTS = "grants";
+    public static final String ACCESS_OBJECT_ATTR_DATA = "data";
+
+    public static final String INFORMATION_SCHEMA_TABLE_NAME = "TABLE_NAME";
+
+    public static final String ACCESS_LEVEL_TEMPLATE_FULL = "FULL ACCESS";
+    public static final String ACCESS_LEVEL_TEMPLATE_SHOW_VIEW = "SHOW VIEW";
+    public static final String ACCESS_LEVEL_TEMPLATE_CREATE_VIEW = "CREATE VIEW";
+    public static final String ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE = "CREATE ROUTINE";
+    public static final String ACCESS_LEVEL_TEMPLATE_ALTER_ROUTINE = "ALTER ROUTINE";
+    public static final String ACCESS_LEVEL_ATTR_TEMPLATE = "templates";
+    public static final String ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE = "access_template";
+
+
+
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {
             (byte) 0x52,

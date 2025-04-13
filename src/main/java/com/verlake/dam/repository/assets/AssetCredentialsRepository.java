@@ -1,4 +1,4 @@
-package com.verlake.dam.repository;
+package com.verlake.dam.repository.assets;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

@@ -1,20 +1,24 @@
 package com.verlake.dam.utils;
 
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.crypto.*;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
+import java.util.Arrays;
 import java.util.Base64;
 
 public class CommonUtils {
@@ -68,62 +72,56 @@ public class CommonUtils {
         return keycloakUserId;
     }
 
-    public static String encrypt(String password, String data) throws EncryptionException,
-            NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-        // Create a key from the password using PBKDF2
+    public static String encrypt(String password, String data) throws NoSuchPaddingException, NoSuchAlgorithmException,
+            InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
         SecretKeySpec secretKey = generateKeyFromPassword(password);
+        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
 
-        // Create AES cipher instance with secure padding
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        // Generate random IV
+        byte[] iv = new byte[16];
+        SecureRandom secureRandom = new SecureRandom();
+        secureRandom.nextBytes(iv);
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-        // Encrypt the data
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
         byte[] encryptedData = cipher.doFinal(data.getBytes());
 
-        // Return the encrypted data in Base64 encoding (for safe transmission)
-        return Base64.getEncoder().encodeToString(encryptedData);
+        // Combine IV and encrypted data
+        byte[] combined = new byte[iv.length + encryptedData.length];
+        System.arraycopy(iv, 0, combined, 0, iv.length);
+        System.arraycopy(encryptedData, 0, combined, iv.length, encryptedData.length);
+
+        return Base64.getEncoder().encodeToString(combined);
+
     }
 
     // Method to decrypt the string using AES-256
-    public static String decrypt(String password, String encryptedData) throws EncryptionException,
-            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException,
-            IllegalBlockSizeException, BadPaddingException {
-        // Create a key from the password using PBKDF2
+    public static String decrypt(String password, String encryptedData) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException,
+            IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+        byte[] combined = Base64.getDecoder().decode(encryptedData);
+
+        // Extract IV
+        byte[] iv = new byte[16];
+        System.arraycopy(combined, 0, iv, 0, iv.length);
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+        // Extract encrypted data
+        byte[] encrypted = new byte[combined.length - iv.length];
+        System.arraycopy(combined, iv.length, encrypted, 0, encrypted.length);
+
         SecretKeySpec secretKey = generateKeyFromPassword(password);
+        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
 
-        // Create AES cipher instance with secure padding
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, secretKey);
-
-        // Decode the Base64 encoded data
-        byte[] decodedData = Base64.getDecoder().decode(encryptedData);
-
-        // Decrypt the data
-        byte[] decryptedData = cipher.doFinal(decodedData);
-
-        // Return the decrypted string
+        byte[] decryptedData = cipher.doFinal(encrypted);
         return new String(decryptedData);
     }
 
-    private static SecretKeySpec generateKeyFromPassword(String password) throws EncryptionException {
-        try {
-            // Generate a salt (You should store and reuse this salt for decryption)
-            byte[] salt = new byte[16];
-            new SecureRandom().nextBytes(salt);
-
-            // Create a PBKDF2 key specification
-            PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
-            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-
-            // Generate the key
-            byte[] key = factory.generateSecret(spec).getEncoded();
-
-            // Return as SecretKeySpec for AES encryption
-            return new SecretKeySpec(key, "AES");
-        } catch (Exception e) {
-            throw new EncryptionException("Error generating key from password", e);
-        }
+    private static SecretKeySpec generateKeyFromPassword(String password) {
+        byte[] key = new byte[16];
+        byte[] passwordBytes = password.getBytes();
+        System.arraycopy(passwordBytes, 0, key, 0, Math.min(passwordBytes.length, 16));
+        return new SecretKeySpec(key, "AES");
     }
 
     public static class EncryptionException extends Exception {

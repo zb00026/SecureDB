@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-asset-objects-table" author="admin">
+        <createTable tableName="asset_objects">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="credential_id" type="bigint">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="asset_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="objects_json" type="json">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint 
+            baseTableName="asset_objects" 
+            baseColumnNames="credential_id" 
+            constraintName="fk_asset_objects_credential" 
+            referencedTableName="asset_credentials"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint 
+            baseTableName="asset_objects" 
+            baseColumnNames="asset_id" 
+            constraintName="fk_asset_objects_asset" 
+            referencedTableName="assets"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog> 

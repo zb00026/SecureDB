@@ -1,7 +1,6 @@
 package com.verlake.dam.entity.user;
 
 
-import com.fasterxml.jackson.annotation.*;
 import com.verlake.dam.entity.user.dto.UserApproverDTO;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -11,7 +10,7 @@ import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.service.UserService;
-import com.verlake.dam.util.SpringContext;
+import com.verlake.dam.utils.SpringContext;
 
 import java.util.*;
 

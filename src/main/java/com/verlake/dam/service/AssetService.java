@@ -1,10 +1,11 @@
 package com.verlake.dam.service;
 
+import com.verlake.dam.entity.assets.AccessLevel;
 import com.verlake.dam.entity.assets.AssetApprover;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.repository.AssetApproversRepository;
+import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
@@ -15,10 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 
-import com.verlake.dam.repository.AssetRepository;
-import com.verlake.dam.repository.AssetCredentialsRepository;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.AccessRequest;
 
 @Service
 @Slf4j
@@ -26,17 +26,22 @@ public class AssetService {
     private final AssetRepository assetRepository;
     private final AssetCredentialsRepository credentialsRepository;
     private final AssetApproversRepository assetApproversRepository;
+    private final AccessLevelRepository accessLevelRepository;
     private final UserService userService;
+    private final AccessRequestRepository accessRequestRepository;
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
                         AssetCredentialsRepository credentialsRepository,
                         AssetApproversRepository assetApproversRepository,
-                        UserService userService) {
+                        AccessLevelRepository accessLevelRepository,
+                        UserService userService, AccessRequestRepository accessRequestRepository) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
         this.assetApproversRepository = assetApproversRepository;
+        this.accessLevelRepository = accessLevelRepository;
         this.userService = userService;
+        this.accessRequestRepository = accessRequestRepository;
     }
 
     @Transactional
@@ -142,6 +147,12 @@ public class AssetService {
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
     }
 
+    public AssetDTO findDTOById(Long id) {
+        Asset asset = assetRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
+        return convertToDTO(asset);
+    }
+
     public List<AssetDTO> getAllAssets() {
         List<Asset> lstAssets = assetRepository.findByDeletedFalse();
         return lstAssets.stream()
@@ -149,7 +160,14 @@ public class AssetService {
                 .toList();
     }
 
-    private AssetDTO convertToDTO(Asset asset) {
+    public List<AssetDTO> getAllAssetsWithFetchAccessTemplate() {
+        List<Asset> lstAssets = assetRepository.findByDeletedFalse();
+        return lstAssets.stream()
+                .map(this::convertToDTOWithFetchAccessTemplate)
+                .toList();
+    }
+
+    public AssetDTO convertToDTO(Asset asset) {
         List<AssetCredential> credentials = credentialsRepository.findByAssetId(asset.getId());
         List<User> owners = credentials.stream()
                 .map(AssetCredential::getUser)
@@ -159,6 +177,8 @@ public class AssetService {
         List<User> approvers = assetApprovers.stream()
                 .map(AssetApprover::getUser)
                 .toList();
+        User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
+        List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
 
         return AssetDTO.builder()
                 .id(asset.getId())
@@ -168,8 +188,19 @@ public class AssetService {
                 .databaseType(asset.getDatabaseType())
                 .hostAddress(asset.getHostAddress())
                 .owners(owners)
+                .accessRequest(requests.isEmpty() ? null : requests.get(0))
                 .approvers(approvers)
                 .build();
+    }
+
+    private AssetDTO convertToDTOWithFetchAccessTemplate(Asset asset) {
+        AssetDTO dto = convertToDTO(asset);
+        AccessLevel fetchAccess = accessLevelRepository.findFetchAccessTemplate(asset.getType().name(), asset.getDatabaseType().name());
+        User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
+        List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
+        dto.setAccessRequest(requests.isEmpty() ? null : requests.get(0));
+        dto.setFetchTemplate(fetchAccess != null ? fetchAccess.getAccessTemplate() : null);
+        return dto;
     }
 
     @Transactional
@@ -220,6 +251,14 @@ public class AssetService {
             return Boolean.compare(c2Null, c1Null);
         });
         return credentials;
+    }
+
+    public AssetCredential findCredentialByAssetId(Long assetId) {
+        List<AssetCredential> credentials = credentialsRepository.findByAssetId(assetId);
+        if (credentials.isEmpty()) {
+            return null;
+        }
+        return credentials.get(0);
     }
 
     public AssetCredential findCredentialById(Long credentialId) {

@@ -6,7 +6,7 @@ import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.enums.AuditAction;
 import com.verlake.dam.service.AuditTrailService;
-import com.verlake.dam.util.SpringContext;
+import com.verlake.dam.utils.SpringContext;
 import jakarta.persistence.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;

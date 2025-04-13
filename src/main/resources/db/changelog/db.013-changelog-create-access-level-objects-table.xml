@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-access-level-objects-table" author="admin">
+        <createTable tableName="access_level_objects">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="object_name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="access_level_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="requestor_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="access_request_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint 
+            baseTableName="access_level_objects" 
+            baseColumnNames="access_level_id" 
+            constraintName="fk_access_level_objects_access_level" 
+            referencedTableName="access_levels"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint 
+            baseTableName="access_level_objects" 
+            baseColumnNames="requestor_id" 
+            constraintName="fk_access_level_objects_user" 
+            referencedTableName="users"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint 
+            baseTableName="access_level_objects" 
+            baseColumnNames="access_request_id" 
+            constraintName="fk_access_level_objects_access_request" 
+            referencedTableName="access_requests"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog> 
