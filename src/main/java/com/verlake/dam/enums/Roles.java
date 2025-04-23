@@ -14,6 +14,17 @@ public enum Roles {
         return "/" + this.name().toLowerCase().replace(" ", "_") + "/**";
     }
 
+    /**
+     * Returns the original name of the object by converting the database name format to a display format.
+     * This method converts underscores to spaces and capitalizes each word.
+     * 
+     * Example:
+     * - Input: "ASSET_OWNER"
+     * - Database value: "Asset Owner"
+     * - Display value: "Asset Owner"
+     * 
+     * @return The formatted name suitable for display in the frontend
+     */
     public String getOriginalName() {
         String[] words = this.name().toLowerCase().split("_");
         return Arrays.stream(words)

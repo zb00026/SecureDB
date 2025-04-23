@@ -15,6 +15,9 @@ public interface AssetCredentialsRepository extends JpaRepository<AssetCredentia
     List<AssetCredential> findByAssetId(Long assetId);
     void deleteByAssetId(Long assetId);
     void deleteByAssetIdAndUserId(Long assetId, Long userId);
+    
+    List<AssetCredential> findByAssetIdAndUserId(Long assetId, Long userId);
+
     boolean existsByAssetIdAndUserId(Long assetId, Long userId);
 
     @Query("SELECT ac FROM AssetCredential ac " +

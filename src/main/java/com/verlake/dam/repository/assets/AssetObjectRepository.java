@@ -16,4 +16,6 @@ public interface AssetObjectRepository extends JpaRepository<AssetObject, Long> 
     
     // If you still need to query by credential ID
     Optional<AssetObject> findByAssetCredential_Id(Long credentialId);
+
+    void deleteByAssetCredential(AssetCredential assetCredential);
 } 

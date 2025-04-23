@@ -8,9 +8,9 @@ import com.verlake.dam.entity.user.dto.UserFilter;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
-import com.verlake.dam.service.EmailService;
-import com.verlake.dam.service.KeycloakService;
 import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -130,6 +130,13 @@ public class UserController {
 
                         // Assign new roles to user
                         user.setRoles(roles);
+                    }
+                    if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
+                        keycloakService.saveUser(user.getEmail(),
+                                user.getEmail(),
+                                user.getFirstName(),
+                                user.getLastName(),
+                                user.getPassword(), false);
                     }
                     return userRepository.save(user);
                 })

@@ -1,8 +1,9 @@
 package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.entity.S3BucketSettings;
-import com.verlake.dam.service.S3Service;
-import com.verlake.dam.service.S3SettingsService;
+import com.verlake.dam.service.s3.S3Service;
+import com.verlake.dam.service.s3.S3SettingsService;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;

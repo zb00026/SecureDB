@@ -1,44 +1,58 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.assets;
 
 import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
+import com.verlake.dam.entity.firebase.NotificationMessage;
+import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.utils.Constants;
 
-import jakarta.persistence.EntityManager;
-
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.repository.assets.AssetApproversRepository;
+import com.verlake.dam.repository.UserRepository;
+
+import lombok.extern.slf4j.Slf4j;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.fasterxml.jackson.core.JsonParseException;
 
 @Service
-@Transactional
+@Slf4j
 public class AccessRequestService {
     private final AccessRequestRepository accessRequestRepository;
     private final AssetService assetService;
     private final AssetCredentialsRepository assetCredentialsRepository;
     private final AccessLevelObjectRepository accessLevelObjectRepository;
-    private final EntityManager entityManager;
+    private final AssetApproversRepository assetApproversRepository;
+    private final UserRepository userRepository;
+    private final NotificationTaskRepository notificationTaskRepository;
 
     public AccessRequestService(
                                 AccessRequestRepository accessRequestRepository, 
                                 AssetService assetService, 
                                 AssetCredentialsRepository assetCredentialsRepository,
                                 AccessLevelObjectRepository accessLevelObjectRepository,
-                                EntityManager entityManager) {
+                                AssetApproversRepository assetApproversRepository,
+                                UserRepository userRepository,
+                                NotificationTaskRepository notificationTaskRepository) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
-        this.entityManager = entityManager;
+        this.assetApproversRepository = assetApproversRepository;
+        this.userRepository = userRepository;
+        this.notificationTaskRepository = notificationTaskRepository;
     }
 
     private String generateSql(List<AccessLevelObject> accessLevelObjects, Asset asset) {
@@ -75,7 +89,6 @@ public class AccessRequestService {
         return sqlBuilder.toString();
     }
 
-    @Transactional
     public AccessRequest saveAccessRequest(AccessRequestDTO requestDTO, User requestor) {
         List<AccessLevelObject> accessLevelObjects = requestDTO.getAccessLevelObjects();
         if (accessLevelObjects.isEmpty()) {
@@ -89,17 +102,13 @@ public class AccessRequestService {
 
         // Check if this is an update to an existing request
         if (requestDTO.getRequestId() != null) {
-            // Find the existing request
             request = findById(requestDTO.getRequestId());
-
-            // Update the request properties
             request.setAsset(asset);
             request.setRequestor(requestor);
             request.setRequestTime(LocalDateTime.now());
             request.setRequestReason(requestDTO.getRequestReason());
             request.setAccessSql(generateSql(accessLevelObjects, asset));
         } else {
-            // Create a new request
             request = new AccessRequest();
             request.setAsset(asset);
             request.setRequestor(requestor);
@@ -115,7 +124,6 @@ public class AccessRequestService {
         // Delete existing access level objects if this is an update
         if (requestDTO.getRequestId() != null) {
             accessLevelObjectRepository.deleteByAccessRequest(savedRequest);
-            entityManager.flush();
         }
 
         // Save all AccessLevelObjects with the saved request ID
@@ -126,7 +134,76 @@ public class AccessRequestService {
             accessLevelObjectRepository.save(obj);
         });
 
+        // Send notifications
+        sendNotifications(savedRequest, requestor, asset);
+
         return savedRequest;
+    }
+
+    private void sendNotifications(AccessRequest request, User requestor, Asset asset) {
+        try {
+            // Get developer approver
+            User developerApprover = null;
+            if (requestor.getApprover() != null) {
+                developerApprover = userRepository.findById(requestor.getApprover().getId())
+                        .orElse(null);
+            }
+
+            // Get asset owners
+            List<User> assetOwners = assetService.getAssetOwners(asset);
+
+            // Get asset approvers
+            List<User> assetApprovers = assetApproversRepository.findByAssetId(asset.getId())
+                .stream()
+                .map(AssetApprover::getUser)
+                .collect(Collectors.toList());
+
+            // Prepare notification data
+            Map<String, String> notificationData = new HashMap<>();
+            notificationData.put("requestId", request.getId().toString());
+            notificationData.put("assetId", asset.getId().toString());
+            notificationData.put("assetName", asset.getName());
+            notificationData.put("assetDescription", asset.getDescription());
+            notificationData.put("requestorName", requestor.getFirstName() + " " + requestor.getLastName());
+
+            if (developerApprover != null) {
+                sendNotificationAndEmail(developerApprover, requestor, asset, notificationData);
+            }
+
+            sendNotificationsToUsers(assetOwners, requestor, asset, notificationData, "asset owner");
+            sendNotificationsToUsers(assetApprovers, requestor, asset, notificationData, "asset approver");
+        } catch (ResourceNotFoundException | JsonParseException | IllegalArgumentException e) {
+            log.error("Failed to send notifications: {}", e.getMessage(), e);
+        }
+    }
+
+    private void sendNotificationsToUsers(List<User> users, User requestor, Asset asset, 
+                                        Map<String, String> notificationData, String userType) {
+        for (User user : users) {
+            try {
+                sendNotificationAndEmail(user, requestor, asset, notificationData);
+            } catch (JsonParseException e) {
+                log.error("Failed to send notification to {}: {}", userType, user.getId(), e);
+            }
+        }
+    }
+
+    private void sendNotificationAndEmail(User receiver, User requestor, Asset asset, Map<String, String> notificationData) throws JsonParseException {
+        NotificationMessage notificationMessage = new NotificationMessage();
+        notificationMessage.setTitle("New Asset Access Request");
+        notificationMessage.setBody(String.format("%s %s has requested access to %s", 
+            requestor.getFirstName(), requestor.getLastName(), asset.getName()));
+        notificationData.put("receiverId", receiver.getId().toString());
+        notificationMessage.setData(notificationData);
+        notificationMessage.setTopic("dam_notification");
+
+        // Create and save notification task
+        NotificationTask task = new NotificationTask();
+        task.setReceiver(receiver);
+        task.setRequestor(requestor);
+        task.setAsset(asset);
+        task.setNotificationMessage(notificationMessage.toJson());
+        notificationTaskRepository.save(task);
     }
 
     public AccessRequest createRequest(AccessRequest request) {

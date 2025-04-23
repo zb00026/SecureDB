@@ -35,7 +35,21 @@ public class Constants {
     public static final String ACCESS_LEVEL_ATTR_TEMPLATE = "templates";
     public static final String ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE = "access_template";
 
-
+    public static final String EMAIL_VAR_RECEIVER_FIRST_NAME = "receiverFirstName";
+    public static final String EMAIL_VAR_RECEIVER_LAST_NAME = "receiverLastName";
+    public static final String EMAIL_VAR_REQUESTOR_FIRST_NAME = "requestorFirstName";
+    public static final String EMAIL_VAR_REQUESTOR_LAST_NAME = "requestorLastName";
+    public static final String EMAIL_VAR_ASSET_NAME = "assetName";
+    public static final String EMAIL_VAR_ASSET_DESCRIPTION = "assetDescription";
+    public static final String EMAIL_VAR_TEMP_PASSWORD = "tempPassword";
+    public static final String EMAIL_VAR_REDIRECT_LINK = "redirectLink";
+    public static final String EMAIL_VAR_METHOD = "method";
+    public static final String EMAIL_VAR_ADMIN_NAME = "adminName";
+    public static final String EMAIL_VAR_OWNER_NAME = "ownerName";
+    public static final String EMAIL_VAR_APPROVER_NAME = "approverName";
+    public static final String EMAIL_VAR_USER_NAME = "userName";
+    public static final String EMAIL_VAR_INVITE_CODE = "inviteCode";
+    public static final String EMAIL_VAR_ASSET_CREDENTIAL_ID = "assetCredentialId";
 
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {

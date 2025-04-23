@@ -1,4 +1,4 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.assets;
 
 import com.verlake.dam.entity.assets.AccessLevel;
 import com.verlake.dam.entity.assets.AssetApprover;
@@ -6,6 +6,7 @@ import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.*;
+import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
@@ -29,19 +31,25 @@ public class AssetService {
     private final AccessLevelRepository accessLevelRepository;
     private final UserService userService;
     private final AccessRequestRepository accessRequestRepository;
+    private final AssetCredentialsRepository assetCredentialsRepository;
+    private final AssetObjectRepository assetObjectRepository;
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
                         AssetCredentialsRepository credentialsRepository,
                         AssetApproversRepository assetApproversRepository,
                         AccessLevelRepository accessLevelRepository,
-                        UserService userService, AccessRequestRepository accessRequestRepository) {
+                        UserService userService, AccessRequestRepository accessRequestRepository, 
+                        AssetCredentialsRepository assetCredentialsRepository, 
+                        AssetObjectRepository assetObjectRepository) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
         this.assetApproversRepository = assetApproversRepository;
         this.accessLevelRepository = accessLevelRepository;
         this.userService = userService;
         this.accessRequestRepository = accessRequestRepository;
+        this.assetCredentialsRepository = assetCredentialsRepository;
+        this.assetObjectRepository = assetObjectRepository;
     }
 
     @Transactional
@@ -65,6 +73,8 @@ public class AssetService {
         if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
             // Delete existing credentials for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
+                List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
+                credentials.forEach(assetObjectRepository::deleteByAssetCredential);
                 credentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
             });
 
@@ -87,11 +97,21 @@ public class AssetService {
         } else if (updateDTO.getMethod().equals(Constants.ASSET_REMOVE_NAME)) {
             // Delete credentials for provided user IDs
             updateDTO.getUserIds().forEach(userId -> {
+                List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
+                credentials.forEach(assetObjectRepository::deleteByAssetCredential);
                 credentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
             });
         }
 
         assetRepository.save(asset);
+    }
+
+    public List<User> getAssetOwners(Asset asset) {
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(asset.getId());
+        return credentials.stream()
+            .map(AssetCredential::getUser)
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     @Transactional

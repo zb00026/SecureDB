@@ -19,4 +19,7 @@
     <include file="db/changelog/db.011-changelog-update-asset-type-to-enums.xml"/>
     <include file="db/changelog/db.012-changelog-create-asset-db-objects-table.xml"/>
     <include file="db/changelog/db.013-changelog-create-access-level-objects-table.xml"/>
+    <include file="db/changelog/db.014-changelog-update-email-type.xml"/>
+    <include file="db/changelog/db.015-changelog-create-batch-table.xml"/>
+    <include file="db/changelog/db.016-changelog-create-notification-task-table.xml"/>
 </databaseChangeLog>

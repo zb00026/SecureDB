@@ -1,6 +1,5 @@
-package com.verlake.dam.service.manager;
+package com.verlake.dam.service.auth;
 import com.verlake.dam.enums.AuthProvider;
-import com.verlake.dam.service.TokenService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +45,6 @@ public class TokenServiceManager {
         return tokenServiceMap.entrySet().stream()
                 .filter(entry -> isProviderActive(entry.getKey()))
                 .map(Map.Entry::getValue)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

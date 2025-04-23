@@ -1,4 +1,4 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.email;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -87,19 +87,19 @@ public class EmailService {
     public void sendInvitationEmail(User user, String emailTmplFile) {
         // Prepare Thymeleaf context for email content
         Context context = new Context();
-        context.setVariable("userName", user.getFirstName() + " " + user.getLastName());
-        context.setVariable("tempPassword", user.getPassword());
+        context.setVariable(Constants.EMAIL_VAR_USER_NAME, user.getFirstName() + " " + user.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_TEMP_PASSWORD, user.getPassword());
 
         // Generate email content using Thymeleaf template
         String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
         String redirectLink = hostDomainUri + "?inviteCode=" + inviteCode;
-        context.setVariable("redirectLink", redirectLink);
+        context.setVariable(Constants.EMAIL_VAR_REDIRECT_LINK, redirectLink);
 
         String emailSubject = "Invitation to Join Our DAM System";
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
-        metaData.put("inviteCode", inviteCode);
-        metaData.put("redirectLink", redirectLink);
+        metaData.put(Constants.EMAIL_VAR_INVITE_CODE, inviteCode);
+        metaData.put(Constants.EMAIL_VAR_REDIRECT_LINK, redirectLink);
 
         String htmlContent = templateEngine.process(emailTmplFile, context);
 
@@ -114,22 +114,20 @@ public class EmailService {
             log.error("Failed to send invitation email to {} ", user.getEmail(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send invitation email to " + user.getEmail());
         }
-
     }
 
     public void sendAssetRelinquishEmail(User admin, User owner, AssetCredential assetCredential, String emailTmplFile) {
         // Prepare Thymeleaf context for email content
         Context context = new Context();
-        context.setVariable("adminName", admin.getFirstName() + " " + admin.getLastName());
-        context.setVariable("ownerName", owner.getFirstName() + " " + owner.getLastName());
-        context.setVariable("assetName", assetCredential.getAsset().getName());
+        context.setVariable(Constants.EMAIL_VAR_ADMIN_NAME, admin.getFirstName() + " " + admin.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_OWNER_NAME, owner.getFirstName() + " " + owner.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, assetCredential.getAsset().getName());
 
         String emailSubject = "Relinquish Asset";
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
-        metaData.put("assetName", assetCredential.getAsset().getName());
-        metaData.put("assetCredentialId", assetCredential.getId());
-
+        metaData.put(Constants.EMAIL_VAR_ASSET_NAME, assetCredential.getAsset().getName());
+        metaData.put(Constants.EMAIL_VAR_ASSET_CREDENTIAL_ID, assetCredential.getId());
 
         String htmlContent = templateEngine.process(emailTmplFile, context);
         metaData.put("mailContent", htmlContent);
@@ -145,16 +143,16 @@ public class EmailService {
 
     public void sendAssetApproveNotifyEmail(Asset asset, User approver, String method, String emailTmplFile) {
         Context context = new Context();
-        context.setVariable("assetName", asset.getName());
-        context.setVariable("approverName", approver.getFirstName() + " " + approver.getLastName());
-        context.setVariable("method", method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
+        context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        context.setVariable(Constants.EMAIL_VAR_APPROVER_NAME, approver.getFirstName() + " " + approver.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_METHOD, method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
         
         String emailSubject = "Asset Approve Notification";
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
-        metaData.put("assetName", asset.getName());
-        metaData.put("approverName", approver.getFirstName() + " " + approver.getLastName());
-        metaData.put("method", method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
+        metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        metaData.put(Constants.EMAIL_VAR_APPROVER_NAME, approver.getFirstName() + " " + approver.getLastName());
+        metaData.put(Constants.EMAIL_VAR_METHOD, method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
 
         String emailContent = templateEngine.process(emailTmplFile, context);
         
@@ -165,6 +163,33 @@ public class EmailService {
         } catch (Exception e) {
             log.error("Failed to send assigning asset approver email to {} ", approver.getEmail(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send Asset Approver email to " + approver.getEmail());
+        }
+    }
+
+    public void sendDeveloperAssetRequestEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
+        Context context = new Context();
+        context.setVariable(Constants.EMAIL_VAR_RECEIVER_FIRST_NAME, receiver.getFirstName());
+        context.setVariable(Constants.EMAIL_VAR_RECEIVER_LAST_NAME, receiver.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, requestor.getFirstName());
+        context.setVariable(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, requestor.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+
+        String emailSubject = "Developer Asset Access Request";
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode metaData = objectMapper.createObjectNode();
+        metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        metaData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+
+        String emailContent = templateEngine.process(emailTmplFile, context);
+
+        createEmailEntity(receiver, EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, emailSubject, metaData, emailContent);
+
+        try {
+            sendEmail(receiver.getEmail(), emailSubject, emailContent);
+        } catch (Exception e) {
+            log.error("Failed to send developer asset request email to {} ", receiver.getEmail(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send developer asset request email to " + receiver.getEmail());
         }
     }
 }

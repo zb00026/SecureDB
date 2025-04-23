@@ -1,4 +1,4 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.s3;
 
 import com.verlake.dam.entity.S3BucketSettings;
 import com.verlake.dam.repository.S3BucketSettingsRepository;

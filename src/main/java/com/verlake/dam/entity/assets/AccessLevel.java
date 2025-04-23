@@ -23,8 +23,30 @@ public class AccessLevel {
     private String object;
 
     @Column(name = "templates", columnDefinition = "text")
+    /**
+     * Sample values:
+     * - "SELECT"
+     * - "INSERT"
+     * - "UPDATE"
+     * - "DELETE"
+     * - "FULL ACCESS"
+     * - "READ ACCESS"
+     */
     private String templates;
 
     @Column(name = "access_template", columnDefinition = "text")
+    /**
+     * Sample values:
+     * MySQL: "GRANT SELECT ON $DB.$TABLE TO '$USER'@'%';"
+     * PostgreSQL: "GRANT ALL PRIVILEGES ON DATABASE $DB TO $USER;"
+     * MSSQL: "ALTER ROLE [db_owner] ADD MEMBER [$USER];"
+     * 
+     * Placeholders:
+     * - $DB: Database name
+     * - $TABLE: Table name
+     * - $USER: Username
+     * - $SCHEMA: Schema name (PostgreSQL)
+     * - $PROCEDURE: Procedure name
+     */
     private String accessTemplate;
 } 

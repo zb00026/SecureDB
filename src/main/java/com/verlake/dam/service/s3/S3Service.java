@@ -1,4 +1,4 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.s3;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

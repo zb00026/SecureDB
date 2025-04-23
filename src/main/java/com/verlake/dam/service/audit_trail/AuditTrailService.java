@@ -1,8 +1,9 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.audit_trail;
 
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.repository.AuditTrailRepository;
+import com.verlake.dam.service.s3.S3Service;
 import com.verlake.dam.utils.Constants;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,7 +49,7 @@ public class AuditTrailService {
     // @Scheduled(cron = "0 */3 * * * *") // Run every 3 minutes
     @Scheduled(cron = "0 0 0 * * ?") // Run at 1 AM every day
     @Transactional
-    public void syncAuditTrailToS3() {
+    public void syncAuditTrailToS3() throws IOException {
         try {
             log.info("Starting synchronizing of AuditTrail To S3");
             // Clean up old records
@@ -72,7 +73,7 @@ public class AuditTrailService {
             log.info("Finished synchronizing of AuditTrail To S3");
         } catch (Exception e) {
             log.error("Failed to sync audit trail to S3", e);
-            throw new RuntimeException("Failed to sync audit trail to S3", e);
+            throw new IOException("Failed to sync audit trail to S3", e);
         }
     }
 

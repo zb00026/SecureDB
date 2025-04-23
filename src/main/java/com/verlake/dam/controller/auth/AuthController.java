@@ -4,8 +4,6 @@ import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.service.TokenService;
-import com.verlake.dam.service.manager.TokenServiceManager;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,9 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.UserService;
 import org.springframework.web.server.ResponseStatusException;
-import com.verlake.dam.service.DatabaseAccessService;
-import com.verlake.dam.service.AssetService;
-import com.verlake.dam.service.KeycloakService;
+import com.verlake.dam.service.assets.DatabaseAccessService;
+import com.verlake.dam.service.auth.AuthService;
+import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.auth.TokenService;
+import com.verlake.dam.service.auth.TokenServiceManager;
+import com.verlake.dam.service.assets.AssetService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.List;
@@ -45,6 +47,9 @@ public class AuthController {
     @Autowired
     private AsyncTaskExecutor taskExecutor;
 
+    @Autowired
+    private AuthService authService;
+
     private final TokenServiceManager tokenServiceManager;
 
     public AuthController(TokenServiceManager tokenServiceManager) {
@@ -54,10 +59,9 @@ public class AuthController {
     @PostMapping("/api/auth/verifyToken")
     public ResponseEntity<UserDTO> verifyToken(@RequestBody UserDTO userDto) {
         TokenService tokenService = getTokenService(userDto.getAuthProvider());
-        validateToken(userDto, tokenService);
-        User user = getUserFromToken(userDto.getToken(), tokenService);
-        validateUser(user, userDto.getInviteCode());
-        handleInviteCode(userDto, user);
+        authService.validateToken(userDto, tokenService);
+        User user = authService.authenticateUser(userDto, tokenService);
+
 
         // Check if user has ASSET_OWNER role
         if (user.getRoles().stream().anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()))) {
@@ -69,19 +73,27 @@ public class AuthController {
             taskExecutor.execute(() -> {
                 try {
                     credentials.stream()
-                        .filter(cred -> cred.getUsername() != null && !cred.getUsername().isEmpty()
-                                && cred.getPassword() != null && !cred.getPassword().isEmpty())
+                        .filter(cred -> {
+                            // Check if credential has required fields
+                            boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
+                                    && cred.getPassword() != null && !cred.getPassword().isEmpty();
+                            
+                            // Check if user is the owner of the asset associated with this credential
+                            boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(user.getId());
+                            
+                            return hasValidCredentials && isAssetOwner;
+                        })
                         .forEach(cred -> {
                             try {
                                 String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
                                 cred.setPassword(decryptedPassword);
                                 databaseAccessService.updateAssetObjects(cred);
                             } catch (Exception e) {
-                                log.error("Failed to process credential: " + cred.getId(), e);
+                                log.error("Failed to update database objects upon asset owner login due to credential errors. credential: " + cred.getId(), e);
                             }
                         });
                 } catch (Exception e) {
-                    log.error("Failed to process asset owner credentials", e);
+                    log.error("Failed to update database objects upon asset owner login. Error processing asset owner credentials", e);
                 }
             });
         }
@@ -96,38 +108,5 @@ public class AuthController {
                     HttpStatus.BAD_REQUEST, authProvider + " is unsupported auth provider");
         }
         return tokenService;
-    }
-
-    private void validateToken(UserDTO userDto, TokenService tokenService) {
-        if (!tokenService.verifyToken(userDto.getToken())) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "Invalid " + userDto.getAuthProvider() + " token");
-        }
-    }
-
-    private User getUserFromToken(String token, TokenService tokenService) {
-        String email = tokenService.getEmailFromToken(token);
-        User user = userService.findByEmail(email);
-        if (user == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Email " + email + " not registered");
-        }
-        return user;
-    }
-
-    private void validateUser(User user, String inviteCode) {
-        if (inviteCode == null && (user.getIsActive() == null || !user.getIsActive())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "User is not activated");
-        }
-    }
-
-    private void handleInviteCode(UserDTO userDto, User user) {
-        if (userDto.getInviteCode() != null) {
-            user.setIsActive(true);
-            userService.saveUser(user);
-        }
-        userDto.setAuthorized(true);
-        userDto.setUser(user);
     }
 }

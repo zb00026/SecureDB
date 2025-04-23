@@ -36,7 +36,7 @@ public class SecurityConfiguration {
                 .csrf(csrf -> csrf.disable()) // Disable CSRF for simplicity (optional)
                 .cors(cors -> cors.disable()) // Disable CORS (optional, enable as per your requirements)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/public/**", "/api/auth/verifyToken").permitAll()
+                        .requestMatchers("/public/**", "/api/auth/verifyToken", "/api/firebase/notifications/**").permitAll()
                         .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Roles.ADMIN.name())
                         .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.ASSET_OWNER.name())
                         .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Roles.DEVELOPER.name())

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.enums.AuditAction;
-import com.verlake.dam.service.AuditTrailService;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.utils.SpringContext;
 import jakarta.persistence.*;
 import org.springframework.security.core.context.SecurityContextHolder;

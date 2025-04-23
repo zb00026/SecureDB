@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.4.xsd">
+
+    <changeSet id="create_batch_job_instance" author="system">
+        <createTable tableName="batch_job_instance">
+            <column name="job_instance_id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+            <column name="job_name" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="job_key" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <createIndex tableName="batch_job_instance" indexName="job_inst_un">
+            <column name="job_name"/>
+            <column name="job_key"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create_batch_job_seq" author="system">
+        <createTable tableName="batch_job_seq">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="unique_key" type="char(1)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+        </createTable>
+        
+        <insert tableName="batch_job_seq">
+            <column name="id" value="0"/>
+            <column name="unique_key" value="0"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="create_batch_job_execution" author="system">
+        <createTable tableName="batch_job_execution">
+            <column name="job_execution_id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+            <column name="job_instance_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="job_inst_exec_fk" references="batch_job_instance(job_instance_id)"/>
+            </column>
+            <column name="create_time" type="datetime"/>
+            <column name="start_time" type="datetime"/>
+            <column name="end_time" type="datetime"/>
+            <column name="status" type="varchar(10)"/>
+            <column name="exit_code" type="varchar(2500)"/>
+            <column name="exit_message" type="varchar(2500)"/>
+            <column name="last_updated" type="datetime"/>
+            <column name="job_configuration_location" type="varchar(2500)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create_batch_job_execution_params" author="system">
+        <createTable tableName="batch_job_execution_params">
+            <column name="job_execution_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="job_exec_params_fk" references="batch_job_execution(job_execution_id)"/>
+            </column>
+            <column name="parameter_name" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="parameter_type" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="parameter_value" type="varchar(2500)"/>
+            <column name="identifying" type="char(1)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <createIndex tableName="batch_job_execution_params" indexName="job_exec_params_idx">
+            <column name="job_execution_id"/>
+            <column name="parameter_name"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create_batch_job_execution_context" author="system">
+        <createTable tableName="batch_job_execution_context">
+            <column name="job_execution_id" type="bigint">
+                <constraints primaryKey="true" nullable="false" foreignKeyName="job_exec_ctx_fk" references="batch_job_execution(job_execution_id)"/>
+            </column>
+            <column name="short_context" type="varchar(2500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="serialized_context" type="text"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create_batch_step_execution" author="system">
+        <createTable tableName="batch_step_execution">
+            <column name="step_execution_id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+            <column name="create_time" type="datetime"/>
+            <column name="step_name" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="job_execution_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="job_exec_step_fk" references="batch_job_execution(job_execution_id)"/>
+            </column>
+            <column name="start_time" type="datetime"/>
+            <column name="end_time" type="datetime"/>
+            <column name="status" type="varchar(10)"/>
+            <column name="commit_count" type="bigint"/>
+            <column name="read_count" type="bigint"/>
+            <column name="filter_count" type="bigint"/>
+            <column name="write_count" type="bigint"/>
+            <column name="read_skip_count" type="bigint"/>
+            <column name="write_skip_count" type="bigint"/>
+            <column name="process_skip_count" type="bigint"/>
+            <column name="rollback_count" type="bigint"/>
+            <column name="exit_code" type="varchar(2500)"/>
+            <column name="exit_message" type="varchar(2500)"/>
+            <column name="last_updated" type="datetime"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create_batch_step_execution_seq" author="system">
+        <createTable tableName="batch_step_execution_seq">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="unique_key" type="char(1)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+        </createTable>
+        
+        <insert tableName="batch_step_execution_seq">
+            <column name="id" value="0"/>
+            <column name="unique_key" value="0"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="create_batch_step_execution_context" author="system">
+        <createTable tableName="batch_step_execution_context">
+            <column name="step_execution_id" type="bigint">
+                <constraints primaryKey="true" nullable="false" foreignKeyName="step_exec_ctx_fk" references="batch_step_execution(step_execution_id)"/>
+            </column>
+            <column name="short_context" type="varchar(2500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="serialized_context" type="text"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create_batch_job_execution_seq" author="system">
+        <createTable tableName="batch_job_execution_seq">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="unique_key" type="char(1)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+        </createTable>
+        
+        <insert tableName="batch_job_execution_seq">
+            <column name="id" value="0"/>
+            <column name="unique_key" value="0"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog> 

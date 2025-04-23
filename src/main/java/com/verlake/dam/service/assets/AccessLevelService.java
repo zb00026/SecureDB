@@ -1,14 +1,11 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.assets;
 
 import com.verlake.dam.entity.assets.AccessLevel;
 import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.AccessLevelRepository;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
 import com.verlake.dam.utils.Constants;

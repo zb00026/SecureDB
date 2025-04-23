@@ -3,7 +3,8 @@ package com.verlake.dam.controller.auditor;
 
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.dto.AuditTrailFilter;
-import com.verlake.dam.service.AuditTrailService;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;

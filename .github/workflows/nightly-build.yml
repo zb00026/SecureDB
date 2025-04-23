@@ -36,11 +36,16 @@ jobs:
 
       - name: Load .env variables
         run: |
+          # Decode the base64 private key
+          FIREBASE_PRIVATE_KEY=$(echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" | base64 -d)
+          
           # Load the .env file
           set -o allexport
           source .env
           set +o allexport
+          
           # Save the variables to GITHUB_ENV
+          echo "FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY" >> $GITHUB_ENV
           echo "AUTH_PROVIDER=$AUTH_PROVIDER" >> $GITHUB_ENV
           echo "HOST_REGION=$HOST_REGION" >> $GITHUB_ENV
           echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
@@ -52,7 +57,7 @@ jobs:
           echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
           echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV          
 
       - name: Set timestamp variable
         id: timestamp
@@ -133,11 +138,21 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Build with Gradle Wrapper
-        run: ./gradlew build --stacktrace -Dspring-boot.run.profiles=dev
-
+        run: ./gradlew build --stacktrace -Dspring-boot.run.profiles=dev --info
+          
+      - name: Test Summary
+        if: always()
+        run: |
+          if [ -f "build/reports/tests/test/index.html" ]; then
+            echo "Test Report:"
+            cat build/reports/tests/test/index.html | grep -A 10 "Test Summary"
+          fi
       # Bundle the build artifact (JAR) into a zip file
       - name: Bundle backend build artifact
         run: |
+          # Decode the base64 private key
+          FIREBASE_PRIVATE_KEY=$(echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" | base64 -d)
+          
           ls -la
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
@@ -148,6 +163,8 @@ jobs:
           echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
           echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
           echo "APM_SECRET_TOKEN=\"${{ secrets.APM_SECRET_TOKEN }}\"" >> .env
+          echo "FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY" >> .env
+          
           cp .env build/libs/
           cd build/libs/
           ls -la

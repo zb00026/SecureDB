@@ -45,6 +45,10 @@ public class AuditTrailE2ETest extends BaseLoginTest {
                     "TRUNCATE TABLE user_roles",
                     "TRUNCATE TABLE users",
                     "TRUNCATE TABLE assets",
+                    "TRUNCATE TABLE asset_objects",
+                    "TRUNCATE TABLE asset_approvers",
+                    "TRUNCATE TABLE access_requests",
+                    "TRUNCATE TABLE access_level_objects",
                     "TRUNCATE TABLE asset_credentials",
                     "TRUNCATE TABLE s3_bucket_settings",
                     "SET FOREIGN_KEY_CHECKS = 1",
@@ -127,9 +131,10 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     @Test
     @Order(3)
     @DisplayName("Verify audit trail as auditor")
-    void auditVerification() {
+    void auditVerification() throws InterruptedException {
         // Login as auditor
-        browser.get(baseUrl);
+        Thread.sleep(3000);
+        browser.navigate().to(baseUrl);
         homePage.clickKeycloakButton();
         keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
         keycloakLoginPage.login(auditorUsername, auditorPassword);

@@ -27,6 +27,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-devtools'
 	implementation 'org.springframework.boot:spring-boot-autoconfigure'
+	implementation 'org.springframework.boot:spring-boot-starter-batch'
+	implementation 'org.springframework.batch:spring-batch-core:5.+'
+	implementation 'org.springframework.batch:spring-batch-infrastructure:5.+'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.slf4j:slf4j-api:2.+'
@@ -57,6 +60,8 @@ dependencies {
 	implementation platform('software.amazon.awssdk:bom:2.31.12')
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:ses'
+
+	implementation 'com.google.firebase:firebase-admin:9.+'
 
 	testImplementation 'org.testcontainers:testcontainers:1.+'
 	testImplementation 'org.testcontainers:junit-jupiter:1.+'

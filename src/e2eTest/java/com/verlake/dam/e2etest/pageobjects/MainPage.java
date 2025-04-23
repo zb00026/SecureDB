@@ -26,6 +26,7 @@ public class MainPage extends BasePage {
     public void clickKeycloakButton() {
         wait.until(ExpectedConditions.elementToBeClickable(keycloakButton));
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
+        checkElementById("btnLogin");
         keycloakButton.click();
     }
 }

@@ -1,4 +1,4 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.auth;
 
 
 import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
@@ -130,16 +130,19 @@ public class KeycloakService {
         user.setFirstName(firstName);
         user.setLastName(lastName);
 
-        // Update credentials (password)
-        CredentialRepresentation credential = new CredentialRepresentation();
-        credential.setType(CredentialRepresentation.PASSWORD);
-        credential.setValue(password);
-        credential.setTemporary(isTemporaryPsd);
-
-        user.setCredentials(Arrays.asList(credential));
-
-        // Update the user in Keycloak
+        // First update user info without credentials
         userResource.update(user);
+
+        if (password != null && !password.isEmpty()) {
+            // Update password separately using the proper method
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(password);
+            credential.setTemporary(isTemporaryPsd);
+
+            // Use resetPassword instead of setting credentials directly
+            userResource.resetPassword(credential);
+        }
     }
 
     public void updateUserKey(String userId, String jwtToken) {

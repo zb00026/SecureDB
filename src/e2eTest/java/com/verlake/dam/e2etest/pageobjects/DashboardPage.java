@@ -41,6 +41,7 @@ public class DashboardPage extends BasePage {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         // Wait for the username field to be visible
         wait.until(ExpectedConditions.visibilityOf(btnLogout));
+
     }
 
     public void logout() {

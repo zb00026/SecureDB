@@ -1,4 +1,4 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.auth;
 
 import com.verlake.dam.enums.AuthProvider;
 

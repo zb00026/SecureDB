@@ -41,6 +41,7 @@ public class UserManagementPage extends BasePage {
     public void createUser(String email, String firstName, String lastName, String password, String role)
             throws InterruptedException {
         try {
+            navigateToUserManagement();
             // Wait for form elements to be visible and interactable
             wait.until(ExpectedConditions.visibilityOf(userForm));
 
@@ -97,6 +98,7 @@ public class UserManagementPage extends BasePage {
     }
 
     public void modifyUser(String email, String newFirstName, String newLastName) {
+        navigateToUserManagement();
         // Find and click user row to edit
         WebElement userRow = wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.xpath("//tr[contains(., '" + email + "')]")));
@@ -120,12 +122,12 @@ public class UserManagementPage extends BasePage {
         driver.manage().window().setSize(new Dimension(1920, 1080));
         driver.manage().window().maximize();
 
-        // Find user row with a more specific XPath that matches the table structure
+        // Find user row
         String userRowXPath = "//tbody/tr[.//td[contains(text(), '" + email + "')]]";
         WebElement userRow = wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.xpath(userRowXPath)));
 
-        // Find the delete button - it's a Button with text "Delete"
+        // Find the delete button
         WebElement deleteButton = userRow.findElement(
                 By.xpath(".//button[contains(text(), 'Delete') or .//FormattedMessage[@id='text.delete']]"));
 
@@ -133,7 +135,8 @@ public class UserManagementPage extends BasePage {
         ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", deleteButton);
         Thread.sleep(500);
 
-        // Click the delete button
+        // Ensure the button is clickable
+        wait.until(ExpectedConditions.elementToBeClickable(deleteButton));
         deleteButton.click();
 
         // Wait for the DamAlertDialog to appear and be clickable

@@ -6,7 +6,7 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.service.AccessLevelService;
+import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import lombok.RequiredArgsConstructor;
@@ -14,8 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.verlake.dam.service.AccessRequestService;
-import com.verlake.dam.service.AssetService;
+import com.verlake.dam.service.assets.AccessRequestService;
+import com.verlake.dam.service.assets.AssetService;
 
 import java.util.List;
 
@@ -48,7 +48,68 @@ public class AccessRequestController {
         return ResponseEntity.ok(assetService.findDTOById(assetId));
     }
 
-
+    /**
+     * Retrieves available asset objects and their associated access grants for a specific asset.
+     * The response is an array of objects, each representing a different type of database object
+     * (DATABASE, PROCEDURE, TABLE, VIEW) with their respective access grants and available data.
+     *
+     * @param assetId The ID of the asset to retrieve objects for
+     * @return ResponseEntity containing an ArrayNode with the following structure:
+     * [
+     *   {
+     *     "name": "DATABASE",
+     *     "grants": [
+     *       {
+     *         "id": 17,
+     *         "templates": "FULL ACCESS",
+     *         "accessTemplate": "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, CREATE VIEW, SHOW VIEW, TRIGGER, REFERENCES, EXECUTE ON $DB.* TO '$USER'@'%';",
+     *         "object": "DATABASE"
+     *       },
+     *       // ... other grants
+     *     ],
+     *     "data": ["dam"] // List of available databases
+     *   },
+     *   {
+     *     "name": "PROCEDURE",
+     *     "grants": [
+     *       {
+     *         "id": 14,
+     *         "templates": "EXECUTE",
+     *         "accessTemplate": "GRANT EXECUTE ON PROCEDURE $DB.$PROCEDURE TO '$USER'@'%';",
+     *         "object": "PROCEDURE"
+     *       },
+     *       // ... other grants
+     *     ],
+     *     "data": [] // List of available procedures
+     *   },
+     *   {
+     *     "name": "TABLE",
+     *     "grants": [
+     *       {
+     *         "id": 1,
+     *         "templates": "SELECT",
+     *         "accessTemplate": "GRANT SELECT ON $DB.$TABLE TO '$USER'@'%';",
+     *         "object": "TABLE"
+     *       },
+     *       // ... other grants
+     *     ],
+     *     "data": ["dam.access_level_objects", "dam.access_levels", ...] // List of available tables
+     *   },
+     *   {
+     *     "name": "VIEW",
+     *     "grants": [
+     *       {
+     *         "id": 12,
+     *         "templates": "SELECT",
+     *         "accessTemplate": "GRANT SELECT ON $DB.$VIEW TO '$USER'@'%';",
+     *         "object": "VIEW"
+     *       },
+     *       // ... other grants
+     *     ],
+     *     "data": [] // List of available views
+     *   }
+     * ]
+     */
     @GetMapping("/{assetId}/asset_objects")
     public ResponseEntity<ArrayNode> getAvailableAssetObjects(@PathVariable Long assetId) {
         Asset asset = assetService.findById(assetId);
