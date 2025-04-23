@@ -180,18 +180,38 @@ public class KeycloakService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); // Random 20-character key
     }
 
-    public String getUserKey(String userId) {
-        // Fetch user by userId
-        RealmResource realmResource = getRealmInstance(); // Assuming you have a method to get the realm instance
-        UsersResource usersResource = realmResource.users();
-        UserResource userResource = usersResource.get(userId);
-
-        // Get user representation
+    private String getUserKeyFromUserResource(UserResource userResource) {
+        if (userResource == null) {
+            return null;
+        }
+        
         UserRepresentation userRepresentation = userResource.toRepresentation();
         Map<String, List<String>> attributes = userRepresentation.getAttributes();
         if (attributes != null && attributes.containsKey(Constants.KEYCLOAK_USER_KEY)) {
             return attributes.get(Constants.KEYCLOAK_USER_KEY).get(0);
         }
         return null;
+    }
+
+    public String getUserKey(String userId) {
+        RealmResource realmResource = getRealmInstance();
+        UsersResource usersResource = realmResource.users();
+        UserResource userResource = usersResource.get(userId);
+        return getUserKeyFromUserResource(userResource);
+    }
+
+    public String getUserKeyByEmail(String email) {
+        RealmResource realmResource = getRealmInstance();
+        UsersResource usersResource = realmResource.users();
+        
+        // Search for user by email
+        List<UserRepresentation> users = usersResource.searchByEmail(email, true);
+        if (users.isEmpty()) {
+            return null;
+        }
+        
+        // Get the first matching user (email should be unique)
+        UserResource userResource = usersResource.get(users.get(0).getId());
+        return getUserKeyFromUserResource(userResource);
     }
 }

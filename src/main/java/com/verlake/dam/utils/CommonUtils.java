@@ -75,15 +75,15 @@ public class CommonUtils {
     public static String encrypt(String password, String data) throws NoSuchPaddingException, NoSuchAlgorithmException,
             InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
         SecretKeySpec secretKey = generateKeyFromPassword(password);
-        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 
-        // Generate random IV
-        byte[] iv = new byte[16];
+        // Generate random IV (12 bytes is recommended for GCM)
+        byte[] iv = new byte[12];
         SecureRandom secureRandom = new SecureRandom();
         secureRandom.nextBytes(iv);
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv); // 128-bit authentication tag
 
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
         byte[] encryptedData = cipher.doFinal(data.getBytes());
 
         // Combine IV and encrypted data
@@ -92,7 +92,6 @@ public class CommonUtils {
         System.arraycopy(encryptedData, 0, combined, iv.length, encryptedData.length);
 
         return Base64.getEncoder().encodeToString(combined);
-
     }
 
     // Method to decrypt the string using AES-256
@@ -101,17 +100,17 @@ public class CommonUtils {
         byte[] combined = Base64.getDecoder().decode(encryptedData);
 
         // Extract IV
-        byte[] iv = new byte[16];
+        byte[] iv = new byte[12];
         System.arraycopy(combined, 0, iv, 0, iv.length);
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
 
         // Extract encrypted data
         byte[] encrypted = new byte[combined.length - iv.length];
         System.arraycopy(combined, iv.length, encrypted, 0, encrypted.length);
 
         SecretKeySpec secretKey = generateKeyFromPassword(password);
-        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
 
         byte[] decryptedData = cipher.doFinal(encrypted);
         return new String(decryptedData);
@@ -129,4 +128,5 @@ public class CommonUtils {
             super(message, cause);
         }
     }
+    
 }

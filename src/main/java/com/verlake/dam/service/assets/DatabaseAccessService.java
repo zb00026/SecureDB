@@ -5,94 +5,105 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
+import com.verlake.dam.repository.assets.AssetCredentialRepository;
+import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.exception.DatabaseAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import com.verlake.dam.enums.Roles;
 
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.sql.*;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
-// Custom exception class
-class DatabaseAccessException extends RuntimeException {
-    public DatabaseAccessException(String message, Throwable cause) {
-        super(message, cause);
-    }
-}
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import java.security.SecureRandom;
 
 @Service
 @Slf4j
 public class DatabaseAccessService {
     private final AssetObjectRepository assetObjectRepository;
+    private final AssetCredentialRepository assetCredentialRepository;
+    private final KeycloakService keycloakService;
     private final ObjectMapper objectMapper;
+    private final SecureRandom secureRandom = new SecureRandom();
 
-    public DatabaseAccessService(AssetObjectRepository assetObjectRepository) {
+    public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
+            AssetCredentialRepository assetCredentialRepository,
+            KeycloakService keycloakService) {
         this.assetObjectRepository = assetObjectRepository;
+        this.assetCredentialRepository = assetCredentialRepository;
+        this.keycloakService = keycloakService;
         this.objectMapper = new ObjectMapper();
     }
 
-    public void updateAssetObjects(AssetCredential credential) {
+    public void updateAssetObjects(AssetCredential credential) throws SQLException {
         String objectsJson = fetchDatabaseObjects(credential);
-        
+
         AssetObject assetObject = assetObjectRepository.findByAssetCredential(credential)
                 .orElse(new AssetObject());
-        
+
         assetObject.setAssetCredential(credential);
         assetObject.setAsset(credential.getAsset());
         assetObject.setObjectsJson(objectsJson);
-        
+
         assetObjectRepository.save(assetObject);
     }
 
-    private String fetchDatabaseObjects(AssetCredential credential) {
-        try {
-            ObjectNode rootNode = objectMapper.createObjectNode();
-            
-            switch (credential.getAsset().getDatabaseType()) {
-                case MYSQL:
-                    return fetchMySQLObjects(credential, rootNode);
-                case POSTGRESQL:
-                    return fetchPostgreSQLObjects(credential, rootNode);
-                case SQLSERVER:
-                    return fetchSQLServerObjects(credential, rootNode);
-                case ORACLE:
-                    return fetchOracleObjects(credential, rootNode);
-                default:
-                    throw new DatabaseAccessException("Database type not supported: " + credential.getAsset().getDatabaseType(), null);
-            }
-        } catch (Exception e) {
-            throw new DatabaseAccessException("Failed to fetch database objects", e);
+    private String fetchDatabaseObjects(AssetCredential credential) throws SQLException {
+        ObjectNode rootNode = objectMapper.createObjectNode();
+
+        switch (credential.getAsset().getDatabaseType()) {
+            case MYSQL:
+                return fetchMySQLObjects(credential, rootNode);
+            case POSTGRESQL:
+                return fetchPostgreSQLObjects(credential, rootNode);
+            case SQLSERVER:
+                return fetchSQLServerObjects(credential, rootNode);
+            case ORACLE:
+                return fetchOracleObjects(credential, rootNode);
+            default:
+                throw new DatabaseAccessException(
+                        "Database type not supported: " + credential.getAsset().getDatabaseType(), null);
         }
     }
 
-    private String fetchMySQLObjects(AssetCredential credential, ObjectNode rootNode) {
+    private String fetchMySQLObjects(AssetCredential credential, ObjectNode rootNode) throws SQLException {
         String jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostAddress();
-        
-        try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), credential.getPassword())) {
-            // Initialize categories and arrays
-            initializeCategories(rootNode);
-            
-            // Fetch and categorize grants
-            fetchAndCategorizeGrants(connection, rootNode);
-            
-            // Fetch databases and their objects
-            fetchDatabasesAndObjects(connection, rootNode);
-            
-            // Add information_schema objects
-            fetchInformationSchemaObjects(connection, rootNode);
-            
-            return rootNode.toString();
-            
-        } catch (SQLException e) {
-            log.error("Error connecting to database", e);
-            throw new DatabaseAccessException("Error connecting to database", e);
-        }
+
+        Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(),
+                credential.getPassword());
+        // Initialize categories and arrays
+        initializeCategories(rootNode);
+
+        // Fetch and categorize grants
+        fetchAndCategorizeGrants(connection, rootNode);
+
+        // Fetch databases and their objects
+        fetchDatabasesAndObjects(connection, rootNode);
+
+        // Add information_schema objects
+        fetchInformationSchemaObjects(connection, rootNode);
+
+        return rootNode.toString();
+
     }
-    
+
     private void initializeCategories(ObjectNode rootNode) {
         // Create category objects
         ObjectNode databaseCategory = rootNode.putObject(Constants.ASSET_ACCESS_OBJECT_DATABASE);
@@ -112,15 +123,19 @@ public class DatabaseAccessService {
         viewCategory.putArray(Constants.ACCESS_OBJECT_ATTR_DATA);
         procedureCategory.putArray(Constants.ACCESS_OBJECT_ATTR_DATA);
     }
-    
+
     private void fetchAndCategorizeGrants(Connection connection, ObjectNode rootNode) {
-        ArrayNode databaseGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE).get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
-        ArrayNode tableGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE).get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
-        ArrayNode viewGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW).get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
-        ArrayNode procedureGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE).get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
-        
+        ArrayNode databaseGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode tableGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode viewGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode procedureGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+
         try (Statement stmt = connection.createStatement();
-             ResultSet grantRs = stmt.executeQuery("SHOW GRANTS FOR CURRENT_USER")) {
+                ResultSet grantRs = stmt.executeQuery("SHOW GRANTS FOR CURRENT_USER")) {
             while (grantRs.next()) {
                 String grantStr = grantRs.getString(1);
                 categorizeGrant(grantStr, databaseGrants, tableGrants, viewGrants, procedureGrants);
@@ -129,13 +144,17 @@ public class DatabaseAccessService {
             log.error("Error fetching grants", e);
         }
     }
-    
+
     private void fetchDatabasesAndObjects(Connection connection, ObjectNode rootNode) {
-        ArrayNode databaseData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE).get(Constants.ACCESS_OBJECT_ATTR_DATA);
-        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE).get(Constants.ACCESS_OBJECT_ATTR_DATA);
-        ArrayNode viewData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW).get(Constants.ACCESS_OBJECT_ATTR_DATA);
-        ArrayNode procedureData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE).get(Constants.ACCESS_OBJECT_ATTR_DATA);
-        
+        ArrayNode databaseData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode viewData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode procedureData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+
         try (ResultSet catalogRs = connection.getMetaData().getCatalogs()) {
             while (catalogRs.next()) {
                 String dbName = catalogRs.getString("TABLE_CAT");
@@ -144,7 +163,7 @@ public class DatabaseAccessService {
                 if (isSystemDatabase(dbName)) {
                     continue;
                 }
-                
+
                 databaseData.add(dbName);
                 fetchDatabaseObjects(connection, dbName, tableData, viewData, procedureData);
             }
@@ -152,14 +171,14 @@ public class DatabaseAccessService {
             log.error("Error fetching databases", e);
         }
     }
-    
+
     private boolean isSystemDatabase(String dbName) {
-        return dbName.equals("mysql") || dbName.equals("performance_schema") || 
-               dbName.equals("sys") || dbName.equals("information_schema");
+        return dbName.equals("mysql") || dbName.equals("performance_schema") ||
+                dbName.equals("sys") || dbName.equals("information_schema");
     }
-    
-    private void fetchDatabaseObjects(Connection connection, String dbName, 
-                                     ArrayNode tableData, ArrayNode viewData, ArrayNode procedureData) {
+
+    private void fetchDatabaseObjects(Connection connection, String dbName,
+            ArrayNode tableData, ArrayNode viewData, ArrayNode procedureData) {
         try {
             // Skip USE statement and directly query tables from the database
             fetchTables(connection, dbName, tableData);
@@ -169,14 +188,14 @@ public class DatabaseAccessService {
             log.error("Error fetching objects for database: " + dbName, e);
         }
     }
-    
+
     private void fetchTables(Connection connection, String dbName, ArrayNode tableData) throws SQLException {
         // Validate database name to prevent SQL injection
         if (!dbName.matches("^\\w+$")) {
             log.error("Invalid database name: {}", dbName);
             return;
         }
-        
+
         // Use INFORMATION_SCHEMA.TABLES instead of SHOW TABLES FROM
         try (PreparedStatement stmt = connection.prepareStatement(
                 "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?")) {
@@ -189,10 +208,10 @@ public class DatabaseAccessService {
             }
         }
     }
-    
+
     private void fetchViews(Connection connection, String dbName, ArrayNode viewData) {
         try (PreparedStatement stmt = connection.prepareStatement(
-             "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = ?")) {
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = ?")) {
             stmt.setString(1, dbName);
             try (ResultSet viewRs = stmt.executeQuery()) {
                 while (viewRs.next()) {
@@ -204,10 +223,10 @@ public class DatabaseAccessService {
             log.error("Error fetching views for database: " + dbName, e);
         }
     }
-    
+
     private void fetchProcedures(Connection connection, String dbName, ArrayNode procedureData) {
         try (PreparedStatement stmt = connection.prepareStatement(
-             "SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ?")) {
+                "SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ?")) {
             stmt.setString(1, dbName);
             try (ResultSet procRs = stmt.executeQuery()) {
                 while (procRs.next()) {
@@ -219,14 +238,15 @@ public class DatabaseAccessService {
             log.error("Error fetching procedures for database: " + dbName, e);
         }
     }
-    
+
     private void fetchInformationSchemaObjects(Connection connection, ObjectNode rootNode) {
-        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE).get(Constants.ACCESS_OBJECT_ATTR_DATA);
-        
+        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+
         try (Statement stmt = connection.createStatement();
-             ResultSet infoSchemaRs = stmt.executeQuery(
-                 "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES " +
-                 "WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_TYPE = 'BASE TABLE'")) {
+                ResultSet infoSchemaRs = stmt.executeQuery(
+                        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES " +
+                                "WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_TYPE = 'BASE TABLE'")) {
             while (infoSchemaRs.next()) {
                 String tableName = infoSchemaRs.getString(Constants.INFORMATION_SCHEMA_TABLE_NAME);
                 tableData.add("information_schema." + tableName);
@@ -236,72 +256,74 @@ public class DatabaseAccessService {
         }
     }
 
-    private void categorizeGrant(String grantStr, ArrayNode databaseGrants, ArrayNode tableGrants, 
-                               ArrayNode viewGrants, ArrayNode procedureGrants) {
+    private void categorizeGrant(String grantStr, ArrayNode databaseGrants, ArrayNode tableGrants,
+            ArrayNode viewGrants, ArrayNode procedureGrants) {
         ObjectNode grantNode = objectMapper.createObjectNode();
         grantStr = grantStr.toUpperCase();
-        
+
         if (grantStr.contains("ON *.*")) {
             handleGlobalGrant(grantStr, grantNode, databaseGrants, tableGrants, viewGrants, procedureGrants);
         } else if (grantStr.contains("ON")) {
             handleSpecificGrant(grantStr, grantNode, tableGrants, viewGrants, procedureGrants);
         }
     }
-    
-    private void handleGlobalGrant(String grantStr, ObjectNode grantNode, 
-                                  ArrayNode databaseGrants, ArrayNode tableGrants, 
-                                  ArrayNode viewGrants, ArrayNode procedureGrants) {
+
+    private void handleGlobalGrant(String grantStr, ObjectNode grantNode,
+            ArrayNode databaseGrants, ArrayNode tableGrants,
+            ArrayNode viewGrants, ArrayNode procedureGrants) {
         grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
         grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, grantStr);
         databaseGrants.add(grantNode);
-        
-        if (grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW) || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_FULL)) {
+
+        if (grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW)
+                || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_FULL)) {
             addViewGrantFromGlobal(viewGrants);
         }
-        
-        if (grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE) || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_ALTER_ROUTINE)) {
+
+        if (grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE)
+                || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_ALTER_ROUTINE)) {
             addProcedureGrantFromGlobal(procedureGrants);
         }
-        
+
         if (hasTablePrivileges(grantStr)) {
             addTableGrantFromGlobal(tableGrants);
         }
     }
-    
+
     private void addViewGrantFromGlobal(ArrayNode viewGrants) {
         ObjectNode viewGrantNode = objectMapper.createObjectNode();
         viewGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
         viewGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "VIEW privileges from global grant");
         viewGrants.add(viewGrantNode);
     }
-    
+
     private void addProcedureGrantFromGlobal(ArrayNode procedureGrants) {
         ObjectNode procGrantNode = objectMapper.createObjectNode();
         procGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
         procGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "PROCEDURE privileges from global grant");
         procedureGrants.add(procGrantNode);
     }
-    
+
     private boolean hasTablePrivileges(String grantStr) {
-        return grantStr.contains("SELECT") || grantStr.contains("INSERT") || 
-               grantStr.contains("UPDATE") || grantStr.contains("DELETE") ||
-               grantStr.contains("CREATE") || grantStr.contains("ALTER");
+        return grantStr.contains("SELECT") || grantStr.contains("INSERT") ||
+                grantStr.contains("UPDATE") || grantStr.contains("DELETE") ||
+                grantStr.contains("CREATE") || grantStr.contains("ALTER");
     }
-    
+
     private void addTableGrantFromGlobal(ArrayNode tableGrants) {
         ObjectNode tableGrantNode = objectMapper.createObjectNode();
         tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
         tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "TABLE privileges from global grant");
         tableGrants.add(tableGrantNode);
     }
-    
-    private void handleSpecificGrant(String grantStr, ObjectNode grantNode, 
-                                    ArrayNode tableGrants, ArrayNode viewGrants, 
-                                    ArrayNode procedureGrants) {
+
+    private void handleSpecificGrant(String grantStr, ObjectNode grantNode,
+            ArrayNode tableGrants, ArrayNode viewGrants,
+            ArrayNode procedureGrants) {
         String privilege = extractPrivilege(grantStr);
         grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, privilege);
         grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, grantStr);
-        
+
         if (isViewGrant(grantStr)) {
             viewGrants.add(grantNode);
         } else if (isProcedureGrant(grantStr)) {
@@ -310,11 +332,12 @@ public class DatabaseAccessService {
             tableGrants.add(grantNode);
         }
     }
-    
+
     private boolean isViewGrant(String grantStr) {
-        return grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW) || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_FULL);
+        return grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW)
+                || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_FULL);
     }
-    
+
     private boolean isProcedureGrant(String grantStr) {
         return grantStr.contains("ROUTINE") || grantStr.contains("PROCEDURE");
     }
@@ -322,7 +345,7 @@ public class DatabaseAccessService {
     private String extractPrivilege(String grantStr) {
         // Remove GRANT prefix
         String privilege = grantStr.replaceFirst("GRANT\\s+", "");
-        
+
         // Extract the privilege part before ON
         int onIndex = privilege.indexOf(" ON ");
         if (onIndex != -1) {
@@ -363,12 +386,12 @@ public class DatabaseAccessService {
         dataSource.setPassword(credential.getPassword());
         return new JdbcTemplate(dataSource);
     }
-    
+
     private void initializeAccessObjectNodes(ObjectNode rootNode, ArrayNode... nodes) {
         if (nodes == null || nodes.length < 4) {
             throw new IllegalArgumentException("The nodes array must contain at least 4 elements");
         }
-        
+
         nodes[0] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_DATABASE);
         nodes[1] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_TABLE);
         nodes[2] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_VIEW);
@@ -377,11 +400,10 @@ public class DatabaseAccessService {
 
     private String fetchPostgreSQLObjects(AssetCredential credential, ObjectNode rootNode) {
         JdbcTemplate jdbcTemplate = createJdbcTemplate(
-            credential, 
-            "org.postgresql.Driver", 
-            "jdbc:postgresql://"
-        );
-        
+                credential,
+                "org.postgresql.Driver",
+                "jdbc:postgresql://");
+
         // Initialize nodes
         ArrayNode[] nodes = new ArrayNode[4];
         initializeAccessObjectNodes(rootNode, nodes);
@@ -390,20 +412,19 @@ public class DatabaseAccessService {
 
         // Query for role privileges
         List<Map<String, Object>> privileges = jdbcTemplate.queryForList(
-            "SELECT * FROM information_schema.role_table_grants WHERE grantee = current_user"
-        );
+                "SELECT * FROM information_schema.role_table_grants WHERE grantee = current_user");
 
         for (Map<String, Object> privilege : privileges) {
             String grantType = (String) privilege.get("privilege_type");
             String tableName = (String) privilege.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
             String schemaName = (String) privilege.get("table_schema");
-            
+
             ObjectNode grantNode = objectMapper.createObjectNode();
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, grantType);
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
-                String.format("GRANT %s ON %s.%s TO %s", 
-                    grantType, schemaName, tableName, credential.getUsername()));
-            
+            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT %s ON %s.%s TO %s",
+                            grantType, schemaName, tableName, credential.getUsername()));
+
             if (tableName.startsWith("pg_")) {
                 databaseNode.add(grantNode);
             } else {
@@ -416,11 +437,10 @@ public class DatabaseAccessService {
 
     private String fetchSQLServerObjects(AssetCredential credential, ObjectNode rootNode) {
         JdbcTemplate jdbcTemplate = createJdbcTemplate(
-            credential, 
-            "com.microsoft.sqlserver.jdbc.SQLServerDriver", 
-            "jdbc:sqlserver://"
-        );
-        
+                credential,
+                "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+                "jdbc:sqlserver://");
+
         ArrayNode[] nodes = new ArrayNode[4];
         initializeAccessObjectNodes(rootNode, nodes);
         ArrayNode databaseNode = nodes[0];
@@ -430,25 +450,24 @@ public class DatabaseAccessService {
 
         // Query for database permissions
         List<Map<String, Object>> permissions = jdbcTemplate.queryForList(
-            "SELECT pr.principal_id, pr.name, pe.permission_name, pe.state_desc, " +
-            "ob.type_desc, SCHEMA_NAME(ob.schema_id) as schema_name, ob.name as object_name " +
-            "FROM sys.database_permissions pe " +
-            "JOIN sys.database_principals pr ON pe.grantee_principal_id = pr.principal_id " +
-            "JOIN sys.objects ob ON pe.major_id = ob.object_id " +
-            "WHERE pr.name = CURRENT_USER"
-        );
+                "SELECT pr.principal_id, pr.name, pe.permission_name, pe.state_desc, " +
+                        "ob.type_desc, SCHEMA_NAME(ob.schema_id) as schema_name, ob.name as object_name " +
+                        "FROM sys.database_permissions pe " +
+                        "JOIN sys.database_principals pr ON pe.grantee_principal_id = pr.principal_id " +
+                        "JOIN sys.objects ob ON pe.major_id = ob.object_id " +
+                        "WHERE pr.name = CURRENT_USER");
 
         for (Map<String, Object> permission : permissions) {
             String objectType = (String) permission.get("type_desc");
             String permissionName = (String) permission.get("permission_name");
             String schemaName = (String) permission.get("schema_name");
             String objectName = (String) permission.get("object_name");
-            
+
             ObjectNode grantNode = objectMapper.createObjectNode();
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, permissionName);
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
-                String.format("GRANT %s ON [%s].[%s] TO [%s]", 
-                    permissionName, schemaName, objectName, credential.getUsername()));
+            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT %s ON [%s].[%s] TO [%s]",
+                            permissionName, schemaName, objectName, credential.getUsername()));
 
             switch (objectType) {
                 case "USER_TABLE":
@@ -470,11 +489,10 @@ public class DatabaseAccessService {
 
     private String fetchOracleObjects(AssetCredential credential, ObjectNode rootNode) {
         JdbcTemplate jdbcTemplate = createJdbcTemplate(
-            credential, 
-            "oracle.jdbc.OracleDriver", 
-            "jdbc:oracle:thin:@"
-        );
-        
+                credential,
+                "oracle.jdbc.OracleDriver",
+                "jdbc:oracle:thin:@");
+
         ArrayNode[] nodes = new ArrayNode[4];
         initializeAccessObjectNodes(rootNode, nodes);
         ArrayNode databaseNode = nodes[0];
@@ -484,22 +502,20 @@ public class DatabaseAccessService {
 
         // Query for system privileges
         List<Map<String, Object>> sysPrivs = jdbcTemplate.queryForList(
-            "SELECT * FROM USER_SYS_PRIVS"
-        );
+                "SELECT * FROM USER_SYS_PRIVS");
 
         // Query for object privileges
         List<Map<String, Object>> objPrivs = jdbcTemplate.queryForList(
-            "SELECT * FROM USER_TAB_PRIVS WHERE GRANTEE = USER"
-        );
+                "SELECT * FROM USER_TAB_PRIVS WHERE GRANTEE = USER");
 
         // Handle system privileges
         for (Map<String, Object> priv : sysPrivs) {
             String privilege = (String) priv.get("PRIVILEGE");
-            
+
             ObjectNode grantNode = objectMapper.createObjectNode();
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, privilege);
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
-                String.format("GRANT %s TO %s", privilege, credential.getUsername()));
+            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT %s TO %s", privilege, credential.getUsername()));
             databaseNode.add(grantNode);
         }
 
@@ -509,12 +525,12 @@ public class DatabaseAccessService {
             String privilege = (String) priv.get("PRIVILEGE");
             String owner = (String) priv.get("OWNER");
             String objectName = (String) priv.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-            
+
             ObjectNode grantNode = objectMapper.createObjectNode();
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, privilege);
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
-                String.format("GRANT %s ON %s.%s TO %s", 
-                    privilege, owner, objectName, credential.getUsername()));
+            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT %s ON %s.%s TO %s",
+                            privilege, owner, objectName, credential.getUsername()));
 
             switch (objectType) {
                 case "TABLE":
@@ -533,4 +549,159 @@ public class DatabaseAccessService {
 
         return rootNode.toString();
     }
-} 
+
+    private Connection getConnectionFromAssetCredential(AssetCredential credential) throws SQLException {
+        String jdbcUrl;
+        switch (credential.getAsset().getDatabaseType()) {
+            case MYSQL:
+                jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostAddress();
+                break;
+            case POSTGRESQL:
+                jdbcUrl = "jdbc:postgresql://" + credential.getAsset().getHostAddress();
+                break;
+            case ORACLE:
+                jdbcUrl = "jdbc:oracle:thin:@" + credential.getAsset().getHostAddress();
+                break;
+            case SQLSERVER:
+                jdbcUrl = "jdbc:sqlserver://" + credential.getAsset().getHostAddress();
+                break;
+            default:
+                throw new DatabaseAccessException(
+                        "Unsupported database type: " + credential.getAsset().getDatabaseType(), null);
+        }
+        return DriverManager.getConnection(jdbcUrl, credential.getUsername(),
+                credential.getPassword());
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void checkAccessRequestorInAsset(AssetCredential credential, User requestor, AccessRequest accessRequest,
+            String existUsername, Map<String, String> newCredMapper) {
+
+        try (Connection connection = getConnectionFromAssetCredential(credential)) {
+            // Extract username from email (everything before @)
+            String username = getCredentialForAccess(connection, credential, requestor, existUsername, newCredMapper);
+
+            // Execute access SQL if provided
+            if (accessRequest != null && accessRequest.getAccessSql() != null) {
+                // Split SQL statements by semicolon and execute each one
+                String[] sqlStatements = accessRequest.getAccessSql()
+                        .replace("$USER", username)
+                        .split(";");
+
+                for (String sql : sqlStatements) {
+                    sql = sql.trim();
+                    if (!sql.isEmpty()) {
+                        try (Statement stmt = connection.createStatement()) {
+                            log.info("Executing SQL: {}", sql);
+                            stmt.execute(sql);
+                        }
+                    }
+                }
+            }
+
+        } catch (SQLException | NoSuchPaddingException | NoSuchAlgorithmException | InvalidKeyException
+                | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException e) {
+            log.error("Error connecting to database", e);
+            throw new DatabaseAccessException("Error connecting to database", e);
+        }
+    }
+
+    private String getCheckUserSql(DatabaseType databaseType) {
+        switch (databaseType) {
+            case MYSQL:
+                return "SELECT User, Host FROM mysql.user WHERE User = ?";
+            case POSTGRESQL:
+                return "SELECT * FROM pg_user WHERE usename = ?";
+            case ORACLE:
+                return "SELECT * FROM dba_users WHERE username = ?";
+            case SQLSERVER:
+                return "SELECT * FROM sys.database_principals WHERE name = ?";
+            default:
+                throw new DatabaseAccessException("Unsupported database type: " + databaseType, null);
+        }
+    }
+
+    private String getCreateUserSql(DatabaseType databaseType) {
+        switch (databaseType) {
+            case MYSQL:
+                return "CREATE USER ?@'%' IDENTIFIED BY ?";
+            case POSTGRESQL:
+                return "CREATE USER ? WITH PASSWORD ?";
+            case ORACLE:
+                return "CREATE USER ? IDENTIFIED BY ?";
+            case SQLSERVER:
+                return "CREATE LOGIN ? WITH PASSWORD = ?";
+            default:
+                throw new DatabaseAccessException("Unsupported database type: " + databaseType, null);
+        }
+    }
+
+    private String generateUniqueUsername(String name) {
+        // Remove spaces and special characters
+        String baseUsername = name.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        // Generate random 4-digit number using SecureRandom
+        int randomNum = secureRandom.nextInt(9000) + 1000;
+        return baseUsername + randomNum;
+    }
+
+    private String generateRandomPassword() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+        StringBuilder password = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            int index = secureRandom.nextInt(chars.length());
+            password.append(chars.charAt(index));
+        }
+        return "temp" + password.toString();
+    }
+
+    private String getCredentialForAccess(
+            Connection connection,
+            AssetCredential credential,
+            User requestor,
+            String existUsername,
+            Map<String, String> newCredMapper)
+            throws SQLException, InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException,
+            IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+
+        String username = requestor.getEmail().split("@")[0];
+        if (existUsername.isEmpty()) {
+            username = generateUniqueUsername(username);
+
+            // Check if user exists
+            String checkUserSql = getCheckUserSql(credential.getAsset().getDatabaseType());
+            PreparedStatement checkUserStmt = connection.prepareStatement(checkUserSql);
+            checkUserStmt.setString(1, username);
+            ResultSet rs = checkUserStmt.executeQuery();
+
+            if (!rs.next()) {
+                // User doesn't exist, create one
+                String password = generateRandomPassword();
+
+                // Create user
+                String createUserSql = getCreateUserSql(credential.getAsset().getDatabaseType());
+                PreparedStatement createUserStmt = connection.prepareStatement(createUserSql);
+                createUserStmt.setString(1, username);
+                createUserStmt.setString(2, password);
+                createUserStmt.executeUpdate();
+
+                String userKey = keycloakService.getUserKeyByEmail(requestor.getEmail());
+                if (userKey != null && !userKey.isEmpty()) {
+                    String encryptedPassword = CommonUtils.encrypt(userKey, password);
+                    // Store user credentials in asset_credentials table
+                    AssetCredential userCredential = new AssetCredential();
+                    userCredential.setAsset(credential.getAsset());
+                    userCredential.setUsername(username);
+                    userCredential.setPassword(encryptedPassword);
+                    userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName()); // Set appropriate role
+                    userCredential.setUser(requestor);
+                    assetCredentialRepository.saveAndFlush(userCredential);
+                    newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
+                    newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
+                }
+            }
+        } else {
+            username = existUsername;
+        }
+        return username;
+    }
+}

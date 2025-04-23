@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import com.verlake.dam.enums.EmailType;
 
 @Entity
 @Data
@@ -20,11 +21,18 @@ public class NotificationTask {
     private User receiver;
 
     @ManyToOne
-    private User requestor;
+    private User sender;
 
     @ManyToOne
     private Asset asset;
 
     @Column(columnDefinition = "TEXT")
     private String notificationMessage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private EmailType emailType;
+
+    @Column(nullable = false)
+    private boolean isSent = false;
 }

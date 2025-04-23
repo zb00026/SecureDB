@@ -131,6 +131,8 @@ public class UserController {
                         // Assign new roles to user
                         user.setRoles(roles);
                     }
+
+                    //If Keycloak Auth provider is provided, Needs to update Keycloak user's information when updating user
                     if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
                         keycloakService.saveUser(user.getEmail(),
                                 user.getEmail(),

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Access Request Approval</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .header {
+            background-color: #2196F3;
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.approved {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .status.rejected {
+            background-color: #f44336;
+            color: white;
+        }
+        .footer {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.9em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>Asset Access Request Update</h2>
+    </div>
+    <div class="content">
+        <p>Dear <strong th:text="${receiverFirstName + ' ' + receiverLastName}"></strong>,</p>
+        
+        <div class="status" th:classappend="${approvalStatus == 'Approved' ? 'approved' : 'rejected'}">
+            <p>Your request has been <strong th:text="${approvalStatus}"></strong></p>
+        </div>
+
+        <p>The following asset access request has been processed by <strong th:text="${approverFirstName + ' ' + approverLastName}"></strong>:</p>
+        
+        <div class="details">
+            <p><strong>Asset Name:</strong> <span th:text="${assetName}"></span></p>
+            <p><strong>Description:</strong> <span th:text="${assetDescription}"></span></p>
+            <br>
+            <p th:if="${dbUsername != null && dbUsername != ''}">
+                <strong>Database Username:</strong> <span th:text="${dbUsername}"></span>
+            </p>
+            <p th:if="${dbPassword != null && dbPassword != ''}">
+                <strong>Database Password:</strong> <span th:text="${dbPassword}"></span>
+            </p>
+        </div>
+        
+        <p th:if="${approvalStatus == 'Approved'}">
+            You now have access to this asset. You can access it through the DAM application.
+        </p>
+        <p th:if="${approvalStatus == 'Rejected'}">
+            If you have any questions about this decision, please contact the approver.
+        </p>
+        
+        <p>You can view the details of this request in the DAM application.</p>
+    </div>
+    <div class="footer">
+        <p>&copy; 2025 DAM Application. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

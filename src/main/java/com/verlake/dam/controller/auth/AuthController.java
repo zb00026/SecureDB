@@ -6,6 +6,7 @@ import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,7 @@ import com.verlake.dam.service.auth.AuthService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.auth.TokenService;
 import com.verlake.dam.service.auth.TokenServiceManager;
+import com.verlake.dam.service.firebase.FirebaseMessagingService;
 import com.verlake.dam.service.assets.AssetService;
 
 import org.slf4j.Logger;
@@ -33,9 +35,6 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     @Autowired
-    private UserService userService;
-
-    @Autowired
     private DatabaseAccessService databaseAccessService;
 
     @Autowired
@@ -43,6 +42,9 @@ public class AuthController {
 
     @Autowired
     private KeycloakService keycloakService;
+
+    @Autowired
+    private FirebaseMessagingService firebaseMessagingService;
 
     @Autowired
     private AsyncTaskExecutor taskExecutor;
@@ -62,43 +64,62 @@ public class AuthController {
         authService.validateToken(userDto, tokenService);
         User user = authService.authenticateUser(userDto, tokenService);
 
-
-        // Check if user has ASSET_OWNER role
-        if (user.getRoles().stream().anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()))) {
-            // Get user key and credentials before starting thread
-            final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
-            final List<AssetCredential> credentials = assetService.getAssignedCredentials();
-
-            // Process credentials in separate thread
-            taskExecutor.execute(() -> {
-                try {
-                    credentials.stream()
-                        .filter(cred -> {
-                            // Check if credential has required fields
-                            boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
-                                    && cred.getPassword() != null && !cred.getPassword().isEmpty();
-                            
-                            // Check if user is the owner of the asset associated with this credential
-                            boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(user.getId());
-                            
-                            return hasValidCredentials && isAssetOwner;
-                        })
-                        .forEach(cred -> {
-                            try {
-                                String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
-                                cred.setPassword(decryptedPassword);
-                                databaseAccessService.updateAssetObjects(cred);
-                            } catch (Exception e) {
-                                log.error("Failed to update database objects upon asset owner login due to credential errors. credential: " + cred.getId(), e);
-                            }
-                        });
-                } catch (Exception e) {
-                    log.error("Failed to update database objects upon asset owner login. Error processing asset owner credentials", e);
-                }
-            });
+        if (isAssetOwner(user)) {
+            processAssetOwnerCredentials(user);
         }
 
         return ResponseEntity.ok().body(userDto);
+    }
+
+    private boolean isAssetOwner(User user) {
+        return user.getRoles().stream()
+            .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()));
+    }
+
+    private void processAssetOwnerCredentials(User user) {
+        final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+        final List<AssetCredential> credentials = assetService.getAssignedCredentials();
+
+        taskExecutor.execute(() -> processCredentialsAsync(user, userKey, credentials));
+    }
+
+    private void processCredentialsAsync(User user, String userKey, List<AssetCredential> credentials) {
+        try {
+            credentials.stream()
+                .filter(cred -> isValidCredential(cred, user))
+                .forEach(cred -> processCredential(cred, userKey));
+        } catch (Exception e) {
+            log.error("Failed to update database objects upon asset owner login. Error processing asset owner credentials", e);
+        }
+    }
+
+    private boolean isValidCredential(AssetCredential cred, User user) {
+        boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
+                && cred.getPassword() != null && !cred.getPassword().isEmpty();
+        
+        boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(user.getId());
+        
+        return hasValidCredentials && isAssetOwner;
+    }
+
+    private void processCredential(AssetCredential cred, String userKey) {
+        try {
+            String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+            cred.setPassword(decryptedPassword);
+            databaseAccessService.updateAssetObjects(cred);
+        } catch (Exception e) {
+            handleCredentialProcessingError(cred, e);
+        }
+    }
+
+    private void handleCredentialProcessingError(AssetCredential cred, Exception e) {
+        try {
+            firebaseMessagingService.setAssetObjectsFailureNotification(cred.getUser(), cred.getAsset());
+        } catch (Exception notifyException) {
+            log.error("Failed to set notification task", notifyException);
+        }
+        
+        log.error("Failed to update database objects upon asset owner login due to credential errors. credential: " + cred.getId(), e);
     }
 
     private TokenService getTokenService(AuthProvider authProvider) {

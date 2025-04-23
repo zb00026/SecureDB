@@ -7,8 +7,10 @@ import org.springframework.stereotype.Repository;
 import com.verlake.dam.entity.assets.AssetCredential;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.user.User;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AssetCredentialsRepository extends JpaRepository<AssetCredential, Long> {
@@ -35,4 +37,8 @@ public interface AssetCredentialsRepository extends JpaRepository<AssetCredentia
     @Transactional
     @Query("UPDATE AssetCredential ac SET ac.username = null, ac.password = null WHERE ac.asset.id = :assetId")
     void resetCredentialsByAssetId(Long assetId);
+
+    Optional<AssetCredential> findByUserAndAssetAndUserAccessType(User user, Asset asset, String userAccessType);
+    
+    boolean existsByUsername(String username);
 } 

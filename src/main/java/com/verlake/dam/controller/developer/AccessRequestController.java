@@ -11,11 +11,14 @@ import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
+import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 
 import java.util.List;
 
@@ -125,6 +128,12 @@ public class AccessRequestController {
     @PostMapping("/request")
     public AccessRequest saveAccessRequest(@RequestBody AccessRequestDTO accessRequest) {
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
-        return accessRequestService.saveAccessRequest(accessRequest, requestor);
+        try {
+            return accessRequestService.saveAccessRequest(accessRequest, requestor);
+        } catch (Exception e) {
+            log.error("Error saving access request: {}", e.getMessage(), e);
+            throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
     }
 } 

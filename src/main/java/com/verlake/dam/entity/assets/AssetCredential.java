@@ -5,6 +5,7 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.listener.AuditEntityListener;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.verlake.dam.enums.Roles;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -37,4 +38,7 @@ public class AssetCredential {
     private String username;
 
     private String password;
+
+    @Column(name = "user_access_type")
+    private String userAccessType;
 } 

@@ -39,6 +39,9 @@ public class Constants {
     public static final String EMAIL_VAR_RECEIVER_LAST_NAME = "receiverLastName";
     public static final String EMAIL_VAR_REQUESTOR_FIRST_NAME = "requestorFirstName";
     public static final String EMAIL_VAR_REQUESTOR_LAST_NAME = "requestorLastName";
+    public static final String EMAIL_VAR_APPROVER_FIRST_NAME = "approverFirstName";
+    public static final String EMAIL_VAR_APPROVER_LAST_NAME = "approverLastName";
+    public static final String EMAIL_VAR_APPROVAL_STATUS = "approvalStatus";
     public static final String EMAIL_VAR_ASSET_NAME = "assetName";
     public static final String EMAIL_VAR_ASSET_DESCRIPTION = "assetDescription";
     public static final String EMAIL_VAR_TEMP_PASSWORD = "tempPassword";
@@ -50,6 +53,10 @@ public class Constants {
     public static final String EMAIL_VAR_USER_NAME = "userName";
     public static final String EMAIL_VAR_INVITE_CODE = "inviteCode";
     public static final String EMAIL_VAR_ASSET_CREDENTIAL_ID = "assetCredentialId";
+    public static final String EMAIL_VAR_DB_USERNAME = "dbUsername";
+    public static final String EMAIL_VAR_DB_PASSWORD = "dbPassword";
+
+    public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {

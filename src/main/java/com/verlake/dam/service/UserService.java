@@ -3,12 +3,14 @@ package com.verlake.dam.service;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserFilter;
 import com.verlake.dam.repository.UserRepository;
+import com.verlake.dam.utils.CommonUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -38,7 +40,7 @@ public class UserService {
     @Transactional
     public User setApproverForUser(Long userId, Long approverId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Can't find the user need to set an approver for."));
 
         User approver = userRepository.findById(approverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Approver not found"));
@@ -50,7 +52,7 @@ public class UserService {
     @Transactional
     public User unsetApproverForUser(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Can't find the user need to unset an approver for."));
 
         user.setApprover(null);
         userRepository.save(user);
@@ -89,5 +91,11 @@ public class UserService {
                 .filter(user -> user.getRoles().stream()
                         .anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName())))
                 .toList();
+    }
+
+    public User getCurrentUser() {
+        String email = CommonUtils.getEmailFromSession();
+
+        return userRepository.findByEmail(email).orElseThrow(() -> new AccessDeniedException("Current User not found"));
     }
 }

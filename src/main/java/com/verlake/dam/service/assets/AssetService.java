@@ -1,21 +1,37 @@
 package com.verlake.dam.service.assets;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.verlake.dam.entity.assets.AccessLevel;
 import com.verlake.dam.entity.assets.AssetApprover;
+import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
+import com.verlake.dam.entity.firebase.NotificationMessage;
+import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import jakarta.persistence.Access;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
+
+import java.security.Key;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.assets.Asset;
@@ -33,15 +49,20 @@ public class AssetService {
     private final AccessRequestRepository accessRequestRepository;
     private final AssetCredentialsRepository assetCredentialsRepository;
     private final AssetObjectRepository assetObjectRepository;
+    private final KeycloakService keycloakService;
+    private final DatabaseAccessService databaseAccessService;
+    private final NotificationTaskRepository notificationTaskRepository;
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
-                        AssetCredentialsRepository credentialsRepository,
-                        AssetApproversRepository assetApproversRepository,
-                        AccessLevelRepository accessLevelRepository,
-                        UserService userService, AccessRequestRepository accessRequestRepository, 
-                        AssetCredentialsRepository assetCredentialsRepository, 
-                        AssetObjectRepository assetObjectRepository) {
+            AssetCredentialsRepository credentialsRepository,
+            AssetApproversRepository assetApproversRepository,
+            AccessLevelRepository accessLevelRepository,
+            UserService userService, AccessRequestRepository accessRequestRepository,
+            AssetCredentialsRepository assetCredentialsRepository,
+            AssetObjectRepository assetObjectRepository,
+            KeycloakService keycloakService, DatabaseAccessService databaseAccessService,
+            NotificationTaskRepository notificationTaskRepository) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
         this.assetApproversRepository = assetApproversRepository;
@@ -50,6 +71,9 @@ public class AssetService {
         this.accessRequestRepository = accessRequestRepository;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.assetObjectRepository = assetObjectRepository;
+        this.keycloakService = keycloakService;
+        this.databaseAccessService = databaseAccessService;
+        this.notificationTaskRepository = notificationTaskRepository;
     }
 
     @Transactional
@@ -91,6 +115,7 @@ public class AssetService {
                         .user(owner)
                         .username(null)
                         .password(null)
+                        .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                         .build();
                 credentialsRepository.save(credentials);
             }
@@ -109,9 +134,9 @@ public class AssetService {
     public List<User> getAssetOwners(Asset asset) {
         List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(asset.getId());
         return credentials.stream()
-            .map(AssetCredential::getUser)
-            .distinct()
-            .collect(Collectors.toList());
+                .map(AssetCredential::getUser)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -215,7 +240,8 @@ public class AssetService {
 
     private AssetDTO convertToDTOWithFetchAccessTemplate(Asset asset) {
         AssetDTO dto = convertToDTO(asset);
-        AccessLevel fetchAccess = accessLevelRepository.findFetchAccessTemplate(asset.getType().name(), asset.getDatabaseType().name());
+        AccessLevel fetchAccess = accessLevelRepository.findFetchAccessTemplate(asset.getType().name(),
+                asset.getDatabaseType().name());
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
         List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
         dto.setAccessRequest(requests.isEmpty() ? null : requests.get(0));
@@ -239,30 +265,23 @@ public class AssetService {
 
     /**
      * Gets asset credentials that need to be set up for the current user
+     *
      * @return List of asset credentials that need setup
      */
     public List<AssetCredential> getNewAssignedCredentials() {
-        String email = CommonUtils.getEmailFromSession();
-
-        User currentUser = userService.findByEmail(email);
-        if (currentUser == null) {
-            throw new AccessDeniedException("User not found");
-        }
+        User currentUser = userService.getCurrentUser();
 
         return credentialsRepository.findNewAssignedCredentials(currentUser.getId());
     }
 
     /**
      * Gets asset credentials that need to be set up for the current user
+     *
      * @return List of asset credentials that need setup
      */
     public List<AssetCredential> getAssignedCredentials() {
-        String email = CommonUtils.getEmailFromSession();
 
-        User currentUser = userService.findByEmail(email);
-        if (currentUser == null) {
-            throw new AccessDeniedException("User not found");
-        }
+        User currentUser = userService.getCurrentUser();
 
         List<AssetCredential> credentials = credentialsRepository.findByUserId(currentUser.getId());
         credentials.sort((c1, c2) -> {
@@ -292,5 +311,142 @@ public class AssetService {
 
     public void deleteAssetCredential(AssetCredential credential) {
         credentialsRepository.delete(credential);
+    }
+
+    public List<AccessRequest> getAssetRequestApprovals() {
+        User currentUser = userService.getCurrentUser();
+        List<AssetCredential> assetCredentials = credentialsRepository.findByUserId(currentUser.getId());
+        return assetCredentials.stream()
+                .map(credential -> accessRequestRepository.findByAsset(credential.getAsset()))
+                .flatMap(List::stream)
+                .sorted((a1, a2) -> a2.getRequestTime().compareTo(a1.getRequestTime()))
+                .toList();
+    }
+
+    public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, ApprovalStatus approvalStatus)
+            throws JsonParseException {
+        AccessRequest accessRequest = accessRequestRepository.findById(accessRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Access Request Not Found"));
+
+        Map<String, String> newCredMapper = new HashMap<>();
+        if (approvalStatus == ApprovalStatus.APPROVED) {
+            // Find existing credential or create new one
+            Optional<AssetCredential> existingCredential = assetCredentialsRepository
+                    .findByUserAndAssetAndUserAccessType(
+                            accessRequest.getRequestor(),
+                            accessRequest.getAsset(),
+                            Roles.DEVELOPER.getOriginalName());
+
+            String existUsername = "";
+
+            if (existingCredential.isPresent()) {
+                // Generate new username and password
+                existUsername = existingCredential.get().getUsername();
+            }
+            checkUserAndSetCredentials(accessRequest.getAsset().getId(), accessRequest.getRequestor(), accessRequest,
+                    existUsername, newCredMapper);
+        }
+        accessRequest.setAssetApproverStatus(approvalStatus);
+        accessRequestRepository.save(accessRequest);
+        User currentUser = userService.getCurrentUser();
+        Map<String, String> notificationData = new HashMap<>();
+        notificationData.put("requestId", accessRequest.getId().toString());
+        notificationData.put("assetId", accessRequest.getAsset().getId().toString());
+        notificationData.put("assetName", accessRequest.getAsset().getName());
+        notificationData.put("assetDescription", accessRequest.getAsset().getDescription());
+        notificationData.put("developerName",
+                accessRequest.getRequestor().getFirstName() + " " + accessRequest.getRequestor().getLastName());
+        notificationData.put("approverName",
+                currentUser.getFirstName() + " " + currentUser.getLastName());
+        notificationData.put("approvalStatus", approvalStatus.name());
+        notificationData.put("messageType", "1"); //1 : success, 0: fail
+        if (!newCredMapper.isEmpty()) {
+            notificationData.put(Constants.EMAIL_VAR_DB_USERNAME, newCredMapper.get(Constants.EMAIL_VAR_DB_USERNAME));
+            notificationData.put(Constants.EMAIL_VAR_DB_PASSWORD, newCredMapper.get(Constants.EMAIL_VAR_DB_PASSWORD));
+        }
+        sendApprovalNotificationAndEmail(currentUser, accessRequest.getRequestor(), accessRequest.getAsset(),
+                notificationData, approvalStatus);
+        return accessRequest;
+    }
+
+    private void sendApprovalNotificationAndEmail(User approver, User receiver, Asset asset,
+            Map<String, String> notificationData, ApprovalStatus approvalStatus) throws JsonParseException {
+        NotificationMessage notificationMessage = new NotificationMessage();
+        notificationMessage.setTitle("Approval Result of Asset Access Request");
+        if (approvalStatus == ApprovalStatus.APPROVED) {
+            if (notificationData.get(Constants.EMAIL_VAR_DB_USERNAME) != null
+                    && notificationData.get(Constants.EMAIL_VAR_DB_PASSWORD) != null) {
+                notificationMessage.setBody(String.format("""
+                        %s %s has approved your request access of asset '%s'
+                        Database Username: %s
+                        Database Password: %s
+                        """,
+                        approver.getFirstName(),
+                        approver.getLastName(),
+                        asset.getName(),
+                        notificationData.get(Constants.EMAIL_VAR_DB_USERNAME),
+                        notificationData.get(Constants.EMAIL_VAR_DB_PASSWORD)));
+            } else {
+                notificationMessage.setBody(String.format("%s %s has approved your request access of asset '%s'",
+                        approver.getFirstName(), approver.getLastName(), asset.getName()));
+            }
+        } else if (approvalStatus == ApprovalStatus.REJECTED) {
+            notificationMessage.setBody(String.format("%s %s has rejected your request access of asset '%s'",
+                    approver.getFirstName(), approver.getLastName(), asset.getName()));
+        }
+        notificationData.put(Constants.NOTIFY_DATA_ATTR_RECEIVER_ID, receiver.getId().toString());
+        notificationMessage.setData(notificationData);
+        notificationMessage.setTopic("dam_notification");
+
+        // Create and save notification task
+        NotificationTask task = new NotificationTask();
+        task.setReceiver(receiver);
+        task.setSender(approver);
+        task.setAsset(asset);
+        task.setNotificationMessage(notificationMessage.toJson());
+        task.setEmailType(EmailType.APPROVAL_ASSET_ACCESS_REQUEST);
+        notificationTaskRepository.save(task);
+    }
+
+    private void checkUserAndSetCredentials(Long assetId, User requestor, AccessRequest accessRequest,
+            String existUsername, Map<String, String> newCredMapper) {
+        User currentUser = userService.getCurrentUser();
+        final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+        final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(assetId);
+
+        List<AssetCredential> validCredentials = credentials.stream()
+                .filter(cred -> {
+                    // Check if credential has required fields
+                    boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
+                            && cred.getPassword() != null && !cred.getPassword().isEmpty();
+
+                    // Check if user is the owner of the asset associated with this credential
+                    boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(currentUser.getId());
+
+                    return hasValidCredentials && isAssetOwner;
+                })
+                .toList();
+
+        if (validCredentials.isEmpty()) {
+            throw new ResourceNotFoundException("No valid credentials found for the current user");
+        }
+
+        AssetCredential cred = validCredentials.get(0);
+        try {
+            String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+            AssetCredential assetOwnerCred = new AssetCredential();
+            assetOwnerCred.setUsername(cred.getUsername());
+            assetOwnerCred.setPassword(decryptedPassword);
+            assetOwnerCred.setAsset(cred.getAsset());
+            assetOwnerCred.setUser(cred.getUser());
+
+            databaseAccessService.checkAccessRequestorInAsset(assetOwnerCred, requestor, accessRequest, existUsername,
+                    newCredMapper);
+        } catch (Exception e) {
+            throw new DatabaseAccessException(
+                    "Failed to update database objects upon asset owner login due to credential errors. credential: "
+                            + cred.getId(),
+                    e);
+        }
     }
 }

@@ -50,14 +50,17 @@ public class AssetCredentialsPage extends BasePage {
         wait.until(ExpectedConditions.elementToBeClickable(credentialButton));
         credentialButton.click();
 
+        checkElementById("inputCredentialUsername");
         WebElement credentialUsernameInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputCredentialUsername")));
         credentialUsernameInput.clear();
         credentialUsernameInput.sendKeys(credentialUserName);
 
+        checkElementById("inputCredentialPassword");
         WebElement credentialPasswordInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputCredentialPassword")));
         credentialPasswordInput.clear();
         credentialPasswordInput.sendKeys(credentialPassword);
 
+        checkElementById("btnSaveCredential");
         WebElement createCredentialButton = wait.until(ExpectedConditions.elementToBeClickable(By.id("btnSaveCredential")));
         createCredentialButton.click();
 
