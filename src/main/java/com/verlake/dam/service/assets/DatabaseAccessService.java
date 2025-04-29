@@ -8,6 +8,7 @@ import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.repository.assets.AssetCredentialRepository;
+import com.verlake.dam.service.UserService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
@@ -42,14 +43,16 @@ public class DatabaseAccessService {
     private final KeycloakService keycloakService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final UserService userService;
 
     public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
-            AssetCredentialRepository assetCredentialRepository,
-            KeycloakService keycloakService) {
+                                 AssetCredentialRepository assetCredentialRepository,
+                                 KeycloakService keycloakService, UserService userService) {
         this.assetObjectRepository = assetObjectRepository;
         this.assetCredentialRepository = assetCredentialRepository;
         this.keycloakService = keycloakService;
         this.objectMapper = new ObjectMapper();
+        this.userService = userService;
     }
 
     public void updateAssetObjects(AssetCredential credential) throws SQLException {
@@ -574,6 +577,48 @@ public class DatabaseAccessService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateAccessRequestCredentialPassword(AssetCredential devCredential, String newPassword) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+        String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+        String decPsd = CommonUtils.decrypt(userKey, devCredential.getPassword());
+        devCredential.setPassword(decPsd);
+        try (Connection connection = getConnectionFromAssetCredential(devCredential)) {
+            String alterUserSql;
+            PreparedStatement statement;
+
+            switch (devCredential.getAsset().getDatabaseType()) {
+                case MYSQL:
+                    alterUserSql = "ALTER USER ?@'%' IDENTIFIED BY ?";
+                    break;
+
+                case POSTGRESQL:
+                    alterUserSql = "ALTER USER ? WITH PASSWORD ?";
+                    break;
+
+                case ORACLE:
+                    alterUserSql = "ALTER USER ? IDENTIFIED BY ?";
+                    break;
+
+                case SQLSERVER:
+                    alterUserSql = "ALTER LOGIN ? WITH PASSWORD = ?";
+                    break;
+
+                default:
+                    throw new DatabaseAccessException("Unsupported database type: " + devCredential.getAsset().getDatabaseType(), null);
+            }
+            statement = connection.prepareStatement(alterUserSql);
+            statement.setString(1, devCredential.getUsername());
+            statement.setString(2, newPassword);
+
+            statement.execute();
+            devCredential.setPassword(CommonUtils.encrypt(userKey, newPassword));
+            assetCredentialRepository.save(devCredential);
+        } catch (SQLException e) {
+            log.error("Error updating password", e);
+            throw new DatabaseAccessException("Error updating password", e);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void checkAccessRequestorInAsset(AssetCredential credential, User requestor, AccessRequest accessRequest,
             String existUsername, Map<String, String> newCredMapper) {
 
@@ -654,6 +699,7 @@ public class DatabaseAccessService {
         return "temp" + password.toString();
     }
 
+
     private String getCredentialForAccess(
             Connection connection,
             AssetCredential credential,
@@ -684,6 +730,7 @@ public class DatabaseAccessService {
                 createUserStmt.setString(2, password);
                 createUserStmt.executeUpdate();
 
+
                 String userKey = keycloakService.getUserKeyByEmail(requestor.getEmail());
                 if (userKey != null && !userKey.isEmpty()) {
                     String encryptedPassword = CommonUtils.encrypt(userKey, password);
@@ -704,4 +751,5 @@ public class DatabaseAccessService {
         }
         return username;
     }
+
 }

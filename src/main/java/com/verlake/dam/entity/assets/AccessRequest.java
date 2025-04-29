@@ -41,4 +41,12 @@ public class AccessRequest {
     @Column(name = "asset_approver_status")
     private ApprovalStatus assetApproverStatus = ApprovalStatus.PENDING;
 
+    // This is used to check if the password is a temporary password for developer request when approver approves the access request
+    @Column(name = "is_temp_password")
+    private Boolean isTempPassword;
+
+    @OneToOne
+    @JoinColumn(name = "asset_credential_id")
+    private AssetCredential assetCredential;
+
 } 

@@ -39,6 +39,10 @@ public interface AssetCredentialsRepository extends JpaRepository<AssetCredentia
     void resetCredentialsByAssetId(Long assetId);
 
     Optional<AssetCredential> findByUserAndAssetAndUserAccessType(User user, Asset asset, String userAccessType);
+
+    List<AssetCredential> findByAssetAndUserAccessType(Asset asset, String userAccessType);
+
+    List<AssetCredential> findByAssetIdAndUserAccessType(Long assetId, String userAccessType);
     
     boolean existsByUsername(String username);
 } 

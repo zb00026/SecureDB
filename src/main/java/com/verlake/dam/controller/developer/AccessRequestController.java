@@ -4,11 +4,13 @@ import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
+import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import jakarta.persistence.Access;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,10 +22,18 @@ import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+
 @RestController
 @RequestMapping("/api/developer/assets")
 @RequiredArgsConstructor
@@ -136,4 +146,22 @@ public class AccessRequestController {
                         HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
+
+    @GetMapping("/get_newly_approved_requests")
+    public ResponseEntity<List<AccessRequest>> getNewlyApprovedRequests() {
+        User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
+        return ResponseEntity.ok(accessRequestService.getTemporaryCredentialRequests(requestor));
+    }
+
+    @PostMapping("/set_credential_password/{accessRequestId}")
+    public ResponseEntity<AccessRequest> setCredentialPassword(@PathVariable Long accessRequestId, @RequestBody AssetCredentialDTO credentialInfo) {
+        try {
+            return ResponseEntity.ok(accessRequestService.setCredentialPassword(accessRequestId, credentialInfo));
+        } catch (Exception e) {
+            log.error("Error saving access request credential password: {}", e.getMessage(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
 } 

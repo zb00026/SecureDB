@@ -2,17 +2,25 @@ package com.verlake.dam.service.assets;
 
 import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
+import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +36,10 @@ import lombok.extern.slf4j.Slf4j;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.fasterxml.jackson.core.JsonParseException;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+
 @Service
 @Slf4j
 public class AccessRequestService {
@@ -37,20 +49,27 @@ public class AccessRequestService {
     private final AssetApproversRepository assetApproversRepository;
     private final UserRepository userRepository;
     private final NotificationTaskRepository notificationTaskRepository;
+    private final KeycloakService keycloakService;
+    private final AssetCredentialsRepository assetCredentialsRepository;
+    private final DatabaseAccessService databaseAccessService;
 
     public AccessRequestService(
-                                AccessRequestRepository accessRequestRepository,
-                                AssetService assetService,
-                                AccessLevelObjectRepository accessLevelObjectRepository,
-                                AssetApproversRepository assetApproversRepository,
-                                UserRepository userRepository,
-                                NotificationTaskRepository notificationTaskRepository) {
+            AccessRequestRepository accessRequestRepository,
+            AssetService assetService,
+            AccessLevelObjectRepository accessLevelObjectRepository,
+            AssetApproversRepository assetApproversRepository,
+            UserRepository userRepository,
+            NotificationTaskRepository notificationTaskRepository,
+            KeycloakService keycloakService, AssetCredentialsRepository assetCredentialsRepository, DatabaseAccessService databaseAccessService) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
         this.assetApproversRepository = assetApproversRepository;
         this.userRepository = userRepository;
         this.notificationTaskRepository = notificationTaskRepository;
+        this.keycloakService = keycloakService;
+        this.assetCredentialsRepository = assetCredentialsRepository;
+        this.databaseAccessService = databaseAccessService;
     }
 
     private String generateSql(List<AccessLevelObject> accessLevelObjects) {
@@ -107,6 +126,7 @@ public class AccessRequestService {
         request.setAccessSql(generateSql(accessLevelObjects));
         request.setDeveloperApproverStatus(ApprovalStatus.PENDING);
         request.setAssetApproverStatus(ApprovalStatus.PENDING);
+        request.setIsTempPassword(true);
 
         AccessRequest savedRequest = accessRequestRepository.save(request);
 
@@ -217,6 +237,10 @@ public class AccessRequestService {
         return accessRequestRepository.findByRequestor(user);
     }
 
+    public List<AccessRequest> getTemporaryCredentialRequests(User user) {
+        return accessRequestRepository.findByRequestorAndIsTempPasswordAndAssetApproverStatus(user, true, ApprovalStatus.APPROVED);
+    }
+
     public List<AccessRequest> getAssetRequests(Asset asset) {
         return accessRequestRepository.findByAsset(asset);
     }
@@ -224,5 +248,19 @@ public class AccessRequestService {
     public AccessRequest findById(Long id) {
         return accessRequestRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Access Request not found with id: " + id));
+    }
+
+    public AccessRequest setCredentialPassword(Long accessRequestId, AssetCredentialDTO credentialInfo) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+        AccessRequest accessRequest = findById(accessRequestId);
+        if (accessRequest == null) {
+            throw new ResourceNotFoundException("No access request provided");
+        }
+
+        AssetCredential devCredential = accessRequest.getAssetCredential();
+
+        databaseAccessService.updateAccessRequestCredentialPassword(devCredential, credentialInfo.getPassword());
+        accessRequest.setIsTempPassword(false);
+        accessRequestRepository.save(accessRequest);
+        return accessRequest;
     }
 }

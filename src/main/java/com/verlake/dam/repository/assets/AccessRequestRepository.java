@@ -58,4 +58,6 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     // Find requests by multiple statuses
     @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus IN :statuses OR ar.assetApproverStatus IN :statuses")
     List<AccessRequest> findByStatuses(@Param("statuses") List<ApprovalStatus> statuses);
+
+    List<AccessRequest> findByRequestorAndIsTempPasswordAndAssetApproverStatus(User requestor, Boolean isTempPassword, ApprovalStatus approvalStatus);
 } 

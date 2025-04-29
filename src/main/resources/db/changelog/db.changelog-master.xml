@@ -24,4 +24,5 @@
     <include file="db/changelog/db.016-changelog-create-notification-task-table.xml"/>
     <include file="db/changelog/db.017-changelog-add-credential-user-type.xml"/>
     <include file="db/changelog/db.018-changelog-update-email-type.xml"/>
+    <include file="db/changelog/db.019-changelog-add-is-temp-password.xml"/>
 </databaseChangeLog>

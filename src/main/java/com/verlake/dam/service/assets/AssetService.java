@@ -132,7 +132,7 @@ public class AssetService {
     }
 
     public List<User> getAssetOwners(Asset asset) {
-        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(asset.getId());
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetAndUserAccessType(asset, Roles.ASSET_OWNER.getOriginalName());
         return credentials.stream()
                 .map(AssetCredential::getUser)
                 .distinct()
@@ -342,9 +342,18 @@ public class AssetService {
             if (existingCredential.isPresent()) {
                 // Generate new username and password
                 existUsername = existingCredential.get().getUsername();
+            } else {
+                // Set AccessRequest's temporary password flag to true if the username is not exist
+                accessRequest.setIsTempPassword(true);
             }
             checkUserAndSetCredentials(accessRequest.getAsset().getId(), accessRequest.getRequestor(), accessRequest,
                     existUsername, newCredMapper);
+            Optional<AssetCredential> devCredential = assetCredentialsRepository
+                    .findByUserAndAssetAndUserAccessType(
+                            accessRequest.getRequestor(),
+                            accessRequest.getAsset(),
+                            Roles.DEVELOPER.getOriginalName());
+            devCredential.ifPresent(accessRequest::setAssetCredential);
         }
         accessRequest.setAssetApproverStatus(approvalStatus);
         accessRequestRepository.save(accessRequest);
@@ -412,7 +421,9 @@ public class AssetService {
             String existUsername, Map<String, String> newCredMapper) {
         User currentUser = userService.getCurrentUser();
         final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
-        final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(assetId);
+
+        //Asset Credential has user_access_type, get credentials which are only asset owner's
+        final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserAccessType(assetId, Roles.ASSET_OWNER.getOriginalName());
 
         List<AssetCredential> validCredentials = credentials.stream()
                 .filter(cred -> {
