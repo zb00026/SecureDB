@@ -6,16 +6,14 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
-
 @Configuration
 public class JobLauncherConfig {
-    
-    @Bean
-    public JobLauncher jobLauncher(JobRepository jobRepository) throws Exception {
-        TaskExecutorJobLauncher jobLauncher = new TaskExecutorJobLauncher();
-        jobLauncher.setJobRepository(jobRepository);
-        jobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
-        jobLauncher.afterPropertiesSet();
-        return jobLauncher;
+    @Bean(name = "notificationJobLauncher")
+    public JobLauncher notificationJobLauncher(JobRepository jobRepository) throws Exception {
+        TaskExecutorJobLauncher launcher = new TaskExecutorJobLauncher();
+        launcher.setJobRepository(jobRepository);
+        launcher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+        launcher.afterPropertiesSet();
+        return launcher;
     }
 } 

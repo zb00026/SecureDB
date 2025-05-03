@@ -1,7 +1,9 @@
 package com.verlake.dam.entity.assets;
 
+import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.listener.AuditEntityListener;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -10,6 +12,8 @@ import java.util.List;
 @Entity
 @Table(name = "access_requests")
 @Data
+@EntityListeners(AuditEntityListener.class)
+@Audited(entity = "ACCESS_REQUEST")
 public class AccessRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,5 +52,11 @@ public class AccessRequest {
     @OneToOne
     @JoinColumn(name = "asset_credential_id")
     private AssetCredential assetCredential;
+
+    @Column(name = "expiry_hours")
+    private Integer expiryHours = 2160; // Default 3 months in hours (3 * 30 * 24)
+
+    @Column(name = "expiry_date")
+    private LocalDateTime expiryDate;
 
 } 

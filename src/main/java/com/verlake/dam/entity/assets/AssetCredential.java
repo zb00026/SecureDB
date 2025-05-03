@@ -41,4 +41,8 @@ public class AssetCredential {
 
     @Column(name = "user_access_type")
     private String userAccessType;
+
+    @Builder.Default
+    @Column(name = "is_deleted")
+    private Boolean isDeleted = false;
 } 

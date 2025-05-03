@@ -94,9 +94,9 @@ public class OwnerAssetController {
     }
 
     @PostMapping("/request/{accessRequestId}/approve")
-    public ResponseEntity<AccessRequest> approveAccessRequest(@PathVariable long accessRequestId) {
+    public ResponseEntity<AccessRequest> approveAccessRequest(@PathVariable long accessRequestId, @RequestBody AccessRequestDTO accessRequest) {
         try {
-            return ResponseEntity.ok(assetService.setApprovalStatusOfAccessRequest(accessRequestId, ApprovalStatus.APPROVED));
+            return ResponseEntity.ok(assetService.setApprovalStatusOfAccessRequest(accessRequestId, accessRequest, ApprovalStatus.APPROVED));
         } catch (JsonParseException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Can not approve access request");
         }
@@ -105,7 +105,7 @@ public class OwnerAssetController {
     @PostMapping("/request/{accessRequestId}/reject")
     public ResponseEntity<AccessRequest> rejectAccessRequest(@PathVariable long accessRequestId) {
         try {
-            return ResponseEntity.ok(assetService.setApprovalStatusOfAccessRequest(accessRequestId, ApprovalStatus.REJECTED));
+            return ResponseEntity.ok(assetService.setApprovalStatusOfAccessRequest(accessRequestId, null, ApprovalStatus.REJECTED));
         } catch (JsonParseException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Can not reject access request");
         }

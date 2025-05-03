@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
-import com.verlake.dam.repository.assets.AssetCredentialRepository;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
@@ -39,17 +39,17 @@ import java.security.SecureRandom;
 @Slf4j
 public class DatabaseAccessService {
     private final AssetObjectRepository assetObjectRepository;
-    private final AssetCredentialRepository assetCredentialRepository;
+    private final AssetCredentialsRepository assetCredentialsRepository;
     private final KeycloakService keycloakService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
     private final UserService userService;
 
     public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
-                                 AssetCredentialRepository assetCredentialRepository,
+                                 AssetCredentialsRepository assetCredentialsRepository,
                                  KeycloakService keycloakService, UserService userService) {
         this.assetObjectRepository = assetObjectRepository;
-        this.assetCredentialRepository = assetCredentialRepository;
+        this.assetCredentialsRepository = assetCredentialsRepository;
         this.keycloakService = keycloakService;
         this.objectMapper = new ObjectMapper();
         this.userService = userService;
@@ -611,7 +611,7 @@ public class DatabaseAccessService {
 
             statement.execute();
             devCredential.setPassword(CommonUtils.encrypt(userKey, newPassword));
-            assetCredentialRepository.save(devCredential);
+            assetCredentialsRepository.save(devCredential);
         } catch (SQLException e) {
             log.error("Error updating password", e);
             throw new DatabaseAccessException("Error updating password", e);
@@ -741,7 +741,7 @@ public class DatabaseAccessService {
                     userCredential.setPassword(encryptedPassword);
                     userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName()); // Set appropriate role
                     userCredential.setUser(requestor);
-                    assetCredentialRepository.saveAndFlush(userCredential);
+                    assetCredentialsRepository.saveAndFlush(userCredential);
                     newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
                     newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
                 }
@@ -750,6 +750,87 @@ public class DatabaseAccessService {
             username = existUsername;
         }
         return username;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void revokeCredentialAccess(AssetCredential credential, AssetCredential ownerCredential) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+
+        try (Connection connection = getConnectionFromAssetCredential(ownerCredential)) { // Use owner's connection
+            String revokeUserSql;
+            PreparedStatement statement;
+
+            switch (credential.getAsset().getDatabaseType()) {
+                case MYSQL:
+                    // First revoke all privileges
+                    revokeUserSql = "REVOKE ALL PRIVILEGES, GRANT OPTION FROM ?@'%'";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+
+                    // Then drop the user
+                    revokeUserSql = "DROP USER ?@'%'";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+                    break;
+
+                case POSTGRESQL:
+                    // Revoke all privileges from all tables
+                    revokeUserSql = "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ?";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+
+                    // Revoke all privileges from all sequences
+                    revokeUserSql = "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ?";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+
+                    // Drop the user
+                    revokeUserSql = "DROP USER IF EXISTS ?";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+                    break;
+
+                case ORACLE:
+                    // Revoke all privileges and roles
+                    revokeUserSql = "REVOKE ALL PRIVILEGES FROM ?";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+
+                    // Drop the user
+                    revokeUserSql = "DROP USER ? CASCADE";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+                    break;
+
+                case SQLSERVER:
+                    // Disable the login
+                    revokeUserSql = "ALTER LOGIN ? DISABLE";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+
+                    // Drop the login
+                    revokeUserSql = "DROP LOGIN ?";
+                    statement = connection.prepareStatement(revokeUserSql);
+                    statement.setString(1, credential.getUsername());
+                    statement.execute();
+                    break;
+
+                default:
+                    throw new DatabaseAccessException("Unsupported database type: " + credential.getAsset().getDatabaseType(), null);
+            }
+
+            log.info("Successfully revoked access and dropped user: {}", credential.getUsername());
+        } catch (SQLException e) {
+            log.error("Error revoking access for user: " + credential.getUsername(), e);
+            throw new DatabaseAccessException("Error revoking database access", e);
+        }
     }
 
 }

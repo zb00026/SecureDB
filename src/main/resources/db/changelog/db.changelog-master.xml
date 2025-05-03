@@ -25,4 +25,5 @@
     <include file="db/changelog/db.017-changelog-add-credential-user-type.xml"/>
     <include file="db/changelog/db.018-changelog-update-email-type.xml"/>
     <include file="db/changelog/db.019-changelog-add-is-temp-password.xml"/>
+    <include file="db/changelog/db.020-changelog-update-expiry-access-requests.xml"/>
 </databaseChangeLog>

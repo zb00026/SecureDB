@@ -284,6 +284,10 @@ jobs:
           export ELASTIC_PASSWORD=${{ env.ELASTIC_PASSWORD }}
           envsubst < ./src/main/resources/logstash/logstash_temp.conf > logstash.conf
           cat logstash.conf
+      
+      - name: Clean up temporary files on EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }} 'sudo rm -rf /tmp/*'
 
       - name: Upload realm-export.json and logstash.conf to EC2
         run: |

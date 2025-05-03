@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.Key;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -323,7 +324,7 @@ public class AssetService {
                 .toList();
     }
 
-    public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, ApprovalStatus approvalStatus)
+    public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, AccessRequestDTO accessRequestDTO, ApprovalStatus approvalStatus)
             throws JsonParseException {
         AccessRequest accessRequest = accessRequestRepository.findById(accessRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Access Request Not Found"));
@@ -356,6 +357,12 @@ public class AssetService {
             devCredential.ifPresent(accessRequest::setAssetCredential);
         }
         accessRequest.setAssetApproverStatus(approvalStatus);
+
+        // Set expiry hours (default to 3 months = 2160 hours if not provided)
+        accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
+        // Calculate expiry date
+        accessRequest.setExpiryDate(LocalDateTime.now().plusHours(accessRequest.getExpiryHours()));
+
         accessRequestRepository.save(accessRequest);
         User currentUser = userService.getCurrentUser();
         Map<String, String> notificationData = new HashMap<>();

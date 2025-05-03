@@ -13,5 +13,6 @@ public class AccessRequestDTO {
     private List<AccessLevelObject> accessLevelObjects;
     private String requestReason;
     private AccessRequest accessRequest;
+    private Integer expirationHours;
 
 } 

@@ -1,9 +1,13 @@
 package com.verlake.dam.controller.auth;
 
+import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.repository.assets.AccessRequestRepository;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,6 +30,8 @@ import com.verlake.dam.service.assets.AssetService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.core.task.AsyncTaskExecutor;
 
@@ -53,6 +59,10 @@ public class AuthController {
     private AuthService authService;
 
     private final TokenServiceManager tokenServiceManager;
+    @Autowired
+    private AccessRequestRepository accessRequestRepository;
+    @Autowired
+    private AssetCredentialsRepository assetCredentialsRepository;
 
     public AuthController(TokenServiceManager tokenServiceManager) {
         this.tokenServiceManager = tokenServiceManager;
@@ -73,7 +83,7 @@ public class AuthController {
 
     private boolean isAssetOwner(User user) {
         return user.getRoles().stream()
-            .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()));
+                .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()));
     }
 
     private void processAssetOwnerCredentials(User user) {
@@ -86,19 +96,21 @@ public class AuthController {
     private void processCredentialsAsync(User user, String userKey, List<AssetCredential> credentials) {
         try {
             credentials.stream()
-                .filter(cred -> isValidCredential(cred, user))
-                .forEach(cred -> processCredential(cred, userKey));
+                    .filter(cred -> isValidCredential(cred, user))
+                    .forEach(cred -> processCredential(cred, userKey));
         } catch (Exception e) {
-            log.error("Failed to update database objects upon asset owner login. Error processing asset owner credentials", e);
+            log.error(
+                    "Failed to update database objects upon asset owner login. Error processing asset owner credentials",
+                    e);
         }
     }
 
     private boolean isValidCredential(AssetCredential cred, User user) {
         boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
                 && cred.getPassword() != null && !cred.getPassword().isEmpty();
-        
+
         boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(user.getId());
-        
+
         return hasValidCredentials && isAssetOwner;
     }
 
@@ -107,9 +119,31 @@ public class AuthController {
             String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
             cred.setPassword(decryptedPassword);
             databaseAccessService.updateAssetObjects(cred);
+            processExpiredDeveloperCredential(cred);
         } catch (Exception e) {
             handleCredentialProcessingError(cred, e);
         }
+    }
+
+    private void processExpiredDeveloperCredential(AssetCredential ownerCred) {
+        List<AccessRequest> accessRequests = accessRequestRepository
+                .findByExpiryDateBeforeAndAssetCredentialIsDeletedFalse(LocalDateTime.now());
+        accessRequests.stream()
+                .filter(accessRequest -> accessRequest.getAsset().getId().equals(ownerCred.getAsset().getId()))
+                .forEach(accessRequest -> {
+                    AssetCredential devCred = accessRequest.getAssetCredential();
+                    try {
+                        databaseAccessService.revokeCredentialAccess(devCred, ownerCred);
+                    } catch (Exception e) {
+                        log.error("Failed to revoke credential access for user: {} due to error: {}",
+                                devCred.getUsername(), e.getMessage());
+                        handleCredentialProcessingError(ownerCred, e);
+                    }
+                    devCred.setIsDeleted(true);
+                    assetCredentialsRepository.save(devCred);
+                    log.info("Marked credential as deleted for user: {} due to expiration",
+                            devCred.getUsername());
+                });
     }
 
     private void handleCredentialProcessingError(AssetCredential cred, Exception e) {
@@ -118,8 +152,9 @@ public class AuthController {
         } catch (Exception notifyException) {
             log.error("Failed to set notification task", notifyException);
         }
-        
-        log.error("Failed to update database objects upon asset owner login due to credential errors. credential: " + cred.getId(), e);
+
+        log.error("Failed to update database objects upon asset owner login due to credential errors. credential: "
+                + cred.getId(), e);
     }
 
     private TokenService getTokenService(AuthProvider authProvider) {

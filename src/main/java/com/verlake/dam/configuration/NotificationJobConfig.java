@@ -22,6 +22,7 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
@@ -31,6 +32,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.data.RepositoryItemReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -64,7 +66,6 @@ import com.verlake.dam.enums.EmailType;
 @EnableBatchProcessing
 @EnableScheduling
 @EnableRetry
-@RequiredArgsConstructor
 @Slf4j
 public class NotificationJobConfig {
     // Counters for monitoring
@@ -91,6 +92,23 @@ public class NotificationJobConfig {
     private final NotificationTaskRepository notificationTaskRepository;
     private final ObjectMapper objectMapper;
     private final JobLauncher jobLauncher;
+
+    public NotificationJobConfig(
+            FirebaseMessagingService firebaseMessagingService,
+            EmailService emailService,
+            JobRepository jobRepository,
+            PlatformTransactionManager transactionManager,
+            NotificationTaskRepository notificationTaskRepository,
+            ObjectMapper objectMapper,
+            @Qualifier("notificationJobLauncher") JobLauncher jobLauncher) {
+        this.firebaseMessagingService = firebaseMessagingService;
+        this.emailService = emailService;
+        this.jobRepository = jobRepository;
+        this.transactionManager = transactionManager;
+        this.notificationTaskRepository = notificationTaskRepository;
+        this.objectMapper = objectMapper;
+        this.jobLauncher = jobLauncher;
+    }
 
     @Bean
     public TaskExecutor taskExecutor() {

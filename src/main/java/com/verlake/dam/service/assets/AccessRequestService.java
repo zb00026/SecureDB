@@ -128,6 +128,11 @@ public class AccessRequestService {
         request.setAssetApproverStatus(ApprovalStatus.PENDING);
         request.setIsTempPassword(true);
 
+        // Set expiry hours (default to 3 months = 2160 hours if not provided)
+        request.setExpiryHours(requestDTO != null && requestDTO.getExpirationHours() != null && requestDTO.getExpirationHours() != 0 ? requestDTO.getExpirationHours() : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
+        // Calculate expiry date
+        request.setExpiryDate(request.getRequestTime().plusHours(request.getExpiryHours()));
+
         AccessRequest savedRequest = accessRequestRepository.save(request);
 
         // Delete existing access level objects if this is an update

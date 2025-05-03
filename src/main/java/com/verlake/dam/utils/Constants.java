@@ -58,6 +58,8 @@ public class Constants {
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 
+    public static final int ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS = 2160;
+
     public static final int INVITE_CODE_LENGTH = 15;
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {
             (byte) 0x52,

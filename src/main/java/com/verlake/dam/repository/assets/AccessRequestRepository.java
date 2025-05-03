@@ -4,11 +4,14 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -60,4 +63,14 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     List<AccessRequest> findByStatuses(@Param("statuses") List<ApprovalStatus> statuses);
 
     List<AccessRequest> findByRequestorAndIsTempPasswordAndAssetApproverStatus(User requestor, Boolean isTempPassword, ApprovalStatus approvalStatus);
+
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "JOIN ar.assetCredential ac " +
+           "WHERE ar.expiryDate < :currentDate " +
+           "AND ac.isDeleted = false " +
+           "AND ar.assetApproverStatus = 'APPROVED'")
+    List<AccessRequest> findByExpiryDateBeforeAndAssetCredentialIsDeletedFalse(
+            @Param("currentDate") LocalDateTime currentDate
+        );
+
 } 
