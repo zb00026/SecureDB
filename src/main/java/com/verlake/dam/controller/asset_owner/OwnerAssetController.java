@@ -11,6 +11,7 @@ import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
@@ -56,6 +57,7 @@ public class OwnerAssetController {
 
     @Value("${auth.provider}")
     private String authProvider;
+    private AssetObjectRepository assetObjectRepository;
 
     /**
      * Constructor for OwnerAssetController.
@@ -71,10 +73,12 @@ public class OwnerAssetController {
     public OwnerAssetController(
             AssetService assetService,
             AccessRequestService accessRequestService,
-            UserService userService) {
+            UserService userService,
+            AssetObjectRepository assetObjectRepository) {
         this.assetService = assetService;
         this.accessRequestService = accessRequestService;
         this.userService = userService;
+        this.assetObjectRepository = assetObjectRepository;
     }
 
 
@@ -137,6 +141,8 @@ public class OwnerAssetController {
         if (existingCredential == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Asset Credential not found in database");
         }
+        //Needs to remove related asset objects
+        assetObjectRepository.deleteByAssetCredential(existingCredential);
         assetService.deleteAssetCredential(existingCredential);
         List<User> admins = userService.getAdminRoleUsers();
         String myEmail = CommonUtils.getEmailFromSession();
@@ -161,7 +167,7 @@ public class OwnerAssetController {
         }
 
         Asset asset = existingCredential.getAsset();
-        String host = asset.getHostAddress();
+        String host = asset.getHostUrl();
         String username = credentialInfo.getUsername();
         String password = credentialInfo.getPassword();
 

@@ -19,6 +19,8 @@ public class AssetDTO {
     private AssetType type;
     private DatabaseType databaseType;
     private String hostAddress;
+    private String portNumber;
+    private String databaseName;
     private String fetchTemplate;
     private AccessRequest accessRequest;
     private List<User> owners;

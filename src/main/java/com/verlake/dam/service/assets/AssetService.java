@@ -85,6 +85,8 @@ public class AssetService {
                 .type(assetDTO.getType())
                 .databaseType(assetDTO.getDatabaseType())
                 .hostAddress(assetDTO.getHostAddress())
+                .portNumber(assetDTO.getPortNumber())
+                .databaseName(assetDTO.getDatabaseName())
                 .deleted(false)
                 .build();
 
@@ -233,6 +235,8 @@ public class AssetService {
                 .type(asset.getType())
                 .databaseType(asset.getDatabaseType())
                 .hostAddress(asset.getHostAddress())
+                .portNumber(asset.getPortNumber())
+                .databaseName(asset.getDatabaseName())
                 .owners(owners)
                 .accessRequest(requests.isEmpty() ? null : requests.get(0))
                 .approvers(approvers)
@@ -260,6 +264,8 @@ public class AssetService {
         asset.setType(updateDTO.getType());
         asset.setDatabaseType(updateDTO.getDatabaseType());
         asset.setHostAddress(updateDTO.getHostAddress());
+        asset.setPortNumber(updateDTO.getPortNumber());
+        asset.setDatabaseName(updateDTO.getDatabaseName());
 
         assetRepository.save(asset);
     }

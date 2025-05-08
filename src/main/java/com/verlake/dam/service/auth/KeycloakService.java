@@ -12,7 +12,10 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.UserProfileAttributeMetadata;
+import org.keycloak.representations.idm.UserProfileMetadata;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.representations.userprofile.config.UPConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -164,10 +167,11 @@ public class KeycloakService {
             // Generate a random 20-character alphanumeric key2
             String newUserKey = generateRandomUserKey();
 
-            // Update the user's 'user-key' attribute
-            attributes.put(Constants.KEYCLOAK_USER_KEY, Collections.singletonList(newUserKey));
-            userRepresentation.setAttributes(attributes);
-            userResource.update(userRepresentation);
+             // Update the user's 'user-key' attribute
+             attributes.put(Constants.KEYCLOAK_USER_KEY, Collections.singletonList(newUserKey));
+             userRepresentation.setAttributes(attributes);
+             userResource.update(userRepresentation);
+
 
             log.info("User key updated for userId: {}", userId);
         }

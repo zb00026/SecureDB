@@ -31,22 +31,22 @@ public class AssetCredentialsPage extends BasePage {
         driver.get(baseUrl + "/asset_owner");
     }
 
-    private WebElement getCredentialButton(String assetName, String assetType, String hostAddress, String className) {
-        String xpath = String.format("//table[@id='tblAssetCredentials']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s']]//button[contains(@class, '%s')]", assetName, assetType, hostAddress, className);
+    private WebElement getCredentialButton(String assetName, String assetType, String hostAddress, String portNumber, String databaseName, String className) {
+        String xpath = String.format("//table[@id='tblAssetCredentials']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s'] and td[text()='%s'] and td[text()='%s']]//button[contains(@class, '%s')]", assetName, assetType, hostAddress, portNumber, databaseName, className);
         return wait.until(ExpectedConditions.elementToBeClickable(By.xpath(xpath)));
     }
 
-    public void waitForPageToLoad(String assetName, String assetType, String hostAddress) {
+    public void waitForPageToLoad(String assetName, String assetType, String hostAddress, String portNumber, String databaseName) {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(assetTitle));
 
-        WebElement credentialButton = getCredentialButton(assetName, assetType, hostAddress, "btn-set-credential");
+        WebElement credentialButton = getCredentialButton(assetName, assetType, hostAddress, portNumber, databaseName, "btn-set-credential");
         wait.until(ExpectedConditions.visibilityOf(credentialButton));
     }
 
 
-    public void createCredential(String assetName, String assetDbType, String assetHostAddress, String credentialUserName, String credentialPassword) {
-        WebElement credentialButton = getCredentialButton(assetName, assetDbType, assetHostAddress, "btn-set-credential");
+    public void createCredential(String assetName, String assetDbType, String assetHostAddress, String portNumber, String databaseName, String credentialUserName, String credentialPassword) {
+        WebElement credentialButton = getCredentialButton(assetName, assetDbType, assetHostAddress, portNumber, databaseName, "btn-set-credential");
         wait.until(ExpectedConditions.elementToBeClickable(credentialButton));
         credentialButton.click();
 
@@ -67,8 +67,8 @@ public class AssetCredentialsPage extends BasePage {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
     }
 
-    public void relinquishCredential(String assetName, String assetDbType, String assetHostAddress) {
-        WebElement relinquishButton = getCredentialButton(assetName, assetDbType, assetHostAddress, "btn-relinquish-credential");
+    public void relinquishCredential(String assetName, String assetDbType, String assetHostAddress, String portNumber, String databaseName) throws InterruptedException {
+        WebElement relinquishButton = getCredentialButton(assetName, assetDbType, assetHostAddress, portNumber, databaseName,"btn-relinquish-credential");
         wait.until(ExpectedConditions.elementToBeClickable(relinquishButton));
         relinquishButton.click();
 
@@ -76,5 +76,6 @@ public class AssetCredentialsPage extends BasePage {
         btnConfirmRelinquish.click();
 
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
     }
 }

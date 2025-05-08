@@ -36,12 +36,11 @@ public class AssetsPage extends BasePage {
 
     public void waitForPageToLoad() {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
-        wait.until(ExpectedConditions.visibilityOf(assetTitle));
         wait.until(ExpectedConditions.visibilityOf(btnCreateAsset));
     }
 
-    public void selectAssetByCriteria(String assetName, String dbType, String hostAddress) {
-        String xpath = String.format("//table[@id='tblAssets']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s']]", assetName, dbType, hostAddress);
+    public void selectAssetByCriteria(String assetName, String dbType, String hostAddress, String portNumber, String dbName) {
+        String xpath = String.format("//table[@id='tblAssets']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s'] and td[text()='%s'] and td[text()='%s']]", assetName, dbType, hostAddress, portNumber, dbName);
         WebElement assetRow = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(xpath)));
         assetRow.click();
     }
@@ -60,7 +59,7 @@ public class AssetsPage extends BasePage {
         }
     }
 
-    public void addNewAsset(String assetName, String databaseType, String hostAddress, String description) {
+    public void addNewAsset(String assetName, String databaseType, String hostAddress, String portNumber, String dbName, String description) {
         wait.until(ExpectedConditions.elementToBeClickable(btnCreateAsset));
         btnCreateAsset.click();
         wait.until(ExpectedConditions.visibilityOf(assetTypeForm));
@@ -89,6 +88,16 @@ public class AssetsPage extends BasePage {
         hostAddressInput.clear();
         hostAddressInput.sendKeys(hostAddress);
 
+        // Add input for port number
+        WebElement portNumberInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputPortNumber")));
+        portNumberInput.clear();
+        portNumberInput.sendKeys(portNumber);
+
+        // Add input for database name
+        WebElement databaseNameInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputDatabaseName")));
+        databaseNameInput.clear();
+        databaseNameInput.sendKeys(dbName);
+
         // Add input for description
         WebElement descriptionInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputDescription")));
         descriptionInput.clear();
@@ -111,13 +120,13 @@ public class AssetsPage extends BasePage {
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
     }
 
-    public void setOwnerOfAsset(String assetName, String dbType, String hostAddress,
+    public void setOwnerOfAsset(String assetName, String dbType, String hostAddress, String portNumber, String dbName,
                                 String ownerFirstName, String ownerLastName, String ownerEmail) {
         wait.until(ExpectedConditions.elementToBeClickable(btnCreateAsset));
         btnCreateAsset.click();
         wait.until(ExpectedConditions.visibilityOf(assetTypeForm));
 
-        selectAssetByCriteria(assetName, dbType, hostAddress);
+        selectAssetByCriteria(assetName, dbType, hostAddress, portNumber, dbName);
         checkAssetOwnerByCriteria(ownerFirstName, ownerLastName, ownerEmail);
 
         // Wait for spinner to disappear and success toast to appear

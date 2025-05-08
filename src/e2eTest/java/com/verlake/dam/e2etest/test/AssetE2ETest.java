@@ -22,6 +22,8 @@ public class AssetE2ETest extends BaseLoginTest {
     private String assetName;
     private String assetDbType;
     private String assetHostAddress;
+    private String assetPortNumber;
+    private String assetDatabaseName;
     private String assetDescription;
     private String assetCredentialUsername;
     private String assetCredentialPassword;
@@ -42,6 +44,8 @@ public class AssetE2ETest extends BaseLoginTest {
         assetName = getEnvVariable("ASSET_NAME");
         assetDbType = getEnvVariable("ASSET_DB_TYPE");
         assetHostAddress = getEnvVariable("ASSET_HOST_ADDRESS");
+        assetPortNumber = getEnvVariable("ASSET_PORT_NUMBER");
+        assetDatabaseName = getEnvVariable("ASSET_DB_NAME");
         assetDescription = getEnvVariable("ASSET_DESCRIPTION");
         assetCredentialUsername = getEnvVariable("ASSET_CREDENTIAL_USERNAME");
         assetCredentialPassword = getEnvVariable("MYSQL_PASSWORD");
@@ -58,7 +62,7 @@ public class AssetE2ETest extends BaseLoginTest {
         assetsPage = new AssetsPage(browser, baseUrl);
         assetsPage.navigateToAssetsPage();
         assetsPage.waitForPageToLoad();
-        assetsPage.addNewAsset(assetName, assetDbType, assetHostAddress, assetDescription);
+        assetsPage.addNewAsset(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName, assetDescription);
 
     }
 
@@ -82,7 +86,7 @@ public class AssetE2ETest extends BaseLoginTest {
     void setOwnerOfAsset() throws InterruptedException {
         // Set the owner of created Asset
         assetsPage.navigateToAssetsPage();
-        assetsPage.setOwnerOfAsset(assetName, assetDbType, assetHostAddress,
+        assetsPage.setOwnerOfAsset(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName,
                 "E2E Asset", "E2E Owner", assetOwnerUsername);
         Thread.sleep(2000);
 
@@ -107,20 +111,21 @@ public class AssetE2ETest extends BaseLoginTest {
         // Navigate to Asset Credentials Page
         assetCredentialsPage = new AssetCredentialsPage(browser, baseUrl);
         assetCredentialsPage.navigateToAssetsPage();
-        assetCredentialsPage.waitForPageToLoad(assetName, assetDbType, assetHostAddress);
-        assetCredentialsPage.createCredential(assetName, assetDbType, assetHostAddress, assetCredentialUsername, assetCredentialPassword);
+        assetCredentialsPage.waitForPageToLoad(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName);
+        assetCredentialsPage.createCredential(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName, assetCredentialUsername, assetCredentialPassword);
 
         //Relinquish Credential
-        assetCredentialsPage.relinquishCredential(assetName, assetDbType, assetHostAddress);
+        assetCredentialsPage.relinquishCredential(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName);
         dashboardPage.logout();
     }
 
     @Test
     @Order(5)
     @DisplayName("Verify audit trail as auditor")
-    void auditVerification() {
+    void auditVerification() throws InterruptedException {
         // Login as auditor
         homePage.clickKeycloakButton();
+        Thread.sleep(3000);
         keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
         keycloakLoginPage.login(auditorUsername, auditorPassword);
 

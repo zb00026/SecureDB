@@ -42,6 +42,30 @@ public class Asset {
 
     private String hostAddress;
 
+    @Column(name = "port_number")
+    private String portNumber;
+
+    @Column(name = "database_name")
+    private String databaseName;
+
     @Column(name = "is_deleted")
     private boolean deleted;
+
+    public String getHostUrl() {
+        StringBuilder url = new StringBuilder();
+        
+        if (hostAddress != null && !hostAddress.isEmpty()) {
+            url.append(hostAddress);
+            
+            if (portNumber != null && !portNumber.isEmpty()) {
+                url.append(":").append(portNumber);
+            }
+            
+            if (databaseName != null && !databaseName.isEmpty()) {
+                url.append("/").append(databaseName);
+            }
+        }
+        
+        return url.toString();
+    }
 } 

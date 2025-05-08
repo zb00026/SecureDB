@@ -199,7 +199,7 @@
           \"enabled\": true, \
           \"firstName\": \"Admin\", \
           \"lastName\": \"Admin\", \
-          \"email\": \"admin@admin.com\", \
+          \"email\": \"chuc06872@gmail.com\", \
           \"credentials\": [{ \
             \"type\":\"password\", \
             \"value\":\"{{ keycloak_admin_password }}\", \

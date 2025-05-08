@@ -87,7 +87,7 @@ public class DatabaseAccessService {
     }
 
     private String fetchMySQLObjects(AssetCredential credential, ObjectNode rootNode) throws SQLException {
-        String jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostAddress();
+        String jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostUrl();
 
         Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(),
                 credential.getPassword());
@@ -384,7 +384,7 @@ public class DatabaseAccessService {
     private JdbcTemplate createJdbcTemplate(AssetCredential credential, String driverClassName, String urlPrefix) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName(driverClassName);
-        dataSource.setUrl(urlPrefix + credential.getAsset().getHostAddress());
+        dataSource.setUrl(urlPrefix + credential.getAsset().getHostUrl());
         dataSource.setUsername(credential.getUsername());
         dataSource.setPassword(credential.getPassword());
         return new JdbcTemplate(dataSource);
@@ -557,16 +557,16 @@ public class DatabaseAccessService {
         String jdbcUrl;
         switch (credential.getAsset().getDatabaseType()) {
             case MYSQL:
-                jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostAddress();
+                jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostUrl();
                 break;
             case POSTGRESQL:
-                jdbcUrl = "jdbc:postgresql://" + credential.getAsset().getHostAddress();
+                jdbcUrl = "jdbc:postgresql://" + credential.getAsset().getHostUrl();
                 break;
             case ORACLE:
-                jdbcUrl = "jdbc:oracle:thin:@" + credential.getAsset().getHostAddress();
+                jdbcUrl = "jdbc:oracle:thin:@" + credential.getAsset().getHostUrl();
                 break;
             case SQLSERVER:
-                jdbcUrl = "jdbc:sqlserver://" + credential.getAsset().getHostAddress();
+                jdbcUrl = "jdbc:sqlserver://" + credential.getAsset().getHostUrl();
                 break;
             default:
                 throw new DatabaseAccessException(

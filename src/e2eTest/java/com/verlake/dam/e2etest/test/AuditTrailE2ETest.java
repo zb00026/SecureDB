@@ -26,6 +26,8 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     private String auditorPassword;
     private String developerUsername;
     private String developerPassword;
+    private String approverUsername;
+    private String approverPassword;
     private String testBucketName;
 
     @BeforeAll
@@ -73,6 +75,8 @@ public class AuditTrailE2ETest extends BaseLoginTest {
         auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
         developerUsername = getEnvVariable("KEYCLOAK_DEVELOPER_USER");
         developerPassword = getEnvVariable("KEYCLOAK_DEVELOPER_PASSWORD");
+        approverUsername = getEnvVariable("KEYCLOAK_APPROVER_USER");
+        approverPassword = getEnvVariable("KEYCLOAK_APPROVER_PASSWORD");
         testBucketName = getEnvVariable("E2E_TEST_S3_BUCKET");
     }
 
@@ -113,10 +117,10 @@ public class AuditTrailE2ETest extends BaseLoginTest {
         userPage.modifyUser(developerUsername, "NewDeveloperFName", "NewDeveloperLName");
         Thread.sleep(2000);
 
-        userPage.createUser("test1@example.com", "Test", "User1", "password", "Approver");
+        userPage.createUser(approverUsername, "Test", "User1", approverPassword, "Approver");
         Thread.sleep(2000);
 
-        userPage.modifyUser("test1@example.com", "Modified", "User1");
+        userPage.modifyUser(approverUsername, "Modified", "User1");
         Thread.sleep(2000);
 
         userPage.createUser("test2@example.com", "Test", "User2", "password", "Asset Owner");
@@ -136,6 +140,7 @@ public class AuditTrailE2ETest extends BaseLoginTest {
         Thread.sleep(3000);
         browser.navigate().to(baseUrl);
         homePage.clickKeycloakButton();
+        Thread.sleep(3000);
         keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
         keycloakLoginPage.login(auditorUsername, auditorPassword);
 
@@ -152,8 +157,8 @@ public class AuditTrailE2ETest extends BaseLoginTest {
         System.out.println(auditPage.getAuditEntries().size());
         // assertThat(auditPage.getAuditEntries()).hasSize(9); // S3 config + 4 user
         // actions
-        assertThat(auditPage.verifyAuditEntry("CREATE", "test1@example.com")).isTrue();
-        assertThat(auditPage.verifyAuditEntry("UPDATE", "test1@example.com")).isTrue();
+        assertThat(auditPage.verifyAuditEntry("CREATE", approverUsername)).isTrue();
+        assertThat(auditPage.verifyAuditEntry("UPDATE", approverUsername)).isTrue();
         assertThat(auditPage.verifyAuditEntry("CREATE", "test2@example.com")).isTrue();
         assertThat(auditPage.verifyAuditEntry("DELETE", "test2@example.com")).isTrue();
     }

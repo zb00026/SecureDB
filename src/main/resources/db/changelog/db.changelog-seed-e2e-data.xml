@@ -26,7 +26,7 @@
 
         <!-- Create E2E test users -->
         <insert tableName="users">
-            <column name="email" value="admin@admin.com"/>
+            <column name="email" value="chuc06872@gmail.com"/>
             <column name="first_name" value="E2E"/>
             <column name="last_name" value="Admin"/>
             <column name="is_active" valueBoolean="true"/>

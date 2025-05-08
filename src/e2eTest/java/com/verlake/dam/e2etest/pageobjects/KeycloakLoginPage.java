@@ -36,6 +36,7 @@ public class KeycloakLoginPage extends BasePage {
     public void waitForLoginPage() {
         WebDriverWait wait = new WebDriverWait(browser, Duration.ofSeconds(5));
 
+        System.out.println("Keycloak login Current URL: " + browser.getCurrentUrl());
         // Wait for the URL to change to localhost:8081 (Keycloak login page)
         wait.until(ExpectedConditions.urlMatches("^" + keycloakAuthUrl));
 

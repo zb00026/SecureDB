@@ -56,7 +56,7 @@
         <insert tableName="users">
             <column name="id" value="1"/>
             <column name="name" value="admin"/>
-            <column name="email" value="admin@admin.com"/>
+            <column name="email" value="chuc06872@gmail.com"/>
             <column name="role_id" value="1"/>
         </insert>
     </changeSet>
