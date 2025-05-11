@@ -3,13 +3,11 @@ package com.verlake.dam.e2etest.test;
 import com.verlake.dam.e2etest.pageobjects.*;
 import org.junit.jupiter.api.*;
 import org.openqa.selenium.Dimension;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -85,11 +83,12 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     @DisplayName("Configure S3")
     void adminOperations() throws InterruptedException {
         super.loginAsAdmin();
+        dashboardPage.waitForDashboadPage();
         assertThat(dashboardPage.btnLogout.getText()).isEqualTo("Logout");
 
         // Configure S3
         settingsPage = new SettingsPage(browser, baseUrl);
-        settingsPage.navigateToAuditHistory();
+        settingsPage.navigateToSettingsPage();
         settingsPage.waitForPageToLoad();
         settingsPage.configureS3Bucket(testBucketName);
     }
@@ -137,8 +136,6 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     @DisplayName("Verify audit trail as auditor")
     void auditVerification() throws InterruptedException {
         // Login as auditor
-        Thread.sleep(3000);
-        browser.navigate().to(baseUrl);
         homePage.clickKeycloakButton();
         Thread.sleep(3000);
         keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);

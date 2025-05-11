@@ -28,7 +28,8 @@ public class AssetCredentialsPage extends BasePage {
 
 
     public void navigateToAssetsPage() {
-        driver.get(baseUrl + "/asset_owner");
+        browser.get(baseUrl + "/asset_owner");
+        cancelTemporaryPassword();
     }
 
     private WebElement getCredentialButton(String assetName, String assetType, String hostAddress, String portNumber, String databaseName, String className) {

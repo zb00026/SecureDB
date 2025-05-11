@@ -1,18 +1,24 @@
 package com.verlake.dam.e2etest.pageobjects;
 
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.By;
+import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.PageFactory;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 
 public abstract class BasePage {
-    protected final WebDriver driver;
+    protected final WebDriver browser;
     protected final WebDriverWait wait;
 
+    @FindBy(id="btnCancelCredential")
+    public WebElement btnCancelCredential;
+
     public BasePage(WebDriver driver) {
-        this.driver = driver;
+        this.browser = driver;
         this.wait = new WebDriverWait(driver, Duration.ofSeconds(60));
         PageFactory.initElements(driver, this);
     }
@@ -45,6 +51,20 @@ public abstract class BasePage {
                 return false;
             }
         });
+    }
+
+
+    public void cancelTemporaryPassword() {
+        try {
+            WebDriverWait wait = new WebDriverWait(browser, Duration.ofSeconds(5));
+            wait.until(ExpectedConditions.visibilityOf(btnCancelCredential));
+            checkElementById("btnCancelCredential");
+            wait.until(ExpectedConditions.elementToBeClickable(btnCancelCredential));
+            btnCancelCredential.click();
+        } catch (TimeoutException e) {
+            System.out.println("Timed out waiting for credential cancel button to be clickable");
+            // Button either not found or not clickable within timeout - silently continue
+        }
     }
 
     public void waitForToastSuccess() {

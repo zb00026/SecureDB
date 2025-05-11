@@ -191,9 +191,27 @@
         msg: "DAM Admin User Exist: {{ admin_user_check.stdout }}"
       when: admin_user_check is defined
 
+    - name: Get the manage-account role ID from account client
+      shell: |
+        # First get account client ID
+        account_client_id=$(curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/clients \
+        -H "Authorization: Bearer {{ keycloak_token.stdout }}" | jq -r '.[] | select(.clientId=="account") | .id')
+        
+        # Then get manage-account role ID
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/clients/$account_client_id/roles \
+        -H "Authorization: Bearer {{ keycloak_token.stdout }}" | jq -r '.[] | select(.name=="manage-account") | .id'
+      register: manage_account_role
+      failed_when: false
+      changed_when: false
+
+    - name: Debug manage-account role ID
+      debug:
+        msg: "Manage Account Role ID: {{ manage_account_role.stdout }}"
+
     - name: Create DAM admin user if not exist in Keycloak
       shell: |
-        curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users \
+        # First create the user
+        user_response=$(curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users \
         -H "Authorization: Bearer {{ keycloak_token.stdout }}" \
         -d "{\"username\": \"{{ keycloak_admin_user }}\", \
           \"enabled\": true, \
@@ -204,7 +222,12 @@
             \"type\":\"password\", \
             \"value\":\"{{ keycloak_admin_password }}\", \
             \"temporary\":false \
-          }]}" -H 'Content-Type: application/json'
+          }]}" -H 'Content-Type: application/json' -D -)
+
+        # Extract user ID from Location header
+        user_id=$(echo "$user_response" | grep -i 'Location' | sed -e 's/.*\/\([^/]*\)$/\1/')
+        echo "Extracted user ID: $user_id"
+        
       register: create_user_response
       ignore_errors: yes
 

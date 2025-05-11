@@ -11,6 +11,7 @@ import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,6 +41,9 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
+    @Value("${auth.provider}")
+    private String authProvider;
+
     @Autowired
     private DatabaseAccessService databaseAccessService;
 
@@ -63,6 +67,8 @@ public class AuthController {
     private AccessRequestRepository accessRequestRepository;
     @Autowired
     private AssetCredentialsRepository assetCredentialsRepository;
+    @Autowired
+    private UserService userService;
 
     public AuthController(TokenServiceManager tokenServiceManager) {
         this.tokenServiceManager = tokenServiceManager;
@@ -77,17 +83,38 @@ public class AuthController {
         if (isAssetOwner(user)) {
             processAssetOwnerCredentials(user);
         }
+        userDto.setUser(user);
 
+        return ResponseEntity.ok().body(userDto);
+    }
+
+    @PostMapping("/api/auth/updatePassword")
+    public ResponseEntity<User> updatePassword(@RequestBody User userDto) {
+        if (userDto.getPassword() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Password can not be empty.");
+        }
+        User curUser = userService.getCurrentUser();
+        if (curUser != null) {
+            if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
+                keycloakService.saveUser(curUser.getEmail(),
+                        curUser.getEmail(),
+                        curUser.getFirstName(),
+                        curUser.getLastName(),
+                        userDto.getPassword(), false);
+            }
+            curUser.setIsInitialPassword(false);
+        }
+        userService.saveUser(curUser);
         return ResponseEntity.ok().body(userDto);
     }
 
     private boolean isAssetOwner(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()));
+                .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()) || Roles.ADMIN.getOriginalName().equals(role.getName()));
     }
 
     private void processAssetOwnerCredentials(User user) {
-        final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+        final String userKey = keycloakService.getUserKey();
         final List<AssetCredential> credentials = assetService.getAssignedCredentials();
 
         taskExecutor.execute(() -> processCredentialsAsync(user, userKey, credentials));
@@ -116,8 +143,10 @@ public class AuthController {
 
     private void processCredential(AssetCredential cred, String userKey) {
         try {
-            String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
-            cred.setPassword(decryptedPassword);
+            if (!cred.getIsTemporaryPassword()) {
+                String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+                cred.setPassword(decryptedPassword);
+            }
             databaseAccessService.updateAssetObjects(cred);
             processExpiredDeveloperCredential(cred);
         } catch (Exception e) {

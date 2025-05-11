@@ -52,6 +52,9 @@ public class User {
     @Column(name="is_active")
     private Boolean isActive;
 
+    @Column(name = "is_initial_password")
+    private Boolean isInitialPassword;
+
     @Column(name = "approver_id")
     private Long approverId;
 

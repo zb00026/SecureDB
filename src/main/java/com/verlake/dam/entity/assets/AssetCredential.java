@@ -45,4 +45,8 @@ public class AssetCredential {
     @Builder.Default
     @Column(name = "is_deleted")
     private Boolean isDeleted = false;
+
+    @Builder.Default
+    @Column(name = "is_temporary_password")
+    private Boolean isTemporaryPassword = false;
 } 

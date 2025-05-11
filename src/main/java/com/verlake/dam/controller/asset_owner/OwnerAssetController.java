@@ -193,7 +193,7 @@ public class OwnerAssetController {
         try (Connection connection = DriverManager.getConnection(jdbcUrlPrefix + host, username, password)) {
             if (connection != null) {
                 if (authProvider.contains(AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
-                    String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+                    String userKey = keycloakService.getUserKey();
                     if(userKey != null && !userKey.isEmpty()) {
                         password = encryptPasswordWithKey(userKey, password);
                     }

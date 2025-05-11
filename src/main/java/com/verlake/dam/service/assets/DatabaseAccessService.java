@@ -46,8 +46,8 @@ public class DatabaseAccessService {
     private final UserService userService;
 
     public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
-                                 AssetCredentialsRepository assetCredentialsRepository,
-                                 KeycloakService keycloakService, UserService userService) {
+            AssetCredentialsRepository assetCredentialsRepository,
+            KeycloakService keycloakService, UserService userService) {
         this.assetObjectRepository = assetObjectRepository;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.keycloakService = keycloakService;
@@ -577,10 +577,14 @@ public class DatabaseAccessService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void updateAccessRequestCredentialPassword(AssetCredential devCredential, String newPassword) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
-        String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
-        String decPsd = CommonUtils.decrypt(userKey, devCredential.getPassword());
-        devCredential.setPassword(decPsd);
+    public void updateAccessRequestCredentialPassword(AssetCredential devCredential, String newPassword)
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+        String userKey = keycloakService.getUserKey();
+        if (!devCredential.getIsTemporaryPassword()) {
+            String decPsd = CommonUtils.decrypt(userKey, devCredential.getPassword());
+            devCredential.setPassword(decPsd);
+        }
         try (Connection connection = getConnectionFromAssetCredential(devCredential)) {
             String alterUserSql;
             PreparedStatement statement;
@@ -603,7 +607,8 @@ public class DatabaseAccessService {
                     break;
 
                 default:
-                    throw new DatabaseAccessException("Unsupported database type: " + devCredential.getAsset().getDatabaseType(), null);
+                    throw new DatabaseAccessException(
+                            "Unsupported database type: " + devCredential.getAsset().getDatabaseType(), null);
             }
             statement = connection.prepareStatement(alterUserSql);
             statement.setString(1, devCredential.getUsername());
@@ -611,6 +616,7 @@ public class DatabaseAccessService {
 
             statement.execute();
             devCredential.setPassword(CommonUtils.encrypt(userKey, newPassword));
+            devCredential.setIsTemporaryPassword(false);
             assetCredentialsRepository.save(devCredential);
         } catch (SQLException e) {
             log.error("Error updating password", e);
@@ -699,7 +705,6 @@ public class DatabaseAccessService {
         return "temp" + password.toString();
     }
 
-
     private String getCredentialForAccess(
             Connection connection,
             AssetCredential credential,
@@ -730,21 +735,17 @@ public class DatabaseAccessService {
                 createUserStmt.setString(2, password);
                 createUserStmt.executeUpdate();
 
-
-                String userKey = keycloakService.getUserKeyByEmail(requestor.getEmail());
-                if (userKey != null && !userKey.isEmpty()) {
-                    String encryptedPassword = CommonUtils.encrypt(userKey, password);
-                    // Store user credentials in asset_credentials table
-                    AssetCredential userCredential = new AssetCredential();
-                    userCredential.setAsset(credential.getAsset());
-                    userCredential.setUsername(username);
-                    userCredential.setPassword(encryptedPassword);
-                    userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName()); // Set appropriate role
-                    userCredential.setUser(requestor);
-                    assetCredentialsRepository.saveAndFlush(userCredential);
-                    newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
-                    newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
-                }
+                // Store user credentials in asset_credentials table
+                AssetCredential userCredential = new AssetCredential();
+                userCredential.setAsset(credential.getAsset());
+                userCredential.setUsername(username);
+                userCredential.setPassword(password);
+                userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName()); // Set appropriate role
+                userCredential.setUser(requestor);
+                userCredential.setIsTemporaryPassword(true);
+                assetCredentialsRepository.saveAndFlush(userCredential);
+                newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
+                newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
             }
         } else {
             username = existUsername;
@@ -753,7 +754,9 @@ public class DatabaseAccessService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void revokeCredentialAccess(AssetCredential credential, AssetCredential ownerCredential) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+    public void revokeCredentialAccess(AssetCredential credential, AssetCredential ownerCredential)
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
 
         try (Connection connection = getConnectionFromAssetCredential(ownerCredential)) { // Use owner's connection
             String revokeUserSql;
@@ -823,7 +826,8 @@ public class DatabaseAccessService {
                     break;
 
                 default:
-                    throw new DatabaseAccessException("Unsupported database type: " + credential.getAsset().getDatabaseType(), null);
+                    throw new DatabaseAccessException(
+                            "Unsupported database type: " + credential.getAsset().getDatabaseType(), null);
             }
 
             log.info("Successfully revoked access and dropped user: {}", credential.getUsername());

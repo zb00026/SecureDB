@@ -56,6 +56,7 @@ public class AssetE2ETest extends BaseLoginTest {
     @DisplayName("Create an Asset")
     void createAnAsset() throws InterruptedException {
         super.loginAsAdmin();
+        dashboardPage.waitForDashboadPage();
         assertThat(dashboardPage.btnLogout.getText()).isEqualTo("Logout");
 
         // Add Asset

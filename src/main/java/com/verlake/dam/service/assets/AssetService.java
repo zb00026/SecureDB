@@ -433,7 +433,7 @@ public class AssetService {
     private void checkUserAndSetCredentials(Long assetId, User requestor, AccessRequest accessRequest,
             String existUsername, Map<String, String> newCredMapper) {
         User currentUser = userService.getCurrentUser();
-        final String userKey = keycloakService.getUserKey(CommonUtils.getKeycloakUserIdFromSession());
+        final String userKey = keycloakService.getUserKey();
 
         //Asset Credential has user_access_type, get credentials which are only asset owner's
         final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserAccessType(assetId, Roles.ASSET_OWNER.getOriginalName());
@@ -457,10 +457,14 @@ public class AssetService {
 
         AssetCredential cred = validCredentials.get(0);
         try {
-            String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
             AssetCredential assetOwnerCred = new AssetCredential();
             assetOwnerCred.setUsername(cred.getUsername());
-            assetOwnerCred.setPassword(decryptedPassword);
+            if (!cred.getIsTemporaryPassword()) {
+                String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+                assetOwnerCred.setPassword(decryptedPassword);
+            } else {
+                assetOwnerCred.setPassword(cred.getPassword());
+            }
             assetOwnerCred.setAsset(cred.getAsset());
             assetOwnerCred.setUser(cred.getUser());
 

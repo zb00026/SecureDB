@@ -27,17 +27,19 @@ public class SettingsPage extends BasePage {
     }
 
 
-    public void navigateToAuditHistory() {
-        driver.get(baseUrl + "/admin/settings");
+    public void navigateToSettingsPage() {
+        browser.get(baseUrl + "/admin/settings");
     }
 
     public void waitForPageToLoad() {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(settingsTitle));
+        cancelTemporaryPassword();
     }
 
     public void configureS3Bucket(String bucketName) {
         wait.until(ExpectedConditions.elementToBeClickable(s3BucketInput));
+        checkElementById("inputAuditLogStorage");
         s3BucketInput.clear();
         s3BucketInput.sendKeys(bucketName);
         saveButton.click();

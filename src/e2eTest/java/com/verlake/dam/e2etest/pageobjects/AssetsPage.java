@@ -31,12 +31,14 @@ public class AssetsPage extends BasePage {
 
 
     public void navigateToAssetsPage() {
-        driver.get(baseUrl + "/admin/assets");
+        browser.get(baseUrl + "/admin/assets");
+        cancelTemporaryPassword();
     }
 
     public void waitForPageToLoad() {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(btnCreateAsset));
+        cancelTemporaryPassword();
     }
 
     public void selectAssetByCriteria(String assetName, String dbType, String hostAddress, String portNumber, String dbName) {

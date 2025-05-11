@@ -11,14 +11,21 @@ import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserProfileAttributeMetadata;
 import org.keycloak.representations.idm.UserProfileMetadata;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.userprofile.config.UPConfig;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
@@ -110,18 +117,39 @@ public class KeycloakService {
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(password);
         credential.setTemporary(isTemporaryPsd);
-
         user.setCredentials(Arrays.asList(credential));
 
-        // Create the user in Keycloak
         Response response = usersResource.create(user);
-        if (response.getStatus() == Response.Status.CREATED.getStatusCode()) {
-            log.info("User created successfully in Keycloak: {}", username);
-        } else {
+        if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
             String errorMessage = response.readEntity(String.class);
             log.error("Failed to create user in Keycloak: {}", errorMessage);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create user in Keycloak : " + errorMessage);
         }
+
+        // Get the user ID from the response
+        String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
+
+        // Assign manage-account role
+        RealmResource realmResource = getRealmInstance();
+        List<ClientRepresentation> clients = realmResource.clients().findAll();
+        log.info("Available clients:");
+        for (ClientRepresentation client : clients) {
+            log.info("Client ID: {}, Client Name: {}, Internal ID: {}", client.getClientId(), client.getName(), client.getId());
+        }
+
+        // Then try to find the account client
+        List<ClientRepresentation> accountClients = realmResource.clients().findByClientId("account");
+        if (accountClients.isEmpty()) {
+            log.error("No 'account' client found in realm");
+            // Handle the error case
+        } else {
+            String accountClientId = accountClients.get(0).getId();
+            log.info("Found account client with ID: {}", accountClientId);
+            RoleRepresentation manageAccountRole = realmResource.clients().get(accountClientId).roles().get("manage-account").toRepresentation();
+            realmResource.users().get(userId).roles().clientLevel(accountClientId).add(Arrays.asList(manageAccountRole));
+        }
+
+        log.info("User created successfully in Keycloak: {}", username);
     }
 
     private void updateUser(UsersResource usersResource, String userId, String firstName, String lastName, String password, boolean isTemporaryPsd) {
@@ -149,31 +177,82 @@ public class KeycloakService {
     }
 
     public void updateUserKey(String userId, String jwtToken) {
-        // Fetch user by userId
-        RealmResource realmResource = getRealmInstance(jwtToken);
-        UsersResource usersResource = realmResource.users();
-        UserResource userResource = usersResource.get(userId);
-
-        // Get user representation
-        UserRepresentation userRepresentation = userResource.toRepresentation();
-        Map<String, List<String>> attributes = userRepresentation.getAttributes();
-        if(attributes == null) {
-            attributes = new HashMap<>();
-        }
-        // Check if user has 'user-key' attribute and if it is null or empty
-        String userKey = attributes.get(Constants.KEYCLOAK_USER_KEY) != null ? attributes.get(Constants.KEYCLOAK_USER_KEY).get(0) : null;
-
+        String userKey = getUserKeyViaAccountApi(jwtToken);
+        
         if (userKey == null || userKey.isEmpty()) {
-            // Generate a random 20-character alphanumeric key2
             String newUserKey = generateRandomUserKey();
+            updateUserKeyViaAccountApi(userId, newUserKey, jwtToken);
+        } else {
+            log.debug("User key already exists for userId: {}", userId);
+        }
+    }
 
-             // Update the user's 'user-key' attribute
-             attributes.put(Constants.KEYCLOAK_USER_KEY, Collections.singletonList(newUserKey));
-             userRepresentation.setAttributes(attributes);
-             userResource.update(userRepresentation);
+    public String getUserKeyViaAccountApi(String jwtToken) {
+        try {
+            ResponseEntity<Map<String, Object>> response = getAccountData(jwtToken);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return null;
+            }
 
+            Map<String, Object> userData = response.getBody();
+            
+            // Get attributes
+            @SuppressWarnings("unchecked")
+            Map<String, Object> attributes = (Map<String, Object>) userData.get(Constants.KEYCLOAK_CLIENT_ATTRIBUTES);
+            if (attributes != null) {
+                @SuppressWarnings("unchecked")
+                List<String> userKeyList = (List<String>) attributes.get(Constants.KEYCLOAK_USER_KEY);
+                if (userKeyList != null && !userKeyList.isEmpty()) {
+                    return userKeyList.get(0);
+                }
+            }
+            
+            return null;
+        } catch (Exception e) {
+            log.error("Failed to get user key via Account API. Error: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Failed to get user key via Account API: " + e.getMessage());
+        }
+    }
 
-            log.info("User key updated for userId: {}", userId);
+    public void updateUserKeyViaAccountApi(String userId, String userKey, String jwtToken) {
+        try {
+            ResponseEntity<Map<String, Object>> response = getAccountData(jwtToken);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User data not found");
+            }
+
+            Map<String, Object> userData = response.getBody();
+
+            // Update the user-key attribute while preserving other attributes
+            @SuppressWarnings("unchecked")
+            Map<String, Object> attributes = (Map<String, Object>) userData.getOrDefault(Constants.KEYCLOAK_CLIENT_ATTRIBUTES, new HashMap<>());
+            attributes.put(Constants.KEYCLOAK_USER_KEY, Collections.singletonList(userKey));
+            userData.put(Constants.KEYCLOAK_CLIENT_ATTRIBUTES, attributes);
+
+            // Remove userProfileMetadata from the payload as it's read-only
+            userData.remove("userProfileMetadata");
+
+            // Send update request
+            RestTemplate restTemplate = new RestTemplate();
+            String accountApiUrl = authServerUrl + "/realms/" + realmName + "/account/";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(jwtToken);
+
+            restTemplate.exchange(
+                accountApiUrl,
+                HttpMethod.POST,
+                new HttpEntity<>(userData, headers),
+                Void.class
+            );
+
+            log.info("User key updated via Account API for userId: {}", userId);
+        } catch (Exception e) {
+            log.error("Failed to update user key via Account API for userId: {}. Error: {}", userId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Failed to update user key via Account API: " + e.getMessage());
         }
     }
 
@@ -184,38 +263,32 @@ public class KeycloakService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); // Random 20-character key
     }
 
-    private String getUserKeyFromUserResource(UserResource userResource) {
-        if (userResource == null) {
+    public String getUserKey() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String jwtToken = null;
+
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+            jwtToken = jwt.getTokenValue();
+        }
+        if (jwtToken == null || jwtToken.isEmpty()) {
             return null;
         }
-        
-        UserRepresentation userRepresentation = userResource.toRepresentation();
-        Map<String, List<String>> attributes = userRepresentation.getAttributes();
-        if (attributes != null && attributes.containsKey(Constants.KEYCLOAK_USER_KEY)) {
-            return attributes.get(Constants.KEYCLOAK_USER_KEY).get(0);
-        }
-        return null;
+        return getUserKeyViaAccountApi(jwtToken);
     }
 
-    public String getUserKey(String userId) {
-        RealmResource realmResource = getRealmInstance();
-        UsersResource usersResource = realmResource.users();
-        UserResource userResource = usersResource.get(userId);
-        return getUserKeyFromUserResource(userResource);
-    }
-
-    public String getUserKeyByEmail(String email) {
-        RealmResource realmResource = getRealmInstance();
-        UsersResource usersResource = realmResource.users();
+    private ResponseEntity<Map<String, Object>> getAccountData(String jwtToken) {
+        RestTemplate restTemplate = new RestTemplate();
+        String accountApiUrl = authServerUrl + "/realms/" + realmName + "/account/";
         
-        // Search for user by email
-        List<UserRepresentation> users = usersResource.searchByEmail(email, true);
-        if (users.isEmpty()) {
-            return null;
-        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(jwtToken);
         
-        // Get the first matching user (email should be unique)
-        UserResource userResource = usersResource.get(users.get(0).getId());
-        return getUserKeyFromUserResource(userResource);
+        return restTemplate.exchange(
+            accountApiUrl,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            new ParameterizedTypeReference<Map<String, Object>>() {}
+        );
     }
 }

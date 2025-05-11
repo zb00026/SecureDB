@@ -10,6 +10,7 @@ public class Constants {
     public static final String ASSET_NOT_FOUND = "Asset not found";
 
     public static final  String KEYCLOAK_USER_KEY = "user-key";
+    public static final String KEYCLOAK_CLIENT_ATTRIBUTES = "attributes";
 
     public static final String ASSET_ADD_NAME = "Add";
     public static final String ASSET_REMOVE_NAME = "Remove";

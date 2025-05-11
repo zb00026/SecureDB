@@ -8,8 +8,6 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 public class UserManagementPage extends BasePage {
     private final String baseUrl;
 
@@ -18,6 +16,10 @@ public class UserManagementPage extends BasePage {
 
     @FindBy(id = "btnSaveUser")
     private WebElement btnSaveUser;
+
+    @FindBy(id = "btnCreateUser")
+    private WebElement btnCreateUser;
+
 
     @FindBy(id = "flexUserForm")
     private WebElement userForm;
@@ -32,16 +34,18 @@ public class UserManagementPage extends BasePage {
     }
 
     public void navigateToUserManagement() {
-        driver.get(baseUrl + "/admin/users");
+        browser.get(baseUrl + "/admin/users");
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(usersTitle));
-        wait.until(ExpectedConditions.visibilityOf(btnSaveUser));
+        cancelTemporaryPassword();
     }
 
     public void createUser(String email, String firstName, String lastName, String password, String role)
             throws InterruptedException {
         try {
             navigateToUserManagement();
+            wait.until(ExpectedConditions.visibilityOf(btnCreateUser));
+            btnCreateUser.click();
             // Wait for form elements to be visible and interactable
             wait.until(ExpectedConditions.visibilityOf(userForm));
 
@@ -79,7 +83,7 @@ public class UserManagementPage extends BasePage {
                 btnSaveUser.click();
             } catch (Exception e) {
                 // Second attempt: Find button again and click
-                WebElement saveButton = driver.findElement(By.id("btnSaveUser"));
+                WebElement saveButton = browser.findElement(By.id("btnSaveUser"));
                 wait.until(ExpectedConditions.elementToBeClickable(saveButton));
                 saveButton.click();
             }
@@ -105,11 +109,11 @@ public class UserManagementPage extends BasePage {
         userRow.click();
 
         // Clear and update fields
-        WebElement firstNameInput = driver.findElement(By.id("inputFirstName"));
+        WebElement firstNameInput = browser.findElement(By.id("inputFirstName"));
         firstNameInput.clear();
         firstNameInput.sendKeys(newFirstName);
 
-        WebElement lastNameInput = driver.findElement(By.id("inputLastName"));
+        WebElement lastNameInput = browser.findElement(By.id("inputLastName"));
         lastNameInput.clear();
         lastNameInput.sendKeys(newLastName);
 
@@ -119,8 +123,8 @@ public class UserManagementPage extends BasePage {
     }
 
     public void deleteUser(String email) throws InterruptedException {
-        driver.manage().window().setSize(new Dimension(1920, 1080));
-        driver.manage().window().maximize();
+        browser.manage().window().setSize(new Dimension(1920, 1080));
+        browser.manage().window().maximize();
 
         // Find user row
         String userRowXPath = "//tbody/tr[.//td[contains(text(), '" + email + "')]]";
@@ -132,7 +136,7 @@ public class UserManagementPage extends BasePage {
                 By.xpath(".//button[contains(text(), 'Delete') or .//FormattedMessage[@id='text.delete']]"));
 
         // Scroll into view
-        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", deleteButton);
+        ((JavascriptExecutor) browser).executeScript("arguments[0].scrollIntoView({block: 'center'});", deleteButton);
         Thread.sleep(500);
 
         // Ensure the button is clickable

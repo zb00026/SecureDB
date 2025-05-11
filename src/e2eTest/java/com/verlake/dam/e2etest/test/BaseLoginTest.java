@@ -16,13 +16,13 @@ public class BaseLoginTest extends E2E {
 
     @BeforeEach
     void baseSetUp() {
-        homePage = new MainPage(browser);
         baseUrl = getEnvVariable("FRONTEND_URL");
         keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
+        homePage = new MainPage(browser, baseUrl, keycloakAuthUrl);
         browser.get(baseUrl);
     }
 
-    protected void loginAsAdmin() {
+    protected void loginAsAdmin() throws InterruptedException {
         String adminUsername = getEnvVariable("KEYCLOAK_ADMIN_USER");
         String adminPassword = getEnvVariable("KEYCLOAK_ADMIN_PASSWORD");
         
@@ -35,4 +35,5 @@ public class BaseLoginTest extends E2E {
         dashboardPage.waitForDashboadPage();
         assertThat(browser.getCurrentUrl()).contains(baseUrl);
     }
+
 }
