@@ -26,6 +26,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.extern.slf4j.Slf4j;
@@ -159,6 +160,18 @@ public class AccessRequestController {
             return ResponseEntity.ok(accessRequestService.setCredentialPassword(accessRequestId, credentialInfo));
         } catch (Exception e) {
             log.error("Error saving access request credential password: {}", e.getMessage(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    @PostMapping("/relinquish_access/{accessRequestId}")
+    public ResponseEntity<Map<String, Object>> relinquishAccess(@PathVariable Long accessRequestId) {
+        try {
+            accessRequestService.relinquishAccess(accessRequestId);
+            return CommonUtils.getSuccessResponse();
+        } catch (Exception e) {
+            log.error("Error relinquishing access: {}", e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

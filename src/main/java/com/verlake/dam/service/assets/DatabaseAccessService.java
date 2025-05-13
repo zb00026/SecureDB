@@ -744,6 +744,7 @@ public class DatabaseAccessService {
                 userCredential.setUser(requestor);
                 userCredential.setIsTemporaryPassword(true);
                 assetCredentialsRepository.saveAndFlush(userCredential);
+                newCredMapper.put("credentialID", userCredential.getId().toString());
                 newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
                 newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
             }

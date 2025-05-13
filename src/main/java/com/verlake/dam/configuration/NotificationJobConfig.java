@@ -254,6 +254,7 @@ public class NotificationJobConfig {
         // Map of handlers for different email types
         Map<EmailType, Consumer<NotificationTask>> emailHandlers = Map.of(
             EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, this::sendDeveloperAssetRequestEmail,
+            EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY, this::sendDeveloperRelinquishAssetEmail,
             EmailType.APPROVAL_ASSET_ACCESS_REQUEST, notificationTask -> {
                 try {
                     sendApprovalAssetAccessRequestEmail(notificationTask);
@@ -284,6 +285,15 @@ public class NotificationJobConfig {
             task.getSender(),
             task.getAsset(),
             "developer-asset-request"
+        );
+    }
+
+    private void sendDeveloperRelinquishAssetEmail(NotificationTask task) {
+        emailService.sendDeveloperRelinquishEmail(
+            task.getReceiver(),
+            task.getSender(),
+            task.getAsset(),
+            "developer-relinquish-asset"
         );
     }
 

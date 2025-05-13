@@ -183,7 +183,7 @@ public class EmailService {
         Context context = new Context();
         context.setVariable(Constants.EMAIL_VAR_RECEIVER_FIRST_NAME, receiver.getFirstName());
         context.setVariable(Constants.EMAIL_VAR_RECEIVER_LAST_NAME, receiver.getLastName());
-        if (emailType == EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY) {
+        if (emailType == EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY || emailType == EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY) {
             context.setVariable(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, sender.getFirstName());
             context.setVariable(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, sender.getLastName());
         } else if (emailType == EmailType.APPROVAL_ASSET_ACCESS_REQUEST) {
@@ -228,6 +228,18 @@ public class EmailService {
                 emailTmplFile,
                 ApprovalStatus.PENDING,
                 EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY,
+                newCredMapper);
+    }
+
+    public void sendDeveloperRelinquishEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
+        HashMap<String, String> newCredMapper = new HashMap<>();
+        sendAssetRequestEmail(
+                receiver,
+                requestor,
+                asset,
+                emailTmplFile,
+                ApprovalStatus.PENDING,
+                EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY,
                 newCredMapper);
     }
 

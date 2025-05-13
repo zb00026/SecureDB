@@ -324,7 +324,16 @@ public class AssetService {
         User currentUser = userService.getCurrentUser();
         List<AssetCredential> assetCredentials = credentialsRepository.findByUserId(currentUser.getId());
         return assetCredentials.stream()
-                .map(credential -> accessRequestRepository.findByAsset(credential.getAsset()))
+                .map(credential -> {
+                    List<AccessRequest> lstAccessRequest = accessRequestRepository.findByAsset(credential.getAsset());
+                    Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
+                    lstAccessRequest.forEach(request -> {
+                        AssetDTO assetDTO = convertToDTO(fullAsset);
+                        request.setAssetDTO(assetDTO);
+                    });
+                    return lstAccessRequest;
+                })
                 .flatMap(List::stream)
                 .sorted((a1, a2) -> a2.getRequestTime().compareTo(a1.getRequestTime()))
                 .toList();
@@ -338,29 +347,27 @@ public class AssetService {
         Map<String, String> newCredMapper = new HashMap<>();
         if (approvalStatus == ApprovalStatus.APPROVED) {
             // Find existing credential or create new one
-            Optional<AssetCredential> existingCredential = assetCredentialsRepository
-                    .findByUserAndAssetAndUserAccessType(
-                            accessRequest.getRequestor(),
-                            accessRequest.getAsset(),
-                            Roles.DEVELOPER.getOriginalName());
+            List<AccessRequest> lstAccessRequests = accessRequestRepository.findByUserAndAssetAndUserAccessTypeAndNotExpired(
+                    accessRequest.getRequestor(),
+                    accessRequest.getAsset(),
+                    Roles.DEVELOPER.getOriginalName());
 
             String existUsername = "";
 
-            if (existingCredential.isPresent()) {
+            if (!lstAccessRequests.isEmpty()) {
                 // Generate new username and password
-                existUsername = existingCredential.get().getUsername();
+                existUsername = lstAccessRequests.get(0).getAssetCredential().getUsername();
             } else {
                 // Set AccessRequest's temporary password flag to true if the username is not exist
                 accessRequest.setIsTempPassword(true);
             }
             checkUserAndSetCredentials(accessRequest.getAsset().getId(), accessRequest.getRequestor(), accessRequest,
                     existUsername, newCredMapper);
-            Optional<AssetCredential> devCredential = assetCredentialsRepository
-                    .findByUserAndAssetAndUserAccessType(
-                            accessRequest.getRequestor(),
-                            accessRequest.getAsset(),
-                            Roles.DEVELOPER.getOriginalName());
-            devCredential.ifPresent(accessRequest::setAssetCredential);
+            if (newCredMapper.containsKey("credentialID")) {
+                AssetCredential credential = assetCredentialsRepository.findById(Long.parseLong(newCredMapper.get("credentialID")))
+                        .orElseThrow(() -> new ResourceNotFoundException("New Created Credential Not Found"));
+                accessRequest.setAssetCredential(credential);
+            }
         }
         accessRequest.setAssetApproverStatus(approvalStatus);
 

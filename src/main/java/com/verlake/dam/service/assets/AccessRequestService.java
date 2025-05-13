@@ -60,7 +60,8 @@ public class AccessRequestService {
             AssetApproversRepository assetApproversRepository,
             UserRepository userRepository,
             NotificationTaskRepository notificationTaskRepository,
-            KeycloakService keycloakService, AssetCredentialsRepository assetCredentialsRepository, DatabaseAccessService databaseAccessService) {
+            KeycloakService keycloakService, AssetCredentialsRepository assetCredentialsRepository,
+            DatabaseAccessService databaseAccessService) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
@@ -102,7 +103,8 @@ public class AccessRequestService {
         return sqlBuilder.toString();
     }
 
-    public AccessRequest saveAccessRequest(AccessRequestDTO requestDTO, User requestor)  throws ResourceNotFoundException, JsonParseException, IllegalArgumentException {
+    public AccessRequest saveAccessRequest(AccessRequestDTO requestDTO, User requestor)
+            throws ResourceNotFoundException, JsonParseException, IllegalArgumentException {
         List<AccessLevelObject> accessLevelObjects = requestDTO.getAccessLevelObjects();
         if (accessLevelObjects.isEmpty()) {
             throw new ResourceNotFoundException("No access level objects provided");
@@ -129,7 +131,10 @@ public class AccessRequestService {
         request.setIsTempPassword(true);
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
-        request.setExpiryHours(requestDTO != null && requestDTO.getExpirationHours() != null && requestDTO.getExpirationHours() != 0 ? requestDTO.getExpirationHours() : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
+        request.setExpiryHours(
+                requestDTO != null && requestDTO.getExpirationHours() != null && requestDTO.getExpirationHours() != 0
+                        ? requestDTO.getExpirationHours()
+                        : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
         // Calculate expiry date
         request.setExpiryDate(request.getRequestTime().plusHours(request.getExpiryHours()));
 
@@ -149,58 +154,73 @@ public class AccessRequestService {
         });
 
         // Send notifications
-        sendNotifications(savedRequest, requestor, asset);
+        sendNotifications(savedRequest, requestor, asset, true);
 
         return savedRequest;
     }
 
-    private void sendNotifications(AccessRequest request, User requestor, Asset asset) throws ResourceNotFoundException, JsonParseException, IllegalArgumentException {
-            // Get developer approver
-            User developerApprover = null;
-            if (requestor.getApprover() != null) {
-                developerApprover = userRepository.findById(requestor.getApprover().getId())
-                        .orElse(null);
-            }
+    private void sendNotifications(AccessRequest request,
+            User requestor,
+            Asset asset,
+            boolean isAccessRequest) // true: Access Request, false: Relinquish Request
+            throws ResourceNotFoundException, JsonParseException, IllegalArgumentException {
+        // Get developer approver
+        User developerApprover = null;
+        if (requestor.getApprover() != null) {
+            developerApprover = userRepository.findById(requestor.getApprover().getId())
+                    .orElse(null);
+        }
 
-            // Get asset owners
-            List<User> assetOwners = assetService.getAssetOwners(asset);
+        // Get asset owners
+        List<User> assetOwners = assetService.getAssetOwners(asset);
 
-            // Get asset approvers
-            List<User> assetApprovers = assetApproversRepository.findByAssetId(asset.getId())
+        // Get asset approvers
+        List<User> assetApprovers = assetApproversRepository.findByAssetId(asset.getId())
                 .stream()
                 .map(AssetApprover::getUser)
                 .collect(Collectors.toList());
 
-            // Prepare notification data
-            Map<String, String> notificationData = new HashMap<>();
-            notificationData.put("requestId", request.getId().toString());
-            notificationData.put("assetId", asset.getId().toString());
-            notificationData.put("assetName", asset.getName());
-            notificationData.put("assetDescription", asset.getDescription());
-            notificationData.put("requestorName", requestor.getFirstName() + " " + requestor.getLastName());
-            notificationData.put("messageType", "1"); //1 : success, 0: fail
+        // Prepare notification data
+        Map<String, String> notificationData = new HashMap<>();
+        notificationData.put("requestId", request.getId().toString());
+        notificationData.put("assetId", asset.getId().toString());
+        notificationData.put("assetName", asset.getName());
+        notificationData.put("assetDescription", asset.getDescription());
+        notificationData.put("requestorName", requestor.getFirstName() + " " + requestor.getLastName());
+        notificationData.put("messageType", "1"); // 1 : success, 0: fail
+        notificationData.put(Constants.EMAIL_VAR_IS_ACCESS_REQUEST, isAccessRequest ? "1" : "0");
 
-            if (developerApprover != null) {
-                sendNotificationAndEmail(developerApprover, requestor, asset, notificationData);
-            }
+        if (developerApprover != null) {
+            sendNotificationAndEmail(developerApprover, requestor, asset, notificationData);
+        }
 
-            sendNotificationsToUsers(assetOwners, requestor, asset, notificationData);
-            sendNotificationsToUsers(assetApprovers, requestor, asset, notificationData);
-        
+        sendNotificationsToUsers(assetOwners, requestor, asset, notificationData);
+        sendNotificationsToUsers(assetApprovers, requestor, asset, notificationData);
+
     }
 
     private void sendNotificationsToUsers(List<User> users, User requestor, Asset asset,
-                                        Map<String, String> notificationData) throws JsonParseException {
+            Map<String, String> notificationData) throws JsonParseException {
         for (User user : users) {
-                sendNotificationAndEmail(user, requestor, asset, notificationData);
+            sendNotificationAndEmail(user, requestor, asset, notificationData);
         }
     }
 
-    private void sendNotificationAndEmail(User receiver, User requestor, Asset asset, Map<String, String> notificationData) throws JsonParseException {
+    private void sendNotificationAndEmail(User receiver,
+            User requestor,
+            Asset asset,
+            Map<String, String> notificationData) throws JsonParseException {
         NotificationMessage notificationMessage = new NotificationMessage();
-        notificationMessage.setTitle("New Asset Access Request");
-        notificationMessage.setBody(String.format("%s %s has requested access to %s",
-            requestor.getFirstName(), requestor.getLastName(), asset.getName()));
+        if (notificationData.get(Constants.EMAIL_VAR_IS_ACCESS_REQUEST).equals("1")) {
+            notificationMessage.setTitle("New Asset Access Request");
+            notificationMessage.setBody(String.format("%s %s has requested access to %s",
+                    requestor.getFirstName(), requestor.getLastName(), asset.getName()));
+        } else {
+            notificationMessage.setTitle("Relinquished Asset Access Request");
+            notificationMessage.setBody(String.format("%s %s has relinquished access to %s",
+                    requestor.getFirstName(), requestor.getLastName(), asset.getName()));
+        }
+        
         notificationData.put(Constants.NOTIFY_DATA_ATTR_RECEIVER_ID, receiver.getId().toString());
         notificationMessage.setData(notificationData);
         notificationMessage.setTopic("dam_notification");
@@ -211,7 +231,11 @@ public class AccessRequestService {
         task.setSender(requestor);
         task.setAsset(asset);
         task.setNotificationMessage(notificationMessage.toJson());
-        task.setEmailType(EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY);
+        if (notificationData.get(Constants.EMAIL_VAR_IS_ACCESS_REQUEST).equals("1")) {
+            task.setEmailType(EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY);
+        } else {
+            task.setEmailType(EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY);
+        }
         notificationTaskRepository.save(task);
     }
 
@@ -243,7 +267,11 @@ public class AccessRequestService {
     }
 
     public List<AccessRequest> getTemporaryCredentialRequests(User user) {
-        return accessRequestRepository.findByRequestorAndIsTempPasswordAndAssetApproverStatus(user, true, ApprovalStatus.APPROVED);
+        return accessRequestRepository.findByRequestorAndIsTempPasswordAndAssetApproverStatusAndIsDeletedFalseAndExpiryDateAfter(
+            user, 
+            true,
+            ApprovalStatus.APPROVED,
+            LocalDateTime.now());
     }
 
     public List<AccessRequest> getAssetRequests(Asset asset) {
@@ -252,10 +280,12 @@ public class AccessRequestService {
 
     public AccessRequest findById(Long id) {
         return accessRequestRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Access Request not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Access Request not found with id: " + id));
     }
 
-    public AccessRequest setCredentialPassword(Long accessRequestId, AssetCredentialDTO credentialInfo) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+    public AccessRequest setCredentialPassword(Long accessRequestId, AssetCredentialDTO credentialInfo)
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
         AccessRequest accessRequest = findById(accessRequestId);
         if (accessRequest == null) {
             throw new ResourceNotFoundException("No access request provided");
@@ -267,5 +297,18 @@ public class AccessRequestService {
         accessRequest.setIsTempPassword(false);
         accessRequestRepository.save(accessRequest);
         return accessRequest;
+    }
+
+    public void relinquishAccess(Long accessRequestId) throws JsonParseException, ResourceNotFoundException, IllegalArgumentException {
+        AccessRequest accessRequest = findById(accessRequestId);
+        if (accessRequest == null) {
+            throw new ResourceNotFoundException("No access request provided");
+        }
+        
+        accessRequest.setExpiryDate(LocalDateTime.now());
+        accessRequest.setExpiryHours(0);
+        accessRequestRepository.save(accessRequest);
+
+        sendNotifications(accessRequest, accessRequest.getRequestor(), accessRequest.getAsset(), false);
     }
 }

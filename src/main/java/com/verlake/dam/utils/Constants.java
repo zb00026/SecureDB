@@ -56,6 +56,7 @@ public class Constants {
     public static final String EMAIL_VAR_ASSET_CREDENTIAL_ID = "assetCredentialId";
     public static final String EMAIL_VAR_DB_USERNAME = "dbUsername";
     public static final String EMAIL_VAR_DB_PASSWORD = "dbPassword";
+    public static final String EMAIL_VAR_IS_ACCESS_REQUEST = "isAccessRequest";
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 

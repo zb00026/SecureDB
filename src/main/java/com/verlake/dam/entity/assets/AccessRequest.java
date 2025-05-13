@@ -4,6 +4,7 @@ import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.listener.AuditEntityListener;
+import com.verlake.dam.entity.assets.dto.AssetDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -22,6 +23,9 @@ public class AccessRequest {
     @ManyToOne
     @JoinColumn(name = "asset_id")
     private Asset asset;
+    
+    @Transient
+    private AssetDTO assetDTO;
 
 
     @Column(name = "access_sql", columnDefinition = "text")
