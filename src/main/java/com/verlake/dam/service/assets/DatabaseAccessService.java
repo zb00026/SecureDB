@@ -620,7 +620,7 @@ public class DatabaseAccessService {
             assetCredentialsRepository.save(devCredential);
         } catch (SQLException e) {
             log.error("Error updating password", e);
-            throw new DatabaseAccessException("Error updating password", e);
+            throw new DatabaseAccessException(e.getMessage(), e);
         }
     }
 

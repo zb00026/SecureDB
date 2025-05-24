@@ -53,17 +53,18 @@ public class AssetService {
     private final KeycloakService keycloakService;
     private final DatabaseAccessService databaseAccessService;
     private final NotificationTaskRepository notificationTaskRepository;
+    private final AccessLevelObjectRepository accessLevelObjectRepository;
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
-            AssetCredentialsRepository credentialsRepository,
-            AssetApproversRepository assetApproversRepository,
-            AccessLevelRepository accessLevelRepository,
-            UserService userService, AccessRequestRepository accessRequestRepository,
-            AssetCredentialsRepository assetCredentialsRepository,
-            AssetObjectRepository assetObjectRepository,
-            KeycloakService keycloakService, DatabaseAccessService databaseAccessService,
-            NotificationTaskRepository notificationTaskRepository) {
+                        AssetCredentialsRepository credentialsRepository,
+                        AssetApproversRepository assetApproversRepository,
+                        AccessLevelRepository accessLevelRepository,
+                        UserService userService, AccessRequestRepository accessRequestRepository,
+                        AssetCredentialsRepository assetCredentialsRepository,
+                        AssetObjectRepository assetObjectRepository,
+                        KeycloakService keycloakService, DatabaseAccessService databaseAccessService,
+                        NotificationTaskRepository notificationTaskRepository, AccessLevelObjectRepository accessLevelObjectRepository) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
         this.assetApproversRepository = assetApproversRepository;
@@ -75,6 +76,7 @@ public class AssetService {
         this.keycloakService = keycloakService;
         this.databaseAccessService = databaseAccessService;
         this.notificationTaskRepository = notificationTaskRepository;
+        this.accessLevelObjectRepository = accessLevelObjectRepository;
     }
 
     @Transactional
@@ -126,7 +128,12 @@ public class AssetService {
             // Delete credentials for provided user IDs
             updateDTO.getUserIds().forEach(userId -> {
                 List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
-                credentials.forEach(assetObjectRepository::deleteByAssetCredential);
+                credentials.forEach(assetCredential -> {
+                    assetObjectRepository.deleteByAssetCredential(assetCredential);
+                    //Remove existing developer's access request for this asset
+                    accessRequestRepository.findByAsset(assetCredential.getAsset()).forEach(accessLevelObjectRepository::deleteByAccessRequest);
+                    accessRequestRepository.deleteByAsset(assetCredential.getAsset());
+                } );
                 credentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
             });
         }

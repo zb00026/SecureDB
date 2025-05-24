@@ -6,6 +6,8 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class AssetsPage extends BasePage {
     @FindBy(id = "lblAssetSetting")
     private WebElement assetTitle;
@@ -32,13 +34,11 @@ public class AssetsPage extends BasePage {
 
     public void navigateToAssetsPage() {
         browser.get(baseUrl + "/admin/assets");
-        cancelTemporaryPassword();
     }
 
     public void waitForPageToLoad() {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(btnCreateAsset));
-        cancelTemporaryPassword();
     }
 
     public void selectAssetByCriteria(String assetName, String dbType, String hostAddress, String portNumber, String dbName) {
@@ -59,6 +59,12 @@ public class AssetsPage extends BasePage {
         } else {
             System.out.println("User checkbox is selected");
         }
+    }
+
+    public boolean checkStatusAssetOwnerByCriteria(String firstName, String lastName, String email) {
+        String inputChkXpath = String.format("//table[@id='tblAssetOwners']/tbody/tr[td[text()='%s'] and td[text()='%s'] and td[text()='%s']]//input[@type='checkbox']", firstName, lastName, email);
+        WebElement userCheckboxInput = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(inputChkXpath)));
+        return userCheckboxInput.isSelected();
     }
 
     public void addNewAsset(String assetName, String databaseType, String hostAddress, String portNumber, String dbName, String description) {
@@ -123,7 +129,7 @@ public class AssetsPage extends BasePage {
     }
 
     public void setOwnerOfAsset(String assetName, String dbType, String hostAddress, String portNumber, String dbName,
-                                String ownerFirstName, String ownerLastName, String ownerEmail) {
+                                String ownerFirstName, String ownerLastName, String ownerEmail) throws InterruptedException {
         wait.until(ExpectedConditions.elementToBeClickable(btnCreateAsset));
         btnCreateAsset.click();
         wait.until(ExpectedConditions.visibilityOf(assetTypeForm));
@@ -133,6 +139,6 @@ public class AssetsPage extends BasePage {
 
         // Wait for spinner to disappear and success toast to appear
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
+        assertThat(checkStatusAssetOwnerByCriteria(ownerFirstName, ownerLastName, ownerEmail)).isTrue();
     }
 }

@@ -2,7 +2,6 @@ package com.verlake.dam.e2etest.test;
 
 import com.verlake.dam.e2etest.pageobjects.*;
 import org.junit.jupiter.api.*;
-import org.openqa.selenium.Dimension;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.sql.Connection;
@@ -14,16 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Audit Trail")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class AuditTrailE2ETest extends BaseLoginTest {
-    private KeycloakLoginPage keycloakLoginPage;
-    private SettingsPage settingsPage;
-    private UserManagementPage userPage;
-    private AuditHistoryPage auditPage;
-
-    private String auditorUsername;
-    private String auditorPassword;
-    private String developerUsername;
-    private String developerPassword;
+public class AuditTrailE2ETest extends BaseE2ETest {
     private String approverUsername;
     private String approverPassword;
     private String testBucketName;
@@ -66,13 +56,6 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     @BeforeEach
     void beforeEach() {
         super.baseSetUp();
-        browser.manage().window().setSize(new Dimension(1920, 1080));  // Full HD resolution
-    
-        keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
-        auditorUsername = getEnvVariable("KEYCLOAK_AUDITOR_USER");
-        auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
-        developerUsername = getEnvVariable("KEYCLOAK_DEVELOPER_USER");
-        developerPassword = getEnvVariable("KEYCLOAK_DEVELOPER_PASSWORD");
         approverUsername = getEnvVariable("KEYCLOAK_APPROVER_USER");
         approverPassword = getEnvVariable("KEYCLOAK_APPROVER_PASSWORD");
         testBucketName = getEnvVariable("E2E_TEST_S3_BUCKET");
@@ -135,19 +118,7 @@ public class AuditTrailE2ETest extends BaseLoginTest {
     @Order(3)
     @DisplayName("Verify audit trail as auditor")
     void auditVerification() throws InterruptedException {
-        // Login as auditor
-        homePage.clickKeycloakButton();
-        Thread.sleep(3000);
-        keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
-        keycloakLoginPage.login(auditorUsername, auditorPassword);
-
-        // Verify login success
-        dashboardPage = new DashboardPage(browser, baseUrl);
-        dashboardPage.waitForDashboadPage();
-
-        // Check audit trail
-        auditPage = new AuditHistoryPage(browser, baseUrl);
-        auditPage.navigateToAuditHistory();
+        loginAsAuditorAndNavigateToAuditTrail(auditorUsername, auditorPassword);
 
         // Verify all actions are recorded
         System.out.println("TR Length");

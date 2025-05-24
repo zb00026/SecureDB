@@ -34,10 +34,10 @@ public class SettingsPage extends BasePage {
     public void waitForPageToLoad() {
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(settingsTitle));
-        cancelTemporaryPassword();
     }
 
     public void configureS3Bucket(String bucketName) {
+
         wait.until(ExpectedConditions.elementToBeClickable(s3BucketInput));
         checkElementById("inputAuditLogStorage");
         s3BucketInput.clear();

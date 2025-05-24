@@ -6,6 +6,8 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class AssetCredentialsPage extends BasePage {
     @FindBy(id = "lblAssetSetting")
     private WebElement assetTitle;
@@ -29,7 +31,6 @@ public class AssetCredentialsPage extends BasePage {
 
     public void navigateToAssetsPage() {
         browser.get(baseUrl + "/asset_owner");
-        cancelTemporaryPassword();
     }
 
     private WebElement getCredentialButton(String assetName, String assetType, String hostAddress, String portNumber, String databaseName, String className) {
@@ -56,14 +57,7 @@ public class AssetCredentialsPage extends BasePage {
         credentialUsernameInput.clear();
         credentialUsernameInput.sendKeys(credentialUserName);
 
-        checkElementById("inputCredentialPassword");
-        WebElement credentialPasswordInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("inputCredentialPassword")));
-        credentialPasswordInput.clear();
-        credentialPasswordInput.sendKeys(credentialPassword);
-
-        checkElementById("btnSaveCredential");
-        WebElement createCredentialButton = wait.until(ExpectedConditions.elementToBeClickable(By.id("btnSaveCredential")));
-        createCredentialButton.click();
+        updatePassword(credentialPassword);
 
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
     }
@@ -75,8 +69,9 @@ public class AssetCredentialsPage extends BasePage {
 
         wait.until(ExpectedConditions.elementToBeClickable(btnConfirmRelinquish));
         btnConfirmRelinquish.click();
+        Thread.sleep(5000);
 
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("toast-toastSuccess")));
+        wait.until(ExpectedConditions.invisibilityOf(relinquishButton));
     }
 }

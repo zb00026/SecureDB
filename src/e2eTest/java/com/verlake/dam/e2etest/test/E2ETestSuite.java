@@ -9,9 +9,10 @@ import org.junit.platform.suite.api.IncludeClassNamePatterns;
 @Suite
 @SuiteDisplayName("E2E Test Suite")
 @SelectClasses({
-        BaseE2ETest.class,    // Base setup will run first
+        InitialE2ETest.class,    // Base setup will run first
         AuditTrailE2ETest.class,
-        AssetE2ETest.class
+        AssetE2ETest.class,
+        AccessRequestE2ETest.class,
 })
 @IncludeEngines("junit-jupiter")
 @IncludeClassNamePatterns(".*E2ETest")

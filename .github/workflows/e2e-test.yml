@@ -80,14 +80,15 @@ jobs:
           ./gradlew e2eTest --tests "com.verlake.dam.e2etest.test.E2ETestSuite" --rerun-tasks -Dtest.profile=qa
 
       - name: Upload test results
-        if: always()  # Upload results even if tests fail
-        uses: actions/upload-artifact@v4  # Updated to v4
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results
           path: |
             build/reports/tests/e2eTest/
             build/test-results/e2eTest/
-          retention-days: 14  # Added retention period
+            /home/runner/work/DAM/DAM/screenshots/
+          retention-days: 14
 
       - name: Publish Test Report
         if: always()
@@ -96,3 +97,15 @@ jobs:
           report_paths: 'build/test-results/e2eTest/TEST-*.xml'
           detailed_summary: true
           include_passed: true
+
+      - name: Transfer files to server
+        if: always()
+        run: |
+          # Create a zip file of test results and screenshots
+          zip -r test-results.zip build/reports/tests/e2eTest/ build/test-results/e2eTest/ /home/runner/work/DAM/DAM/screenshots/
+          
+          # Create directory on server if it doesn't exist
+          ssh -i ~/.ssh/id_rsa ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }} "mkdir -p /home/${{ env.HOST_USER }}/e2e-test-results"
+          
+          # Transfer zip file to server
+          scp -i ~/.ssh/id_rsa test-results.zip ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }}:/home/${{ env.HOST_USER }}/e2e-test-results/

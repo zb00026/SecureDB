@@ -1,142 +1,50 @@
 package com.verlake.dam.e2etest.test;
 
-import com.verlake.dam.e2etest.pageobjects.*;
 import org.junit.jupiter.api.*;
-import org.openqa.selenium.Dimension;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Asset/Owner/Audit Trail Test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class AssetE2ETest extends BaseLoginTest {
+public class AssetE2ETest extends BaseE2ETest {
 
-    private AssetsPage assetsPage;
-    private UserManagementPage ownerCreatePage;
-    private AssetCredentialsPage assetCredentialsPage;
-
-    private String auditorUsername;
-    private String auditorPassword;
-    private String assetOwnerUsername;
-    private String assetOwnerPassword;
-
-    private String assetName;
-    private String assetDbType;
-    private String assetHostAddress;
-    private String assetPortNumber;
-    private String assetDatabaseName;
-    private String assetDescription;
-    private String assetCredentialUsername;
-    private String assetCredentialPassword;
 
     @BeforeAll
     void setupTestData() {
-    }
-
-    @BeforeEach
-    void beforeEach() {
         super.baseSetUp();
-        browser.manage().window().setSize(new Dimension(1920, 1080));  // Full HD resolution
-        keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
-        auditorUsername = getEnvVariable("KEYCLOAK_AUDITOR_USER");
-        auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
-        assetOwnerUsername = getEnvVariable("KEYCLOAK_ASSET_OWNER_USER");
-        assetOwnerPassword = getEnvVariable("KEYCLOAK_ASSET_OWNER_PASSWORD");
-        assetName = getEnvVariable("ASSET_NAME");
-        assetDbType = getEnvVariable("ASSET_DB_TYPE");
-        assetHostAddress = getEnvVariable("ASSET_HOST_ADDRESS");
-        assetPortNumber = getEnvVariable("ASSET_PORT_NUMBER");
-        assetDatabaseName = getEnvVariable("ASSET_DB_NAME");
-        assetDescription = getEnvVariable("ASSET_DESCRIPTION");
-        assetCredentialUsername = getEnvVariable("ASSET_CREDENTIAL_USERNAME");
-        assetCredentialPassword = getEnvVariable("MYSQL_PASSWORD");
     }
 
     @Test
     @Order(1)
     @DisplayName("Create an Asset")
     void createAnAsset() throws InterruptedException {
-        super.loginAsAdmin();
-        dashboardPage.waitForDashboadPage();
-        assertThat(dashboardPage.btnLogout.getText()).isEqualTo("Logout");
-
-        // Add Asset
-        assetsPage = new AssetsPage(browser, baseUrl);
-        assetsPage.navigateToAssetsPage();
-        assetsPage.waitForPageToLoad();
-        assetsPage.addNewAsset(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName, assetDescription);
-
+        createAsset();
     }
 
     @Test
     @Order(2)
-    @DisplayName("Assign owner to created asset")
-    void createAnAssetOwner() throws InterruptedException {
-        // Create Asset Owner Account
-        ownerCreatePage = new UserManagementPage(browser, baseUrl);
-        ownerCreatePage.navigateToUserManagement();
-        assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/admin/users");
-
-        // Add delays between operations
-        ownerCreatePage.createUser(assetOwnerUsername, "E2E Asset", "E2E Owner", assetOwnerPassword, "Asset Owner");
-        Thread.sleep(2000);
+    @DisplayName("Assign owner to created asset and set ownership")
+    void createAndAssignAssetOwner() throws InterruptedException {
+        createAndSetAssetOwner();
     }
 
     @Test
     @Order(3)
-    @DisplayName("Set the owner of created Asset")
-    void setOwnerOfAsset() throws InterruptedException {
-        // Set the owner of created Asset
-        assetsPage.navigateToAssetsPage();
-        assetsPage.setOwnerOfAsset(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName,
-                "E2E Asset", "E2E Owner", assetOwnerUsername);
-        Thread.sleep(2000);
-
-        // Logout
-        dashboardPage.logout();
-    }
-
-    @Test
-    @Order(4)
-    @DisplayName("Log in as Asset Owner and create Credential")
-    void loginAssetOwnerCreateCredential() throws InterruptedException {
-        // Login as auditor
-        browser.get(baseUrl);
-        homePage.clickKeycloakButton();
-        keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
-        keycloakLoginPage.login(assetOwnerUsername, assetOwnerPassword);
-
-        // Verify login success
-        dashboardPage.navigateToDashboard();
-        dashboardPage.waitForDashboadPage();
-
-        // Navigate to Asset Credentials Page
-        assetCredentialsPage = new AssetCredentialsPage(browser, baseUrl);
-        assetCredentialsPage.navigateToAssetsPage();
-        assetCredentialsPage.waitForPageToLoad(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName);
-        assetCredentialsPage.createCredential(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName, assetCredentialUsername, assetCredentialPassword);
-
+    @DisplayName("Log in as Asset Owner, create and relinquish Credential")
+    void createAndRelinquishCredential() throws InterruptedException {
+        loginAssetOwnerAndCreateCredential();
+        
         //Relinquish Credential
         assetCredentialsPage.relinquishCredential(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName);
         dashboardPage.logout();
     }
 
     @Test
-    @Order(5)
+    @Order(4)
     @DisplayName("Verify audit trail as auditor")
     void auditVerification() throws InterruptedException {
-        // Login as auditor
-        homePage.clickKeycloakButton();
-        Thread.sleep(3000);
-        keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
-        keycloakLoginPage.login(auditorUsername, auditorPassword);
-
-        // Verify login success
-        dashboardPage = new DashboardPage(browser, baseUrl);
-        dashboardPage.waitForDashboadPage();
-
-        // Navigate to Audit Trail Page
-        AuditHistoryPage auditPage = new AuditHistoryPage(browser, baseUrl);
-        auditPage.navigateToAuditHistory();
+        loginAsAuditorAndNavigateToAuditTrail(auditorUsername, auditorPassword);
         assertThat(auditPage.verifyAuditEntry("CREATE", assetName)).isTrue();
         assertThat(auditPage.verifyAuditEntry("CREATE", assetOwnerUsername)).isTrue();
         assertThat(auditPage.verifyAuditEntry("CREATE", "ASSET_CREDENTIAL")).isTrue();
@@ -144,6 +52,5 @@ public class AssetE2ETest extends BaseLoginTest {
         assertThat(auditPage.verifyAuditEntry("DELETE", assetCredentialUsername)).isTrue();
         assertThat(auditPage.verifyAuditEntry("CREATE", "RELINQUISH_ASSET_CREDENTIAL")).isTrue();
         assertThat(auditPage.verifyAuditEntry("UPDATE", "RELINQUISH_ASSET_CREDENTIAL")).isTrue();
-        
     }
 }

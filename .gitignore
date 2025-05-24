@@ -13,6 +13,7 @@ logs/
 .settings
 .springBeans
 .sts4-cache
+screenshots/
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/

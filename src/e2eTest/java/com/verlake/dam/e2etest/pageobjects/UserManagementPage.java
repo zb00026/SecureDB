@@ -37,7 +37,6 @@ public class UserManagementPage extends BasePage {
         browser.get(baseUrl + "/admin/users");
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(usersTitle));
-        cancelTemporaryPassword();
     }
 
     public void createUser(String email, String firstName, String lastName, String password, String role)

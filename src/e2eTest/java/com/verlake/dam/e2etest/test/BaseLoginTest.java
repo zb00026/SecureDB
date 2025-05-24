@@ -6,11 +6,17 @@ import com.verlake.dam.e2etest.pageobjects.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class BaseLoginTest extends E2E {
     protected MainPage homePage;
     protected KeycloakLoginPage keycloakLoginPage;
     protected DashboardPage dashboardPage;
+    protected AuditHistoryPage auditPage;
     protected String baseUrl;
     protected String keycloakAuthUrl;
 
@@ -33,7 +39,28 @@ public class BaseLoginTest extends E2E {
         // Verify login success
         dashboardPage = new DashboardPage(browser, baseUrl);
         dashboardPage.waitForDashboadPage();
+        dashboardPage.updatePassword(adminPassword);
         assertThat(browser.getCurrentUrl()).contains(baseUrl);
+    }
+
+
+
+    protected void loginAsAuditorAndNavigateToAuditTrail(String auditorUsername, String auditorPassword) throws InterruptedException {
+        // Login as auditor
+        homePage.clickKeycloakButton();
+        Thread.sleep(3000);
+        keycloakLoginPage = new KeycloakLoginPage(browser, keycloakAuthUrl);
+        keycloakLoginPage.login(auditorUsername, auditorPassword);
+        System.out.println("Auditor: " + auditorUsername + " Current URL: " + browser.getCurrentUrl());
+
+        // Verify login success
+        dashboardPage = new DashboardPage(browser, baseUrl);
+        dashboardPage.waitForDashboadPage();
+        dashboardPage.updatePassword(auditorPassword);
+
+        // Navigate to Audit Trail Page
+        auditPage = new AuditHistoryPage(browser, baseUrl);
+        auditPage.navigateToAuditHistory();
     }
 
 }

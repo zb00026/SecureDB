@@ -100,6 +100,11 @@ public class KeycloakService {
         List<UserRepresentation> users = usersResource.search(username);
         if (users != null && !users.isEmpty()) {
             return users.get(0);  // Return the first matched user
+        } else {
+            users = usersResource.searchByEmail(username, true);
+            if (users != null && !users.isEmpty()) {
+                return users.get(0);
+            }
         }
         return null;  // No user found
     }
@@ -178,7 +183,7 @@ public class KeycloakService {
 
     public void updateUserKey(String userId, String jwtToken) {
         String userKey = getUserKeyViaAccountApi(jwtToken);
-        
+
         if (userKey == null || userKey.isEmpty()) {
             String newUserKey = generateRandomUserKey();
             updateUserKeyViaAccountApi(userId, newUserKey, jwtToken);

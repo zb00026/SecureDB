@@ -23,6 +23,9 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     // Find requests for a specific asset
     List<AccessRequest> findByAsset(Asset asset);
     
+    // Delete all access requests for a specific asset
+    void deleteByAsset(Asset asset);
+    
     // Find requests by approval status
     List<AccessRequest> findByDeveloperApproverStatus(ApprovalStatus status);
     List<AccessRequest> findByAssetApproverStatus(ApprovalStatus status);
@@ -101,5 +104,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
            "JOIN FETCH ar.asset " +
            "WHERE ar.asset = :asset")
     List<AccessRequest> findByAssetWithFetch(@Param("asset") Asset asset);
+
+    
 
 } 

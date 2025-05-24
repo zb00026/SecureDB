@@ -45,7 +45,7 @@ public class KeycloakLoginPage extends BasePage {
         wait.until(ExpectedConditions.visibilityOf(usernameField));
     }
 
-    public void login(String username, String password) {
+    public void login(String username, String password) throws InterruptedException {
         // Wait for the login page to load and be ready
         waitForLoginPage();
 
@@ -53,5 +53,6 @@ public class KeycloakLoginPage extends BasePage {
         usernameField.sendKeys(username);
         passwordField.sendKeys(password);
         loginButton.click();
+        Thread.sleep(3000);
     }
 }

@@ -11,6 +11,8 @@ import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
+import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.assets.AccessRequestService;
@@ -58,6 +60,10 @@ public class OwnerAssetController {
     @Value("${auth.provider}")
     private String authProvider;
     private AssetObjectRepository assetObjectRepository;
+    @Autowired
+    private AccessRequestRepository accessRequestRepository;
+    @Autowired
+    private AccessLevelObjectRepository accessLevelObjectRepository;
 
     /**
      * Constructor for OwnerAssetController.
@@ -143,6 +149,11 @@ public class OwnerAssetController {
         }
         //Needs to remove related asset objects
         assetObjectRepository.deleteByAssetCredential(existingCredential);
+        //Remove existing developer's access request for this asset
+        accessRequestRepository.findByAsset(existingCredential.getAsset()).forEach(accessRequest -> {
+           accessLevelObjectRepository.deleteByAccessRequest(accessRequest);
+        });
+        accessRequestRepository.deleteByAsset(existingCredential.getAsset());
         assetService.deleteAssetCredential(existingCredential);
         List<User> admins = userService.getAdminRoleUsers();
         String myEmail = CommonUtils.getEmailFromSession();

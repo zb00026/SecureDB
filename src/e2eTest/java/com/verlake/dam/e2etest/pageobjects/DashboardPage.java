@@ -38,27 +38,70 @@ public class DashboardPage extends BasePage {
         wait.until(ExpectedConditions.urlMatches("^" + baseUrl));
 
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
-        cancelTemporaryPassword();
         // Wait for the username field to be visible
         wait.until(ExpectedConditions.visibilityOf(btnLogout));
 
     }
 
     public void logout() throws InterruptedException {
-        browser.navigate().to(baseUrl);
-        cancelTemporaryPassword();
-        wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
-        wait.until(ExpectedConditions.elementToBeClickable(btnLogout));
-        btnLogout.click();
-        Thread.sleep(3000);
+        try {
+            browser.navigate().to(baseUrl);
+            wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
+            
+            // Wait for logout button and ensure it's truly clickable
+            wait.until(ExpectedConditions.elementToBeClickable(btnLogout));
+            wait.until(driver -> {
+                try {
+                    return btnLogout.isDisplayed() && btnLogout.isEnabled();
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+            
+            // Try clicking with retry logic
+            int maxRetries = 5;
+            int retryCount = 0;
+            boolean clickSuccess = false;
+            
+            while (!clickSuccess && retryCount < maxRetries) {
+                try {
+                    // Try JavaScript click first
+                    ((JavascriptExecutor) browser).executeScript("arguments[0].click();", btnLogout);
+                    clickSuccess = true;
+                } catch (Exception e) {
+                    retryCount++;
+                    if (retryCount == maxRetries) {
+                        // Last attempt, try regular click
+                        try {
+                            btnLogout.click();
+                            clickSuccess = true;
+                        } catch (Exception clickEx) {
+                            System.err.println("Failed to click logout button after " + maxRetries + " attempts");
+                            takeScreenshotOnError("logout_button_click_failed", clickEx);
+                            throw clickEx;
+                        }
+                    }
+                    Thread.sleep(1000); // Wait before retry
+                }
+            }
 
-        // Clear browser cache and cookies
-        browser.manage().deleteAllCookies();
+            Thread.sleep(3000);
+            
+            // Wait for login button with timeout
+            WebDriverWait shortWait = new WebDriverWait(browser, Duration.ofSeconds(10));
+            shortWait.until(ExpectedConditions.visibilityOf(browser.findElement(By.id("btnLogin"))));
 
-        // Execute JavaScript to clear localStorage and sessionStorage
-        ((JavascriptExecutor) browser).executeScript("window.localStorage.clear();");
-        ((JavascriptExecutor) browser).executeScript("window.sessionStorage.clear();");
-        browser.navigate().to(baseUrl);
-
+            // Clear browser cache and cookies
+            browser.manage().deleteAllCookies();
+            ((JavascriptExecutor) browser).executeScript("window.localStorage.clear();");
+            ((JavascriptExecutor) browser).executeScript("window.sessionStorage.clear();");
+            browser.navigate().to(baseUrl);
+            
+        } catch (Exception e) {
+            System.err.println("Logout failed: " + e.getMessage());
+            System.err.println("Current URL: " + browser.getCurrentUrl());
+            takeScreenshotOnError("logout_failed", e);
+            throw e;
+        }
     }
 }
