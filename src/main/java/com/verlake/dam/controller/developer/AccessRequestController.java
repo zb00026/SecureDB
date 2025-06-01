@@ -3,6 +3,7 @@ package com.verlake.dam.controller.developer;
 import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
@@ -10,6 +11,7 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import jakarta.persistence.Access;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,7 @@ import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -170,6 +173,21 @@ public class AccessRequestController {
         try {
             accessRequestService.relinquishAccess(accessRequestId);
             return CommonUtils.getSuccessResponse();
+        } catch (Exception e) {
+            log.error("Error relinquishing access: {}", e.getMessage(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    @PostMapping("/run_query")
+    public ResponseEntity<Map<String, Object>> runAssetQuery(@RequestBody AccessQueryDTO queryDto) {
+        try {
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put(Constants.STATUS_NAME, Constants.STATUS_SUCCESS);
+            response.put("results", accessRequestService.runQuery(queryDto));
+            
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error relinquishing access: {}", e.getMessage(), e);
             throw new ResponseStatusException(

@@ -1,6 +1,7 @@
 package com.verlake.dam.service.assets;
 
 import com.verlake.dam.entity.assets.*;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
@@ -12,11 +13,17 @@ import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -35,6 +42,7 @@ import com.verlake.dam.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -52,6 +60,8 @@ public class AccessRequestService {
     private final KeycloakService keycloakService;
     private final AssetCredentialsRepository assetCredentialsRepository;
     private final DatabaseAccessService databaseAccessService;
+    private final AuditTrailService auditTrailService;
+    private final ObjectMapper objectMapper;
 
     public AccessRequestService(
             AccessRequestRepository accessRequestRepository,
@@ -61,7 +71,8 @@ public class AccessRequestService {
             UserRepository userRepository,
             NotificationTaskRepository notificationTaskRepository,
             KeycloakService keycloakService, AssetCredentialsRepository assetCredentialsRepository,
-            DatabaseAccessService databaseAccessService) {
+            DatabaseAccessService databaseAccessService,
+            AuditTrailService auditTrailService) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
@@ -71,6 +82,8 @@ public class AccessRequestService {
         this.keycloakService = keycloakService;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.databaseAccessService = databaseAccessService;
+        this.auditTrailService = auditTrailService;
+        this.objectMapper = new ObjectMapper();
     }
 
     private String generateSql(List<AccessLevelObject> accessLevelObjects) {
@@ -310,5 +323,128 @@ public class AccessRequestService {
         accessRequestRepository.save(accessRequest);
 
         sendNotifications(accessRequest, accessRequest.getRequestor(), accessRequest.getAsset(), false);
+    }
+
+    public Map<String, Object> runQuery(AccessQueryDTO accessQueryDTO) {
+        AccessRequest accessRequest = findById(accessQueryDTO.getRequestId());
+        if (accessRequest == null) {
+            throw new ResourceNotFoundException("No access request provided");
+        }
+
+        AssetCredential devCredential = accessRequest.getAssetCredential();
+        if (devCredential == null) {
+            throw new ResourceNotFoundException("No asset credential found for this access request");
+        }
+
+        // Validate that the access request is approved and not expired
+        if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
+            !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
+            throw new IllegalArgumentException("Access request is not approved");
+        }
+
+        if (accessRequest.getExpiryDate() != null && accessRequest.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Access request has expired");
+        }
+
+        Map<String, Object> result = null;
+        boolean querySuccess = false;
+        String errorMessage = null;
+        long startTime = System.currentTimeMillis();
+
+        try {
+            result = databaseAccessService.executeQueryWithCredentials(devCredential, accessQueryDTO.getQuery());
+            querySuccess = true;
+            
+            // Create successful audit log
+            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, null, result, startTime);
+            
+            return result;
+        } catch (Exception e) {
+            errorMessage = e.getMessage();
+            log.error("Error executing query for access request: {}", accessQueryDTO.getRequestId(), e);
+            
+            // Create failed audit log
+            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, errorMessage, null, startTime);
+            
+            throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
+        }
+    }
+
+    private void createQueryAuditLog(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest, 
+                                    AssetCredential credential, boolean success, String errorMessage, 
+                                    Map<String, Object> result, long startTime) {
+        try {
+            long executionTime = System.currentTimeMillis() - startTime;
+            String username = getCurrentUsername();
+            String ipAddress = getCurrentIpAddress();
+            
+            // Create audit metadata
+            Map<String, Object> auditMetadata = new HashMap<>();
+            auditMetadata.put("requestId", accessQueryDTO.getRequestId());
+            auditMetadata.put("assetId", accessRequest.getAsset().getId());
+            auditMetadata.put("assetName", accessRequest.getAsset().getName());
+            auditMetadata.put("databaseType", accessRequest.getAsset().getDatabaseType().toString());
+            auditMetadata.put("hostUrl", accessRequest.getAsset().getHostUrl());
+            auditMetadata.put("username", credential.getUsername());
+            auditMetadata.put("query", accessQueryDTO.getQuery());
+            auditMetadata.put("executionTimeMs", executionTime);
+            auditMetadata.put("success", success);
+            
+            if (!success && errorMessage != null) {
+                auditMetadata.put("errorMessage", errorMessage);
+            }
+            
+            if (success && result != null) {
+                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
+                auditMetadata.put("rowCount", data != null ? data.size() : 0);
+                List<String> headers = (List<String>) result.get("headers");
+                auditMetadata.put("columnCount", headers != null ? headers.size() : 0);
+            }
+
+            // Create instance ID for query execution
+            String instanceId = String.format("QUERY_EXECUTION(%s)", accessQueryDTO.getRequestId());
+
+            AuditTrail audit = AuditTrail.builder()
+                .timestamp(LocalDateTime.now())
+                .user(username)
+                .action(success ? "QUERY_EXECUTED" : "QUERY_FAILED")
+                .instanceId(instanceId)
+                .actionMetadata(objectMapper.writeValueAsString(auditMetadata))
+                .previousValue(null) // No previous value for query execution
+                .newValue(success ? "Query executed successfully" : "Query execution failed")
+                .ipAddress(ipAddress)
+                .build();
+
+            auditTrailService.save(audit);
+            
+            log.info("Audit log created for query execution: requestId={}, success={}, executionTime={}ms", 
+                     accessQueryDTO.getRequestId(), success, executionTime);
+                     
+        } catch (Exception e) {
+            log.error("Failed to create audit log for query execution: {}", e.getMessage(), e);
+        }
+    }
+
+    private String getCurrentUsername() {
+        try {
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                if (principal instanceof Jwt) {
+                    return ((Jwt) principal).getClaimAsString("email");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get current username: {}", e.getMessage());
+        }
+        return "system";
+    }
+
+    private String getCurrentIpAddress() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            return attributes.getRequest().getRemoteAddr();
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 }

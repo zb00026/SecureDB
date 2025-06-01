@@ -3,6 +3,7 @@ package com.verlake.dam.service.assets;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.user.User;
@@ -87,7 +88,7 @@ public class DatabaseAccessService {
     }
 
     private String fetchMySQLObjects(AssetCredential credential, ObjectNode rootNode) throws SQLException {
-        String jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostUrl();
+        String jdbcUrl = Constants.JDBC_MYSQL_URL + credential.getAsset().getHostUrl();
 
         Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(),
                 credential.getPassword());
@@ -557,16 +558,16 @@ public class DatabaseAccessService {
         String jdbcUrl;
         switch (credential.getAsset().getDatabaseType()) {
             case MYSQL:
-                jdbcUrl = "jdbc:mysql://" + credential.getAsset().getHostUrl();
+                jdbcUrl = Constants.JDBC_MYSQL_URL + credential.getAsset().getHostUrl();
                 break;
             case POSTGRESQL:
-                jdbcUrl = "jdbc:postgresql://" + credential.getAsset().getHostUrl();
+                jdbcUrl = Constants.JDBC_POSTGRESQL_URL + credential.getAsset().getHostUrl();
                 break;
             case ORACLE:
-                jdbcUrl = "jdbc:oracle:thin:@" + credential.getAsset().getHostUrl();
+                jdbcUrl = Constants.JDBC_ORACLE_URL + credential.getAsset().getHostUrl();
                 break;
             case SQLSERVER:
-                jdbcUrl = "jdbc:sqlserver://" + credential.getAsset().getHostUrl();
+                jdbcUrl = Constants.JDBC_SQLSERVER_URL + credential.getAsset().getHostUrl();
                 break;
             default:
                 throw new DatabaseAccessException(
@@ -838,4 +839,83 @@ public class DatabaseAccessService {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query)
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
+        
+        String userKey = keycloakService.getUserKey();
+        String decryptedPassword = credential.getPassword();
+        
+        // Decrypt password if it's not a temporary password
+        if (!credential.getIsTemporaryPassword()) {
+            decryptedPassword = CommonUtils.decrypt(userKey, credential.getPassword());
+        } else {
+            log.error("Can not run query with temporary password: {}", query);
+            throw new DatabaseAccessException("Can not run query with temporary password: " + query, null);
+        }
+
+        String jdbcUrl = buildJdbcUrl(credential.getAsset());
+        
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
+            List<String> headers = new ArrayList<>();
+            List<Map<String, Object>> data = new ArrayList<>();
+            
+            try (PreparedStatement statement = connection.prepareStatement(query);
+                 ResultSet resultSet = statement.executeQuery()) {
+                
+                ResultSetMetaData metaData = resultSet.getMetaData();
+                int columnCount = metaData.getColumnCount();
+                
+                // Extract headers
+                for (int i = 1; i <= columnCount; i++) {
+                    String columnName = metaData.getColumnName(i);
+                    headers.add(columnName);
+                }
+                
+                // Extract data rows
+                while (resultSet.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    for (int i = 1; i <= columnCount; i++) {
+                        String columnName = metaData.getColumnName(i);
+                        Object value = resultSet.getObject(i);
+                        row.put(columnName, value);
+                    }
+                    data.add(row);
+                }
+            }
+            
+            // Create result structure with headers and data
+            Map<String, Object> result = new HashMap<>();
+            result.put("headers", headers);
+            result.put("data", data);
+            
+            return result;
+        } catch (SQLException e) {
+            log.error("Error executing query: {}", query, e);
+            throw new DatabaseAccessException("Error executing query: " + e.getMessage(), e);
+        }
+    }
+
+    private String buildJdbcUrl(Asset asset) {
+        String baseUrl;
+        switch (asset.getDatabaseType()) {
+            case MYSQL:
+                baseUrl = Constants.JDBC_MYSQL_URL + asset.getHostUrl();
+                break;
+            case POSTGRESQL:
+                baseUrl = Constants.JDBC_POSTGRESQL_URL + asset.getHostUrl();
+                break;
+            case ORACLE:
+                baseUrl = Constants.JDBC_ORACLE_URL + asset.getHostUrl();
+                break;
+            case SQLSERVER:
+                baseUrl = Constants.JDBC_SQLSERVER_URL + asset.getHostUrl();
+                break;
+            default:
+                throw new DatabaseAccessException(
+                        "Unsupported database type: " + asset.getDatabaseType(), null);
+        }
+        return baseUrl;
+    }
 }

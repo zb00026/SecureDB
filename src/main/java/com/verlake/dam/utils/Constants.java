@@ -60,6 +60,11 @@ public class Constants {
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 
+    public static final String JDBC_MYSQL_URL = "jdbc:mysql://";
+    public static final String JDBC_POSTGRESQL_URL = "jdbc:postgresql://";
+    public static final String JDBC_SQLSERVER_URL = "jdbc:sqlserver://";
+    public static final String JDBC_ORACLE_URL = "jdbc:oracle:thin:@";
+
     public static final int ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS = 2160;
 
     public static final int INVITE_CODE_LENGTH = 15;
