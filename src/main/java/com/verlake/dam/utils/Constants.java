@@ -57,8 +57,44 @@ public class Constants {
     public static final String EMAIL_VAR_DB_USERNAME = "dbUsername";
     public static final String EMAIL_VAR_DB_PASSWORD = "dbPassword";
     public static final String EMAIL_VAR_IS_ACCESS_REQUEST = "isAccessRequest";
+    public static final String EMAIL_VAR_DATABASE_TYPE = "databaseType";
+    public static final String EMAIL_VAR_HOST_URL = "hostUrl";
+    public static final String EMAIL_VAR_EXECUTOR_NAME = "executorName";
+    public static final String EMAIL_VAR_EXECUTION_TIME = "executionTime";
+    public static final String EMAIL_VAR_TABLE_NAME = "tableName";
+    public static final String EMAIL_VAR_AFFECTED_ROWS = "affectedRows";
+    public static final String EMAIL_VAR_QUERY = "query";
+    public static final String EMAIL_VAR_REQUEST_ID = "requestId";
+    public static final String EMAIL_VAR_ASSET_ID = "assetId";
+    public static final String EMAIL_VAR_REQUESTOR_NAME = "requestorName";
+    public static final String EMAIL_VAR_MESSAGE_TYPE = "messageType";
+    
+    // Default values
+    public static final String DEFAULT_UNKNOWN_VALUE = "Unknown";
+    
+    // Audit metadata field constants
+    public static final String AUDIT_FIELD_REQUEST_ID = "requestId";
+    public static final String AUDIT_FIELD_ASSET_ID = "assetId";
+    public static final String AUDIT_FIELD_USERNAME = "username";
+    public static final String AUDIT_FIELD_EXECUTION_TIME_MS = "executionTimeMs";
+    public static final String AUDIT_FIELD_SUCCESS = "success";
+    public static final String AUDIT_FIELD_ERROR_MESSAGE = "errorMessage";
+    public static final String AUDIT_FIELD_ROW_COUNT = "rowCount";
+    public static final String AUDIT_FIELD_COLUMN_COUNT = "columnCount";
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
+
+    public static final String MYSQL_QUERY_SELECT = "SELECT";
+    public static final String MYSQL_QUERY_SHOW = "SHOW";
+    public static final String MYSQL_QUERY_DESCRIBE = "DESCRIBE";
+    public static final String MYSQL_QUERY_INSERT = "INSERT";
+    public static final String MYSQL_QUERY_UPDATE = "UPDATE";
+    public static final String MYSQL_QUERY_DELETE = "DELETE";
+    public static final String MYSQL_QUERY_CREATE = "CREATE";
+    public static final String MYSQL_QUERY_ALTER = "ALTER";
+    public static final String MYSQL_QUERY_EXPLAIN = "EXPLAIN";
+    public static final String MYSQL_QUERY_DESC = "DESC";
+    public static final String MYSQL_QUERY_EXECUTE = "EXECUTE";
 
     public static final String JDBC_MYSQL_URL = "jdbc:mysql://";
     public static final String JDBC_POSTGRESQL_URL = "jdbc:postgresql://";

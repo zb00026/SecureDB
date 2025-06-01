@@ -8,6 +8,7 @@ import com.google.api.client.json.Json;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
 import com.verlake.dam.service.firebase.FirebaseMessagingService;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.service.email.EmailService;
@@ -266,6 +267,18 @@ public class NotificationJobConfig {
                         e
                     );
                 }
+            },
+            EmailType.DELETE_QUERY_ALERT, notificationTask -> {
+                try {
+                    sendDeleteQueryNotifyEmail(notificationTask);
+                } catch (Exception e) {
+                    throw new NotificationProcessingException(
+                            "Failed to send DELETE query notify email",
+                            notificationTask.getId(),
+                            notificationTask.getReceiver().getEmail(),
+                            e
+                    );
+                }
             }
         );
         
@@ -310,6 +323,42 @@ public class NotificationJobConfig {
             "approval-asset-access-request",
             ApprovalStatus.valueOf(statusStr),
             credentials
+        );
+    }
+
+    private void sendDeleteQueryNotifyEmail(NotificationTask task) throws Exception {
+        ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
+        JsonNode dataNode = notificationNode.get("data");
+        
+        if (dataNode == null) {
+            throw new JsonParseException(null, "Data node not found in DELETE query notification");
+        }
+
+        // Extract all the required fields for DELETE query alert
+        String executorName = dataNode.has(Constants.EMAIL_VAR_EXECUTOR_NAME) ? dataNode.get(Constants.EMAIL_VAR_EXECUTOR_NAME).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String executionTime = dataNode.has(Constants.EMAIL_VAR_EXECUTION_TIME) ? dataNode.get(Constants.EMAIL_VAR_EXECUTION_TIME).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String tableName = dataNode.has(Constants.EMAIL_VAR_TABLE_NAME) ? dataNode.get(Constants.EMAIL_VAR_TABLE_NAME).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String affectedRows = dataNode.has(Constants.EMAIL_VAR_AFFECTED_ROWS) ? dataNode.get(Constants.EMAIL_VAR_AFFECTED_ROWS).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String query = dataNode.has(Constants.EMAIL_VAR_QUERY) ? dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : "";
+        String databaseType = dataNode.has(Constants.EMAIL_VAR_DATABASE_TYPE) ? dataNode.get(Constants.EMAIL_VAR_DATABASE_TYPE).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String hostUrl = dataNode.has(Constants.EMAIL_VAR_HOST_URL) ? dataNode.get(Constants.EMAIL_VAR_HOST_URL).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+
+        // Create the DTO
+        DeleteQueryAlertData alertData = DeleteQueryAlertData.builder()
+            .executorName(executorName)
+            .executionTime(executionTime)
+            .tableName(tableName)
+            .affectedRows(affectedRows)
+            .query(query)
+            .databaseType(databaseType)
+            .hostUrl(hostUrl)
+            .build();
+
+        emailService.sendDeleteQueryAlertEmail(
+            task.getReceiver(),
+            task.getAsset(),
+            alertData,
+            "asset-delete-query-notify"
         );
     }
 

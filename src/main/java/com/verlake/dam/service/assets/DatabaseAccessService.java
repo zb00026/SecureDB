@@ -309,9 +309,9 @@ public class DatabaseAccessService {
     }
 
     private boolean hasTablePrivileges(String grantStr) {
-        return grantStr.contains("SELECT") || grantStr.contains("INSERT") ||
-                grantStr.contains("UPDATE") || grantStr.contains("DELETE") ||
-                grantStr.contains("CREATE") || grantStr.contains("ALTER");
+        return grantStr.contains(Constants.MYSQL_QUERY_SELECT) || grantStr.contains(Constants.MYSQL_QUERY_INSERT) ||
+                grantStr.contains(Constants.MYSQL_QUERY_UPDATE) || grantStr.contains(Constants.MYSQL_QUERY_DELETE) ||
+                grantStr.contains(Constants.MYSQL_QUERY_CREATE) || grantStr.contains(Constants.MYSQL_QUERY_ALTER);
     }
 
     private void addTableGrantFromGlobal(ArrayNode tableGrants) {
@@ -365,9 +365,9 @@ public class DatabaseAccessService {
         switch (privilege.toUpperCase()) {
             case "ALL PRIVILEGES":
                 return Constants.ACCESS_LEVEL_TEMPLATE_FULL;
-            case "SELECT":
+            case Constants.MYSQL_QUERY_SELECT:
                 return "READ ACCESS";
-            case "EXECUTE":
+            case Constants.MYSQL_QUERY_EXECUTE:
                 return "EXECUTE";
             case Constants.ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE:
                 return Constants.ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE;
@@ -861,26 +861,47 @@ public class DatabaseAccessService {
             List<String> headers = new ArrayList<>();
             List<Map<String, Object>> data = new ArrayList<>();
             
-            try (PreparedStatement statement = connection.prepareStatement(query);
-                 ResultSet resultSet = statement.executeQuery()) {
+            try (PreparedStatement statement = connection.prepareStatement(query)) {
                 
-                ResultSetMetaData metaData = resultSet.getMetaData();
-                int columnCount = metaData.getColumnCount();
+                // Determine if this is a SELECT query or a DML statement
+                String trimmedQuery = query.trim().toUpperCase();
+                boolean isSelectQuery = trimmedQuery.startsWith(Constants.MYSQL_QUERY_SELECT) || 
+                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_SHOW) || 
+                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_DESCRIBE) || 
+                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_DESC) ||
+                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_EXPLAIN);
                 
-                // Extract headers
-                for (int i = 1; i <= columnCount; i++) {
-                    String columnName = metaData.getColumnName(i);
-                    headers.add(columnName);
-                }
-                
-                // Extract data rows
-                while (resultSet.next()) {
-                    Map<String, Object> row = new HashMap<>();
-                    for (int i = 1; i <= columnCount; i++) {
-                        String columnName = metaData.getColumnName(i);
-                        Object value = resultSet.getObject(i);
-                        row.put(columnName, value);
+                if (isSelectQuery) {
+                    // Execute SELECT query that returns a result set
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        ResultSetMetaData metaData = resultSet.getMetaData();
+                        int columnCount = metaData.getColumnCount();
+                        
+                        // Extract headers
+                        for (int i = 1; i <= columnCount; i++) {
+                            String columnName = metaData.getColumnName(i);
+                            headers.add(columnName);
+                        }
+                        
+                        // Extract data rows
+                        while (resultSet.next()) {
+                            Map<String, Object> row = new HashMap<>();
+                            for (int i = 1; i <= columnCount; i++) {
+                                String columnName = metaData.getColumnName(i);
+                                Object value = resultSet.getObject(i);
+                                row.put(columnName, value);
+                            }
+                            data.add(row);
+                        }
                     }
+                } else {
+                    // Execute DML statement (UPDATE, INSERT, DELETE, etc.)
+                    int affectedRows = statement.executeUpdate();
+                    
+                    // Create headers and data for DML statements
+                    headers.add("Affected Rows");
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("Affected Rows", affectedRows);
                     data.add(row);
                 }
             }

@@ -20,4 +20,22 @@
             )"
         />
     </changeSet>
+
+    <changeSet id="update_email_type_2" author="admin">
+        <modifyDataType 
+            tableName="emails" 
+            columnName="email_type" 
+            newDataType="ENUM(
+                'INVITATION',
+                'OTHER',
+                'RELINQUISH_ASSET_CREDENTIAL',
+                'ASSET_APPROVE_NOTIFY',
+                'DEVELOPER_ASSET_REQUEST_NOTIFY',
+                'DEVELOPER_RELINQUISH_ASSET_NOTIFY',
+                'APPROVAL_ASSET_ACCESS_REQUEST',
+                'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR',
+                'DELETE_QUERY_ALERT'
+            )"
+        />
+    </changeSet>
 </databaseChangeLog>

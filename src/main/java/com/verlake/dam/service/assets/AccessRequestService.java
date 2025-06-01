@@ -195,12 +195,13 @@ public class AccessRequestService {
 
         // Prepare notification data
         Map<String, String> notificationData = new HashMap<>();
-        notificationData.put("requestId", request.getId().toString());
-        notificationData.put("assetId", asset.getId().toString());
-        notificationData.put("assetName", asset.getName());
-        notificationData.put("assetDescription", asset.getDescription());
-        notificationData.put("requestorName", requestor.getFirstName() + " " + requestor.getLastName());
-        notificationData.put("messageType", "1"); // 1 : success, 0: fail
+        notificationData.put(Constants.EMAIL_VAR_REQUEST_ID, request.getId().toString());
+        notificationData.put(Constants.EMAIL_VAR_ASSET_ID, asset.getId().toString());
+        notificationData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        notificationData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+        notificationData.put(Constants.EMAIL_VAR_REQUESTOR_NAME,
+                requestor.getFirstName() + " " + requestor.getLastName());
+        notificationData.put(Constants.EMAIL_VAR_MESSAGE_TYPE, "1"); // 1 : success, 0: fail
         notificationData.put(Constants.EMAIL_VAR_IS_ACCESS_REQUEST, isAccessRequest ? "1" : "0");
 
         if (developerApprover != null) {
@@ -233,7 +234,7 @@ public class AccessRequestService {
             notificationMessage.setBody(String.format("%s %s has relinquished access to %s",
                     requestor.getFirstName(), requestor.getLastName(), asset.getName()));
         }
-        
+
         notificationData.put(Constants.NOTIFY_DATA_ATTR_RECEIVER_ID, receiver.getId().toString());
         notificationMessage.setData(notificationData);
         notificationMessage.setTopic("dam_notification");
@@ -280,11 +281,12 @@ public class AccessRequestService {
     }
 
     public List<AccessRequest> getTemporaryCredentialRequests(User user) {
-        return accessRequestRepository.findByRequestorAndIsTempPasswordAndAssetApproverStatusAndIsDeletedFalseAndExpiryDateAfter(
-            user, 
-            true,
-            ApprovalStatus.APPROVED,
-            LocalDateTime.now());
+        return accessRequestRepository
+                .findByRequestorAndIsTempPasswordAndAssetApproverStatusAndIsDeletedFalseAndExpiryDateAfter(
+                        user,
+                        true,
+                        ApprovalStatus.APPROVED,
+                        LocalDateTime.now());
     }
 
     public List<AccessRequest> getAssetRequests(Asset asset) {
@@ -312,12 +314,13 @@ public class AccessRequestService {
         return accessRequest;
     }
 
-    public void relinquishAccess(Long accessRequestId) throws JsonParseException, ResourceNotFoundException, IllegalArgumentException {
+    public void relinquishAccess(Long accessRequestId)
+            throws JsonParseException, ResourceNotFoundException, IllegalArgumentException {
         AccessRequest accessRequest = findById(accessRequestId);
         if (accessRequest == null) {
             throw new ResourceNotFoundException("No access request provided");
         }
-        
+
         accessRequest.setExpiryDate(LocalDateTime.now());
         accessRequest.setExpiryHours(0);
         accessRequestRepository.save(accessRequest);
@@ -354,77 +357,157 @@ public class AccessRequestService {
         try {
             result = databaseAccessService.executeQueryWithCredentials(devCredential, accessQueryDTO.getQuery());
             querySuccess = true;
-            
             // Create successful audit log
             createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, null, result, startTime);
-            
+
+            // Create successful audit log
+            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, null, result, startTime);
             return result;
         } catch (Exception e) {
             errorMessage = e.getMessage();
             log.error("Error executing query for access request: {}", accessQueryDTO.getRequestId(), e);
-            
             // Create failed audit log
-            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, errorMessage, null, startTime);
-            
+            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, errorMessage, null,
+                    startTime);
             throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
         }
     }
 
-    private void createQueryAuditLog(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest, 
-                                    AssetCredential credential, boolean success, String errorMessage, 
-                                    Map<String, Object> result, long startTime) {
+    private void createQueryAuditLog(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest,
+            AssetCredential credential, boolean success, String errorMessage,
+            Map<String, Object> result, long startTime) {
+
         try {
             long executionTime = System.currentTimeMillis() - startTime;
             String username = getCurrentUsername();
             String ipAddress = getCurrentIpAddress();
-            
+
+            // Check if this is a DELETE query for notifications
+            String trimmedQuery = accessQueryDTO.getQuery().trim().toUpperCase();
+            boolean isDeleteQuery = trimmedQuery.startsWith("DELETE");
+
             // Create audit metadata
             Map<String, Object> auditMetadata = new HashMap<>();
-            auditMetadata.put("requestId", accessQueryDTO.getRequestId());
-            auditMetadata.put("assetId", accessRequest.getAsset().getId());
-            auditMetadata.put("assetName", accessRequest.getAsset().getName());
-            auditMetadata.put("databaseType", accessRequest.getAsset().getDatabaseType().toString());
-            auditMetadata.put("hostUrl", accessRequest.getAsset().getHostUrl());
-            auditMetadata.put("username", credential.getUsername());
-            auditMetadata.put("query", accessQueryDTO.getQuery());
-            auditMetadata.put("executionTimeMs", executionTime);
-            auditMetadata.put("success", success);
-            
+            auditMetadata.put(Constants.AUDIT_FIELD_REQUEST_ID, accessQueryDTO.getRequestId());
+            auditMetadata.put(Constants.AUDIT_FIELD_ASSET_ID, accessRequest.getAsset().getId());
+            auditMetadata.put(Constants.EMAIL_VAR_ASSET_NAME, accessRequest.getAsset().getName());
+            auditMetadata.put(Constants.EMAIL_VAR_DATABASE_TYPE, accessRequest.getAsset().getDatabaseType().toString());
+            auditMetadata.put(Constants.EMAIL_VAR_HOST_URL, accessRequest.getAsset().getHostUrl());
+            auditMetadata.put(Constants.AUDIT_FIELD_USERNAME, credential.getUsername());
+            auditMetadata.put(Constants.EMAIL_VAR_QUERY, accessQueryDTO.getQuery());
+            auditMetadata.put(Constants.AUDIT_FIELD_EXECUTION_TIME_MS, executionTime);
+            auditMetadata.put(Constants.AUDIT_FIELD_SUCCESS, success);
+
             if (!success && errorMessage != null) {
-                auditMetadata.put("errorMessage", errorMessage);
+                auditMetadata.put(Constants.AUDIT_FIELD_ERROR_MESSAGE, errorMessage);
             }
-            
+
             if (success && result != null) {
                 List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
-                auditMetadata.put("rowCount", data != null ? data.size() : 0);
+                auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data != null ? data.size() : 0);
                 List<String> headers = (List<String>) result.get("headers");
-                auditMetadata.put("columnCount", headers != null ? headers.size() : 0);
+                auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers != null ? headers.size() : 0);
+
             }
 
             // Create instance ID for query execution
             String instanceId = String.format("QUERY_EXECUTION(%s)", accessQueryDTO.getRequestId());
 
             AuditTrail audit = AuditTrail.builder()
-                .timestamp(LocalDateTime.now())
-                .user(username)
-                .action(success ? "QUERY_EXECUTED" : "QUERY_FAILED")
-                .instanceId(instanceId)
-                .actionMetadata(objectMapper.writeValueAsString(auditMetadata))
-                .previousValue(null) // No previous value for query execution
-                .newValue(success ? "Query executed successfully" : "Query execution failed")
-                .ipAddress(ipAddress)
-                .build();
+                    .timestamp(LocalDateTime.now())
+                    .user(username)
+                    .action(success ? "QUERY_EXECUTED" : "QUERY_FAILED")
+                    .instanceId(instanceId)
+                    .actionMetadata(objectMapper.writeValueAsString(auditMetadata))
+                    .previousValue(null) // No previous value for query execution
+                    .newValue(success ? "Query executed successfully" : "Query execution failed")
+                    .ipAddress(ipAddress)
+                    .build();
 
             auditTrailService.save(audit);
-            
-            log.info("Audit log created for query execution: requestId={}, success={}, executionTime={}ms", 
-                     accessQueryDTO.getRequestId(), success, executionTime);
-                     
+
+            // Send DELETE query alert to asset owners if it's a successful DELETE operation
+            if (success && isDeleteQuery) {
+                sendDeleteQueryAlert(accessRequest, accessQueryDTO.getQuery(), result);
+            }
+
+            log.info("Audit log created for query execution: requestId={}, success={}, executionTime={}ms",
+                    accessQueryDTO.getRequestId(), success, executionTime);
         } catch (Exception e) {
             log.error("Failed to create audit log for query execution: {}", e.getMessage(), e);
         }
     }
 
+    private void sendDeleteQueryAlert(AccessRequest accessRequest,
+            String query, Map<String, Object> result) {
+        try {
+            // Get asset owners
+            List<User> assetOwners = assetService.getAssetOwners(accessRequest.getAsset());
+
+            // Extract table name from DELETE query (basic parsing)
+            String tableName = extractTableNameFromDeleteQuery(query);
+
+            // Get affected rows count
+            String affectedRows = "Unknown";
+            if (result != null && result.get("data") != null) {
+                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
+                if (!data.isEmpty() && data.get(0).containsKey("Affected Rows")) {
+                    affectedRows = String.valueOf(data.get(0).get("Affected Rows"));
+                }
+            }
+
+            // Prepare notification data for DELETE alert
+            Map<String, String> notificationData = new HashMap<>();
+            notificationData.put(Constants.EMAIL_VAR_ASSET_NAME, accessRequest.getAsset().getName());
+            notificationData.put(Constants.EMAIL_VAR_DATABASE_TYPE,
+                    accessRequest.getAsset().getDatabaseType().toString());
+            notificationData.put(Constants.EMAIL_VAR_HOST_URL, accessRequest.getAsset().getHostUrl());
+            notificationData.put(Constants.EMAIL_VAR_EXECUTOR_NAME, getCurrentUsername());
+            notificationData.put(Constants.EMAIL_VAR_EXECUTION_TIME, LocalDateTime.now().toString());
+            notificationData.put(Constants.EMAIL_VAR_TABLE_NAME, tableName);
+            notificationData.put(Constants.EMAIL_VAR_AFFECTED_ROWS, affectedRows);
+            notificationData.put(Constants.EMAIL_VAR_QUERY, query);
+
+            // Send notification to each asset owner using NotificationTask
+            for (User owner : assetOwners) {
+                notificationData.put(Constants.EMAIL_VAR_OWNER_NAME, owner.getFirstName() + " " + owner.getLastName());
+
+                createDeleteQueryNotificationTask(accessRequest, owner, notificationData);
+            }
+
+            log.info("DELETE query alert notification tasks created for asset: {}, to {} owners",
+                    accessRequest.getAsset().getName(), assetOwners.size());
+
+        } catch (Exception e) {
+            log.error("Failed to create DELETE query alert notifications: {}", e.getMessage(), e);
+        }
+    }
+
+    private String extractTableNameFromDeleteQuery(String query) {
+        try {
+            // Basic parsing to extract table name from DELETE query
+            // Example: "DELETE FROM users WHERE id = 1" -> "users"
+            String upperQuery = query.trim().toUpperCase();
+
+            if (upperQuery.startsWith("DELETE FROM")) {
+                String afterFrom = query.substring(upperQuery.indexOf("FROM") + 4).trim();
+                String[] parts = afterFrom.split("\\s+");
+                if (parts.length > 0) {
+                    // Remove any schema prefix (e.g., "database.table" -> "table")
+                    String tableName = parts[0];
+                    if (tableName.contains(".")) {
+                        String[] tableParts = tableName.split("\\.");
+                        return tableParts[tableParts.length - 1];
+                    }
+                    return tableName;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract table name from DELETE query: {}", e.getMessage());
+        }
+        return "Unknown";
+    }
+  
     private String getCurrentUsername() {
         try {
             if (SecurityContextHolder.getContext().getAuthentication() != null) {
@@ -439,9 +522,29 @@ public class AccessRequestService {
         return "system";
     }
 
+    private void createDeleteQueryNotificationTask(AccessRequest accessRequest, User owner,
+            Map<String, String> notificationData) throws Exception {
+        NotificationMessage notificationMessage = new NotificationMessage();
+        notificationMessage.setTitle("DELETE Query Alert - " + accessRequest.getAsset().getName());
+        notificationMessage.setBody(String.format("DELETE operation executed on %s by %s",
+                accessRequest.getAsset().getName(), getCurrentUsername()));
+        notificationMessage.setData(notificationData);
+        notificationMessage.setTopic("dam_notification");
+
+        // Create and save notification task
+        NotificationTask task = new NotificationTask();
+        task.setReceiver(owner);
+        task.setSender(accessRequest.getRequestor());
+        task.setAsset(accessRequest.getAsset());
+        task.setNotificationMessage(notificationMessage.toJson());
+        task.setEmailType(EmailType.DELETE_QUERY_ALERT);
+        notificationTaskRepository.save(task);
+    }
+
     private String getCurrentIpAddress() {
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .currentRequestAttributes();
             return attributes.getRequest().getRemoteAddr();
         } catch (Exception e) {
             return "unknown";

@@ -26,6 +26,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.server.ResponseStatusException;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -259,12 +260,52 @@ public class EmailService {
                 newCredMapper);
     }
 
+    public void sendDeleteQueryAlertEmail(User assetOwner, Asset asset, DeleteQueryAlertData alertData, String emailTmplFile) {
+        
+        Context context = new Context();
+        context.setVariable(Constants.EMAIL_VAR_OWNER_NAME, assetOwner.getFirstName() + " " + assetOwner.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        context.setVariable(Constants.EMAIL_VAR_DATABASE_TYPE, alertData.getDatabaseType());
+        context.setVariable(Constants.EMAIL_VAR_HOST_URL, alertData.getHostUrl());
+        context.setVariable(Constants.EMAIL_VAR_EXECUTOR_NAME, alertData.getExecutorName());
+        context.setVariable(Constants.EMAIL_VAR_EXECUTION_TIME, alertData.getExecutionTime());
+        context.setVariable(Constants.EMAIL_VAR_TABLE_NAME, alertData.getTableName());
+        context.setVariable(Constants.EMAIL_VAR_AFFECTED_ROWS, alertData.getAffectedRows());
+        context.setVariable(Constants.EMAIL_VAR_QUERY, alertData.getQuery());
+
+        String emailSubject = "DELETE Query Alert - " + asset.getName();
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode metaData = objectMapper.createObjectNode();
+        metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        metaData.put(Constants.EMAIL_VAR_DATABASE_TYPE, alertData.getDatabaseType());
+        metaData.put(Constants.EMAIL_VAR_HOST_URL, alertData.getHostUrl());
+        metaData.put(Constants.EMAIL_VAR_EXECUTOR_NAME, alertData.getExecutorName());
+        metaData.put(Constants.EMAIL_VAR_EXECUTION_TIME, alertData.getExecutionTime());
+        metaData.put(Constants.EMAIL_VAR_TABLE_NAME, alertData.getTableName());
+        metaData.put(Constants.EMAIL_VAR_AFFECTED_ROWS, alertData.getAffectedRows());
+        metaData.put(Constants.EMAIL_VAR_QUERY, alertData.getQuery());
+
+        String emailContent = templateEngine.process(emailTmplFile, context);
+        createEmailEntity(assetOwner, EmailType.DELETE_QUERY_ALERT, emailSubject, metaData, emailContent);
+
+        try {
+            sendEmail(assetOwner.getEmail(), emailSubject, emailContent);
+            log.info("DELETE query alert email sent to asset owner: {}", assetOwner.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send DELETE query alert email to {} ", assetOwner.getEmail(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to send DELETE query alert email to " + assetOwner.getEmail());
+        }
+    }
+
     private String getEmailSubject(EmailType emailType) {
         switch (emailType) {
             case DEVELOPER_ASSET_REQUEST_NOTIFY:
                 return "Developer Asset Access Request";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Approval Asset Access Request";
+            case DELETE_QUERY_ALERT:
+                return "DELETE Query Security Alert";
             default:
                 return "Asset Access Request";
         }
@@ -276,6 +317,8 @@ public class EmailService {
                 return "Failed to send developer asset request email to %s";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Failed to send approval asset access request email to %s";
+            case DELETE_QUERY_ALERT:
+                return "Failed to send DELETE query alert email to %s";
             default:
                 return "Failed to send asset request email to %s";
         }

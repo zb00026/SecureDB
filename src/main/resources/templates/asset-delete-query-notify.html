@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Query Alert</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .header {
+            background-color: #FF6B6B;
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+        }
+        .alert-icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+        .content {
+            padding: 20px;
+        }
+        .query-details {
+            background-color: #f8f9fa;
+            border-left: 4px solid #FF6B6B;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .query-text {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .info-row {
+            margin: 8px 0;
+        }
+        .label {
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .footer {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.9em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2><span class="alert-icon">⚠️</span>DELETE Query Alert</h2>
+    </div>
+    <div class="content">
+        <p>Dear <strong th:text="${ownerName}"></strong>,</p>
+        
+        <div class="warning">
+            <strong>⚠️ ALERT:</strong> A DELETE operation has been executed on your asset "<strong th:text="${assetName}"></strong>".
+        </div>
+        
+        <p>This notification is sent to inform you of potentially destructive database operations performed on your asset.</p>
+        
+        <div class="query-details">
+            <h3>Query Details:</h3>
+            
+            <div class="info-row">
+                <span class="label">Asset:</span> <span th:text="${assetName}"></span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Database:</span> <span th:text="${databaseType}"></span> (<span th:text="${hostUrl}"></span>)
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Executed by:</span> <span th:text="${executorName}"></span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Execution Time:</span> <span th:text="${executionTime}"></span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Table(s) affected:</span> <span th:text="${tableName}"></span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Rows affected:</span> <span th:text="${affectedRows}"></span>
+            </div>
+            
+            <h4>Executed Query:</h4>
+            <div class="query-text" th:text="${query}"></div>
+        </div>
+        
+        <p><strong>What you should do:</strong></p>
+        <ul>
+            <li>Verify that this operation was authorized and expected</li>
+            <li>Review the query details above for accuracy</li>
+            <li>Contact the executor if you have any concerns</li>
+            <li>Check your data integrity if necessary</li>
+        </ul>
+        
+        <p>If this operation was unauthorized or unexpected, please contact your system administrator immediately.</p>
+        
+        <p>Thank you for your attention to this security matter.</p>
+    </div>
+    <div class="footer">
+        <p>&copy; 2025 DAM Application. All rights reserved.</p>
+        <p><small>This is an automated security notification. Please do not reply to this email.</small></p>
+    </div>
+</div>
+</body>
+</html> 
