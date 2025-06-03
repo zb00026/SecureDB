@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="create-asset-query-change-requests-table" author="admin">
+        <createTable tableName="asset_query_change_requests">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ticket_reference" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="change_description" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="query" type="text">
+                <constraints nullable="true"/>
+            </column>
+            
+        </createTable>
+    </changeSet>
+
+    <changeSet id="add-asset-and-requestor-to-query-change-requests" author="admin">
+        <!-- Add asset_id column -->
+        <addColumn tableName="asset_query_change_requests">
+            <column name="asset_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Add requestor_id column -->
+        <addColumn tableName="asset_query_change_requests">
+            <column name="requestor_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Add foreign key constraint for asset_id -->
+        <addForeignKeyConstraint 
+            baseTableName="asset_query_change_requests" 
+            baseColumnNames="asset_id" 
+            constraintName="fk_query_change_requests_asset" 
+            referencedTableName="assets"
+            referencedColumnNames="id"/>
+            
+        <!-- Add foreign key constraint for requestor_id -->
+        <addForeignKeyConstraint 
+            baseTableName="asset_query_change_requests" 
+            baseColumnNames="requestor_id" 
+            constraintName="fk_query_change_requests_requestor" 
+            referencedTableName="users"
+            referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="update-email-type-for-query-change-request" author="admin">
+        <modifyDataType 
+            tableName="emails" 
+            columnName="email_type" 
+            newDataType="ENUM(
+                'INVITATION',
+                'OTHER',
+                'RELINQUISH_ASSET_CREDENTIAL',
+                'ASSET_APPROVE_NOTIFY',
+                'DEVELOPER_ASSET_REQUEST_NOTIFY',
+                'DEVELOPER_RELINQUISH_ASSET_NOTIFY',
+                'APPROVAL_ASSET_ACCESS_REQUEST',
+                'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR',
+                'DELETE_QUERY_ALERT',
+                'ASSET_QUERY_CHANGE_REQUEST_NOTIFY'
+            )"
+        />
+    </changeSet>
+
+</databaseChangeLog> 

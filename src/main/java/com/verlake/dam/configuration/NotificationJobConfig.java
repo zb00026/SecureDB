@@ -18,6 +18,7 @@ import com.verlake.dam.exception.FirebaseMessagingOperationException;
 import com.verlake.dam.exception.NotificationJobException;
 import com.verlake.dam.exception.NotificationProcessingException;
 import com.verlake.dam.exception.NotificationTimeoutException;
+import com.verlake.dam.exception.NotificationEmailException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -62,6 +63,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.enums.EmailType;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 @Configuration
 @EnableBatchProcessing
@@ -256,6 +258,7 @@ public class NotificationJobConfig {
         Map<EmailType, Consumer<NotificationTask>> emailHandlers = Map.of(
             EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, this::sendDeveloperAssetRequestEmail,
             EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY, this::sendDeveloperRelinquishAssetEmail,
+            EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY, this::sendAssetQueryChangeRequestEmail,
             EmailType.APPROVAL_ASSET_ACCESS_REQUEST, notificationTask -> {
                 try {
                     sendApprovalAssetAccessRequestEmail(notificationTask);
@@ -308,6 +311,38 @@ public class NotificationJobConfig {
             task.getAsset(),
             "developer-relinquish-asset"
         );
+    }
+
+    private void sendAssetQueryChangeRequestEmail(NotificationTask task) {
+        // Parse notification message to extract additional data
+        try {
+            ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
+            JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
+            if (dataNode == null) {
+                throw new JsonParseException(null, "Data node not found in asset query change request notification");
+            }
+            String ticketReference = dataNode.has(Constants.EMAIL_VAR_TICKET_REFERENCE) ? dataNode.get(Constants.EMAIL_VAR_TICKET_REFERENCE).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+            String changeDescription = dataNode.has(Constants.EMAIL_VAR_CHANGE_DESCRIPTION) ? dataNode.get(Constants.EMAIL_VAR_CHANGE_DESCRIPTION).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+            String query = dataNode.has(Constants.EMAIL_VAR_QUERY) ? dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+            
+            emailService.sendAssetQueryChangeRequestEmail(
+                task.getReceiver(),
+                task.getSender(),
+                task.getAsset(),
+                ticketReference,
+                changeDescription,
+                query,
+                "asset-query-change-request"
+            );
+        } catch (Exception e) {
+            log.error("Failed to parse notification data for asset query change request email", e);
+            throw new NotificationEmailException(
+                "Failed to send asset query change request email", 
+                EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY.name(), 
+                task.getId(), 
+                e
+            );
+        }
     }
 
     private void sendApprovalAssetAccessRequestEmail(NotificationTask task) throws Exception {

@@ -146,7 +146,7 @@ public class AssetService {
         return credentials.stream()
                 .map(AssetCredential::getUser)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Transactional

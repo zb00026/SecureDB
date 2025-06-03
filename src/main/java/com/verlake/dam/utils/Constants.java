@@ -57,6 +57,8 @@ public class Constants {
     public static final String EMAIL_VAR_DB_USERNAME = "dbUsername";
     public static final String EMAIL_VAR_DB_PASSWORD = "dbPassword";
     public static final String EMAIL_VAR_IS_ACCESS_REQUEST = "isAccessRequest";
+    public static final String EMAIL_VAR_TICKET_REFERENCE = "ticketReference";
+    public static final String EMAIL_VAR_CHANGE_DESCRIPTION = "changeDescription";
     public static final String EMAIL_VAR_DATABASE_TYPE = "databaseType";
     public static final String EMAIL_VAR_HOST_URL = "hostUrl";
     public static final String EMAIL_VAR_EXECUTOR_NAME = "executorName";

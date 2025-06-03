@@ -840,82 +840,206 @@ public class DatabaseAccessService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query)
+    public Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
         
-        String userKey = keycloakService.getUserKey();
-        String decryptedPassword = credential.getPassword();
-        
-        // Decrypt password if it's not a temporary password
-        if (!credential.getIsTemporaryPassword()) {
-            decryptedPassword = CommonUtils.decrypt(userKey, credential.getPassword());
-        } else {
-            log.error("Can not run query with temporary password: {}", query);
-            throw new DatabaseAccessException("Can not run query with temporary password: " + query, null);
-        }
-
+        String decryptedPassword = getDecryptedPassword(credential, query);
         String jdbcUrl = buildJdbcUrl(credential.getAsset());
         
         try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
-            List<String> headers = new ArrayList<>();
-            List<Map<String, Object>> data = new ArrayList<>();
+            String preparedQuery = prepareQueryForExecution(query, isChangeRequest);
+            List<Map<String, Object>> allResults = executeAllQueries(connection, preparedQuery, isChangeRequest);
             
-            try (PreparedStatement statement = connection.prepareStatement(query)) {
-                
-                // Determine if this is a SELECT query or a DML statement
-                String trimmedQuery = query.trim().toUpperCase();
-                boolean isSelectQuery = trimmedQuery.startsWith(Constants.MYSQL_QUERY_SELECT) || 
-                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_SHOW) || 
-                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_DESCRIBE) || 
-                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_DESC) ||
-                                      trimmedQuery.startsWith(Constants.MYSQL_QUERY_EXPLAIN);
-                
-                if (isSelectQuery) {
-                    // Execute SELECT query that returns a result set
-                    try (ResultSet resultSet = statement.executeQuery()) {
-                        ResultSetMetaData metaData = resultSet.getMetaData();
-                        int columnCount = metaData.getColumnCount();
-                        
-                        // Extract headers
-                        for (int i = 1; i <= columnCount; i++) {
-                            String columnName = metaData.getColumnName(i);
-                            headers.add(columnName);
-                        }
-                        
-                        // Extract data rows
-                        while (resultSet.next()) {
-                            Map<String, Object> row = new HashMap<>();
-                            for (int i = 1; i <= columnCount; i++) {
-                                String columnName = metaData.getColumnName(i);
-                                Object value = resultSet.getObject(i);
-                                row.put(columnName, value);
-                            }
-                            data.add(row);
-                        }
-                    }
-                } else {
-                    // Execute DML statement (UPDATE, INSERT, DELETE, etc.)
-                    int affectedRows = statement.executeUpdate();
-                    
-                    // Create headers and data for DML statements
-                    headers.add("Affected Rows");
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("Affected Rows", affectedRows);
-                    data.add(row);
-                }
-            }
+            return createFinalResult(allResults);
             
-            // Create result structure with headers and data
-            Map<String, Object> result = new HashMap<>();
-            result.put("headers", headers);
-            result.put("data", data);
-            
-            return result;
         } catch (SQLException e) {
-            log.error("Error executing query: {}", query, e);
+            log.error("Error connecting to database: {}", jdbcUrl, e);
+            throw new DatabaseAccessException("Error connecting to database: " + e.getMessage(), e);
+        }
+    }
+
+    private String getDecryptedPassword(AssetCredential credential, String query) 
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+        
+        if (credential.getIsTemporaryPassword()) {
+            log.error("Can not run query with temporary password: {}", query);
+            throw new DatabaseAccessException("Can not run query with temporary password: " + query, null);
+        }
+        
+        String userKey = keycloakService.getUserKey();
+        return CommonUtils.decrypt(userKey, credential.getPassword());
+    }
+
+    private String prepareQueryForExecution(String query, boolean isChangeRequest) {
+        if (!isChangeRequest) {
+            return query;
+        }
+        
+        String modifiedQuery = "START TRANSACTION; " + query;
+        modifiedQuery += query.trim().endsWith(";") ? " ROLLBACK;" : "; ROLLBACK;";
+        log.error("newQuery: {}", modifiedQuery);
+        return modifiedQuery;
+    }
+
+    private List<Map<String, Object>> executeAllQueries(Connection connection, String query, boolean isChangeRequest) {
+        String[] individualQueries = query.split(";");
+        List<Map<String, Object>> allResults = new ArrayList<>();
+        
+        for (String individualQuery : individualQueries) {
+            String trimmedQuery = individualQuery.trim();
+            if (!trimmedQuery.isEmpty()) {
+                Map<String, Object> queryResult = executeIndividualQuery(connection, trimmedQuery, isChangeRequest);
+                allResults.add(queryResult);
+            }
+        }
+        
+        return allResults;
+    }
+
+    private Map<String, Object> executeIndividualQuery(Connection connection, String query, boolean isChangeRequest) {
+        log.debug("Executing individual query: {}", query);
+        
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            QueryType queryType = determineQueryType(query);
+            return processQueryExecution(statement, query, queryType);
+            
+        } catch (SQLException e) {
+            log.error("Error executing individual query: {}", query, e);
+            return handleQueryError(query, e, isChangeRequest);
+        }
+    }
+
+    private QueryType determineQueryType(String query) {
+        String upperQuery = query.toUpperCase();
+        
+        if (isSelectQuery(upperQuery)) {
+            return QueryType.SELECT;
+        } else if (isTransactionControl(upperQuery)) {
+            return QueryType.TRANSACTION_CONTROL;
+        } else {
+            return QueryType.DML;
+        }
+    }
+
+    private boolean isSelectQuery(String upperQuery) {
+        return upperQuery.startsWith(Constants.MYSQL_QUERY_SELECT) || 
+               upperQuery.startsWith(Constants.MYSQL_QUERY_SHOW) || 
+               upperQuery.startsWith(Constants.MYSQL_QUERY_DESCRIBE) || 
+               upperQuery.startsWith(Constants.MYSQL_QUERY_DESC) ||
+               upperQuery.startsWith(Constants.MYSQL_QUERY_EXPLAIN);
+    }
+
+    private boolean isTransactionControl(String upperQuery) {
+        return upperQuery.startsWith("START TRANSACTION") || 
+               upperQuery.startsWith("COMMIT") || 
+               upperQuery.startsWith("ROLLBACK") ||
+               upperQuery.startsWith("BEGIN");
+    }
+
+    private Map<String, Object> processQueryExecution(PreparedStatement statement, String query, QueryType queryType) 
+            throws SQLException {
+        
+        switch (queryType) {
+            case SELECT:
+                return executeSelectQuery(statement, query);
+            case TRANSACTION_CONTROL:
+                return executeTransactionControl(statement, query);
+            case DML:
+                return executeDmlQuery(statement, query);
+            default:
+                throw new IllegalArgumentException("Unknown query type: " + queryType);
+        }
+    }
+
+    private Map<String, Object> executeSelectQuery(PreparedStatement statement, String query) throws SQLException {
+        try (ResultSet resultSet = statement.executeQuery()) {
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            List<String> headers = extractHeaders(metaData);
+            List<Map<String, Object>> data = extractData(resultSet, metaData);
+            
+            return createQueryResult(query, headers, data);
+        }
+    }
+
+    private Map<String, Object> executeTransactionControl(PreparedStatement statement, String query) throws SQLException {
+        statement.executeUpdate();
+        List<String> headers = List.of("Status");
+        List<Map<String, Object>> data = List.of(Map.of("Status", query.toUpperCase() + " executed successfully"));
+        
+        return createQueryResult(query, headers, data);
+    }
+
+    private Map<String, Object> executeDmlQuery(PreparedStatement statement, String query) throws SQLException {
+        int affectedRows = statement.executeUpdate();
+        List<String> headers = List.of("Affected Rows");
+        List<Map<String, Object>> data = List.of(Map.of("Affected Rows", affectedRows));
+        
+        return createQueryResult(query, headers, data);
+    }
+
+    private List<String> extractHeaders(ResultSetMetaData metaData) throws SQLException {
+        List<String> headers = new ArrayList<>();
+        int columnCount = metaData.getColumnCount();
+        
+        for (int i = 1; i <= columnCount; i++) {
+            headers.add(metaData.getColumnName(i));
+        }
+        
+        return headers;
+    }
+
+    private List<Map<String, Object>> extractData(ResultSet resultSet, ResultSetMetaData metaData) throws SQLException {
+        List<Map<String, Object>> data = new ArrayList<>();
+        int columnCount = metaData.getColumnCount();
+        
+        while (resultSet.next()) {
+            Map<String, Object> row = new HashMap<>();
+            for (int i = 1; i <= columnCount; i++) {
+                String columnName = metaData.getColumnName(i);
+                Object value = resultSet.getObject(i);
+                row.put(columnName, value);
+            }
+            data.add(row);
+        }
+        
+        return data;
+    }
+
+    private Map<String, Object> createQueryResult(String query, List<String> headers, List<Map<String, Object>> data) {
+        Map<String, Object> queryResult = new HashMap<>();
+        queryResult.put("query", query);
+        queryResult.put("headers", headers);
+        queryResult.put("data", data);
+        return queryResult;
+    }
+
+    private Map<String, Object> handleQueryError(String query, SQLException e, boolean isChangeRequest) {
+        Map<String, Object> errorResult = new HashMap<>();
+        errorResult.put("query", query);
+        errorResult.put("headers", List.of("Error"));
+        errorResult.put("data", List.of(Map.of("Error", e.getMessage())));
+        errorResult.put("hasError", true);
+        
+        if (!isChangeRequest) {
             throw new DatabaseAccessException("Error executing query: " + e.getMessage(), e);
         }
+        
+        return errorResult;
+    }
+
+    private Map<String, Object> createFinalResult(List<Map<String, Object>> allResults) {
+        Map<String, Object> finalResult = new HashMap<>();
+        finalResult.put("results", allResults);
+        finalResult.put("totalQueries", allResults.size());
+        return finalResult;
+    }
+
+    private enum QueryType {
+        SELECT,
+        DML,
+        TRANSACTION_CONTROL
     }
 
     private String buildJdbcUrl(Asset asset) {

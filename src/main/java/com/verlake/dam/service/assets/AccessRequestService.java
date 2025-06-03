@@ -57,10 +57,10 @@ public class AccessRequestService {
     private final AssetApproversRepository assetApproversRepository;
     private final UserRepository userRepository;
     private final NotificationTaskRepository notificationTaskRepository;
-    private final KeycloakService keycloakService;
-    private final AssetCredentialsRepository assetCredentialsRepository;
     private final DatabaseAccessService databaseAccessService;
+    private final AssetQueryChangeRequestService assetQueryChangeRequestService;
     private final AuditTrailService auditTrailService;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
 
     public AccessRequestService(
@@ -70,19 +70,20 @@ public class AccessRequestService {
             AssetApproversRepository assetApproversRepository,
             UserRepository userRepository,
             NotificationTaskRepository notificationTaskRepository,
-            KeycloakService keycloakService, AssetCredentialsRepository assetCredentialsRepository,
             DatabaseAccessService databaseAccessService,
-            AuditTrailService auditTrailService) {
+            AssetQueryChangeRequestService assetQueryChangeRequestService,
+            AuditTrailService auditTrailService,
+            UserService userService) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
         this.assetApproversRepository = assetApproversRepository;
         this.userRepository = userRepository;
         this.notificationTaskRepository = notificationTaskRepository;
-        this.keycloakService = keycloakService;
-        this.assetCredentialsRepository = assetCredentialsRepository;
         this.databaseAccessService = databaseAccessService;
+        this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.auditTrailService = auditTrailService;
+        this.userService = userService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -191,7 +192,7 @@ public class AccessRequestService {
         List<User> assetApprovers = assetApproversRepository.findByAssetId(asset.getId())
                 .stream()
                 .map(AssetApprover::getUser)
-                .collect(Collectors.toList());
+                .toList();
 
         // Prepare notification data
         Map<String, String> notificationData = new HashMap<>();
@@ -341,7 +342,7 @@ public class AccessRequestService {
 
         // Validate that the access request is approved and not expired
         if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
-            !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
+                !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
             throw new IllegalArgumentException("Access request is not approved");
         }
 
@@ -355,20 +356,35 @@ public class AccessRequestService {
         long startTime = System.currentTimeMillis();
 
         try {
-            result = databaseAccessService.executeQueryWithCredentials(devCredential, accessQueryDTO.getQuery());
+            result = databaseAccessService.executeQueryWithCredentials(devCredential, accessQueryDTO.getQuery(), accessQueryDTO.isChangeRequest());
             querySuccess = true;
-            // Create successful audit log
-            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, null, result, startTime);
+            if (accessQueryDTO.isChangeRequest()) {
+                AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
+                changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
+                changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
+                changeRequest.setQuery(accessQueryDTO.getQuery());
+                
+                // Get current user and asset for notifications
+                User currentUser = userService.getCurrentUser();
+                Asset asset = accessRequest.getAsset();
+                
+                // Save with notifications
+                assetQueryChangeRequestService.saveWithNotifications(changeRequest, asset, currentUser);
+            }
+            
 
             // Create successful audit log
             createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, null, result, startTime);
+
             return result;
         } catch (Exception e) {
             errorMessage = e.getMessage();
             log.error("Error executing query for access request: {}", accessQueryDTO.getRequestId(), e);
+
             // Create failed audit log
             createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, errorMessage, null,
                     startTime);
+
             throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
         }
     }
@@ -376,7 +392,6 @@ public class AccessRequestService {
     private void createQueryAuditLog(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest,
             AssetCredential credential, boolean success, String errorMessage,
             Map<String, Object> result, long startTime) {
-
         try {
             long executionTime = System.currentTimeMillis() - startTime;
             String username = getCurrentUsername();
@@ -407,7 +422,6 @@ public class AccessRequestService {
                 auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data != null ? data.size() : 0);
                 List<String> headers = (List<String>) result.get("headers");
                 auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers != null ? headers.size() : 0);
-
             }
 
             // Create instance ID for query execution
@@ -433,6 +447,7 @@ public class AccessRequestService {
 
             log.info("Audit log created for query execution: requestId={}, success={}, executionTime={}ms",
                     accessQueryDTO.getRequestId(), success, executionTime);
+
         } catch (Exception e) {
             log.error("Failed to create audit log for query execution: {}", e.getMessage(), e);
         }
@@ -507,7 +522,7 @@ public class AccessRequestService {
         }
         return "Unknown";
     }
-  
+
     private String getCurrentUsername() {
         try {
             if (SecurityContextHolder.getContext().getAuthentication() != null) {

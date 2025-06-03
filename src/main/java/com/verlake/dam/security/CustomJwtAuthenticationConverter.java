@@ -49,7 +49,7 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
             Set<Role> roles = user.getRoles();
             return roles.stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName().toUpperCase().replace(" ", "_")))
-                .collect(Collectors.toList());
+                .toList();
         }
 
         // Fallback to JWT roles if no roles found in the database

@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ChangeSet 1: Update Database Default Charset -->
+    <changeSet id="set-database-default-charset-utf8mb4" author="admin">
+        <sql>
+            ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 2: Update users table -->
+    <changeSet id="fix-users-table-charset" author="admin">
+        <sql>
+            ALTER TABLE users CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE users 
+            MODIFY COLUMN email VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN first_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN last_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 3: Update roles table -->
+    <changeSet id="fix-roles-table-charset" author="admin">
+        <sql>
+            ALTER TABLE roles CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE roles 
+            MODIFY COLUMN name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 4: Update emails table -->
+    <changeSet id="fix-emails-table-charset" author="admin">
+        <sql>
+            ALTER TABLE emails CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE emails 
+            MODIFY COLUMN email_to VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN subject TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 5: Update s3_bucket_settings table -->
+    <changeSet id="fix-s3-bucket-settings-table-charset" author="admin">
+        <sql>
+            ALTER TABLE s3_bucket_settings CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE s3_bucket_settings 
+            MODIFY COLUMN bucket_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN previous_bucket_names TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 6: Update audit_trails table -->
+    <changeSet id="fix-audit-trails-table-charset" author="admin">
+        <sql>
+            ALTER TABLE audit_trails CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE audit_trails 
+            MODIFY COLUMN instance_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN user VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN action VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN previous_value TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN new_value TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN action_metadata TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN ip_address VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 7: Update assets table -->
+    <changeSet id="fix-assets-table-charset" author="admin">
+        <sql>
+            ALTER TABLE assets CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE assets 
+            MODIFY COLUMN name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN host_address VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 8: Update asset_credentials table -->
+    <changeSet id="fix-asset-credentials-table-charset" author="admin">
+        <sql>
+            ALTER TABLE asset_credentials CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE asset_credentials 
+            MODIFY COLUMN username VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN password VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN user_access_type VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 9: Update access_requests table -->
+    <changeSet id="fix-access-requests-table-charset" author="admin">
+        <sql>
+            ALTER TABLE access_requests CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE access_requests 
+            MODIFY COLUMN access_sql TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN request_reason TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 10: Update access_levels table -->
+    <changeSet id="fix-access-levels-table-charset" author="admin">
+        <sql>
+            ALTER TABLE access_levels CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE access_levels 
+            MODIFY COLUMN asset_type VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN database_type VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN object VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN templates TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN access_template TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 11: Update access_level_objects table -->
+    <changeSet id="fix-access-level-objects-table-charset" author="admin">
+        <sql>
+            ALTER TABLE access_level_objects CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE access_level_objects 
+            MODIFY COLUMN object_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 12: Update notification_task table -->
+    <changeSet id="fix-notification-task-table-charset" author="admin">
+        <sql>
+            ALTER TABLE notification_task CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE notification_task 
+            MODIFY COLUMN notification_message TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN email_type VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 13: Update asset_query_change_requests table -->
+    <changeSet id="fix-asset-query-change-requests-table-charset" author="admin">
+        <sql>
+            ALTER TABLE asset_query_change_requests CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        <sql>
+            ALTER TABLE asset_query_change_requests 
+            MODIFY COLUMN ticket_reference VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN change_description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN query TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- ChangeSet 14: Update any remaining tables with text fields -->
+    <changeSet id="fix-remaining-tables-charset" author="admin">
+        <!-- Update user_roles table if it has any varchar columns -->
+        <sql>
+            ALTER TABLE user_roles CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        
+        <!-- Update asset_approvers table -->
+        <sql>
+            ALTER TABLE asset_approvers CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+        
+        <!-- Update asset_objects table -->
+        <sql>
+            ALTER TABLE asset_objects CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog> 

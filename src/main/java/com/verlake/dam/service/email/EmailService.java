@@ -317,10 +317,49 @@ public class EmailService {
                 return "Failed to send developer asset request email to %s";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Failed to send approval asset access request email to %s";
+            case ASSET_QUERY_CHANGE_REQUEST_NOTIFY:
+                return "Failed to send asset query change request notification email to %s";
             case DELETE_QUERY_ALERT:
                 return "Failed to send DELETE query alert email to %s";
             default:
                 return "Failed to send asset request email to %s";
+        }
+    }
+
+    public void sendAssetQueryChangeRequestEmail(User receiver, User requestor, Asset asset, 
+                                               String ticketReference, String changeDescription, 
+                                               String query, String emailTmplFile) {
+        Context context = new Context();
+        context.setVariable(Constants.EMAIL_VAR_RECEIVER_FIRST_NAME, receiver.getFirstName());
+        context.setVariable(Constants.EMAIL_VAR_RECEIVER_LAST_NAME, receiver.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, requestor.getFirstName());
+        context.setVariable(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, requestor.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+        context.setVariable(Constants.EMAIL_VAR_TICKET_REFERENCE, ticketReference);
+        context.setVariable(Constants.EMAIL_VAR_CHANGE_DESCRIPTION, changeDescription);
+        context.setVariable(Constants.EMAIL_VAR_QUERY, query);
+
+        String emailSubject = "Asset Query Change Request Notification";
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode metaData = objectMapper.createObjectNode();
+        metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        metaData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+        metaData.put(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, requestor.getFirstName());
+        metaData.put(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, requestor.getLastName());
+        metaData.put(Constants.EMAIL_VAR_TICKET_REFERENCE, ticketReference != null ? ticketReference : "");
+        metaData.put(Constants.EMAIL_VAR_CHANGE_DESCRIPTION, changeDescription != null ? changeDescription : "");
+        metaData.put(Constants.EMAIL_VAR_QUERY, query != null ? query : "");
+
+        String emailContent = templateEngine.process(emailTmplFile, context);
+        createEmailEntity(receiver, EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY, emailSubject, metaData, emailContent);
+
+        try {
+            sendEmail(receiver.getEmail(), emailSubject, emailContent);
+        } catch (MessagingException e) {
+            log.error("Failed to send asset query change request notification email to {}", receiver.getEmail(), e);
+            throw new EmailSendingException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    String.format("Failed to send asset query change request notification email to %s", receiver.getEmail()), e);
         }
     }
 
