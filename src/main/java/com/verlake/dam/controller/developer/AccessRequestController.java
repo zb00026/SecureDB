@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.verlake.dam.service.assets.AccessRequestService;
+import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 
@@ -43,6 +44,10 @@ import javax.crypto.NoSuchPaddingException;
 @RequiredArgsConstructor
 @Slf4j
 public class AccessRequestController {
+
+    @Autowired
+    private final AssetQueryChangeRequestService assetQueryChangeRequestService;
+
     @Autowired
     private final AccessRequestService accessRequestService;
 
@@ -185,7 +190,7 @@ public class AccessRequestController {
         try {
             Map<String, Object> response = new LinkedHashMap<>();
             response.put(Constants.STATUS_NAME, Constants.STATUS_SUCCESS);
-            response.put("results", accessRequestService.runQuery(queryDto));
+            response.put("results", assetQueryChangeRequestService.runQueryFromDeveloper(queryDto));
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {

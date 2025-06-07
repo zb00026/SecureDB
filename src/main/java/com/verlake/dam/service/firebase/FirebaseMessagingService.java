@@ -58,7 +58,7 @@ public class FirebaseMessagingService {
         notificationData.put(Constants.NOTIFY_DATA_ATTR_RECEIVER_ID, assetOwner.getId().toString());
         notificationData.put("messageType", "0"); //1 : success, 0: fail
         notificationMessage.setData(notificationData);
-        notificationMessage.setTopic("dam_notification");
+        notificationMessage.setTopic(Constants.DAM_NOTIFICATION_TOPIC);
 
         // Create and save notification task
         NotificationTask task = new NotificationTask();

@@ -1,6 +1,8 @@
 package com.verlake.dam.repository.assets;
 
 import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
+import com.verlake.dam.entity.assets.Asset;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +25,12 @@ public interface AssetQueryChangeRequestRepository extends JpaRepository<AssetQu
     
     // Find by query containing pattern
     List<AssetQueryChangeRequest> findByQueryContaining(String pattern);
+
+    // Find by asset
+    List<AssetQueryChangeRequest> findByAsset(Asset asset);
+
+    // Find by assets
+    List<AssetQueryChangeRequest> findByAssetIn(List<Asset> assets);
     
     // Check if exists by ticket reference
     boolean existsByTicketReference(String ticketReference);

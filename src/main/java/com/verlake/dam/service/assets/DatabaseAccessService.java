@@ -843,12 +843,26 @@ public class DatabaseAccessService {
     public Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
+        return executeQueryWithCredentials(credential, query, isChangeRequest, false);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Map<String, Object> executeQueryWithCredentialsDryRun(AssetCredential credential, String query, boolean isChangeRequest)
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
+        return executeQueryWithCredentials(credential, query, isChangeRequest, true);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest, boolean isDryRun)
+            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
         
         String decryptedPassword = getDecryptedPassword(credential, query);
         String jdbcUrl = buildJdbcUrl(credential.getAsset());
         
         try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
-            String preparedQuery = prepareQueryForExecution(query, isChangeRequest);
+            String preparedQuery = prepareQueryForExecution(query, isChangeRequest, isDryRun);
             List<Map<String, Object>> allResults = executeAllQueries(connection, preparedQuery, isChangeRequest);
             
             return createFinalResult(allResults);
@@ -867,19 +881,24 @@ public class DatabaseAccessService {
             log.error("Can not run query with temporary password: {}", query);
             throw new DatabaseAccessException("Can not run query with temporary password: " + query, null);
         }
-        
+
         String userKey = keycloakService.getUserKey();
         return CommonUtils.decrypt(userKey, credential.getPassword());
     }
 
-    private String prepareQueryForExecution(String query, boolean isChangeRequest) {
+    private String prepareQueryForExecution(String query, boolean isChangeRequest, boolean isDryRun) {
         if (!isChangeRequest) {
             return query;
         }
         
         String modifiedQuery = "START TRANSACTION; " + query;
-        modifiedQuery += query.trim().endsWith(";") ? " ROLLBACK;" : "; ROLLBACK;";
-        log.error("newQuery: {}", modifiedQuery);
+        if (isDryRun) {
+            modifiedQuery += query.trim().endsWith(";") ? " ROLLBACK;" : "; ROLLBACK;";
+            log.debug("Dry run query: {}", modifiedQuery);
+        } else {
+            modifiedQuery += query.trim().endsWith(";") ? " COMMIT;" : "; COMMIT;";
+            log.debug("Execution query: {}", modifiedQuery);
+        }
         return modifiedQuery;
     }
 
@@ -954,8 +973,8 @@ public class DatabaseAccessService {
     }
 
     private Map<String, Object> executeSelectQuery(PreparedStatement statement, String query) throws SQLException {
-        try (ResultSet resultSet = statement.executeQuery()) {
-            ResultSetMetaData metaData = resultSet.getMetaData();
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        ResultSetMetaData metaData = resultSet.getMetaData();
             List<String> headers = extractHeaders(metaData);
             List<Map<String, Object>> data = extractData(resultSet, metaData);
             
@@ -981,28 +1000,28 @@ public class DatabaseAccessService {
 
     private List<String> extractHeaders(ResultSetMetaData metaData) throws SQLException {
         List<String> headers = new ArrayList<>();
-        int columnCount = metaData.getColumnCount();
-        
-        for (int i = 1; i <= columnCount; i++) {
+                        int columnCount = metaData.getColumnCount();
+                        
+                        for (int i = 1; i <= columnCount; i++) {
             headers.add(metaData.getColumnName(i));
         }
         
         return headers;
-    }
-
+                        }
+                        
     private List<Map<String, Object>> extractData(ResultSet resultSet, ResultSetMetaData metaData) throws SQLException {
         List<Map<String, Object>> data = new ArrayList<>();
         int columnCount = metaData.getColumnCount();
         
-        while (resultSet.next()) {
-            Map<String, Object> row = new HashMap<>();
-            for (int i = 1; i <= columnCount; i++) {
-                String columnName = metaData.getColumnName(i);
-                Object value = resultSet.getObject(i);
-                row.put(columnName, value);
-            }
-            data.add(row);
-        }
+                        while (resultSet.next()) {
+                            Map<String, Object> row = new HashMap<>();
+                            for (int i = 1; i <= columnCount; i++) {
+                                String columnName = metaData.getColumnName(i);
+                                Object value = resultSet.getObject(i);
+                                row.put(columnName, value);
+                            }
+                            data.add(row);
+                        }
         
         return data;
     }

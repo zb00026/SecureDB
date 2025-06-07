@@ -9,6 +9,7 @@ public enum EmailType {
     APPROVAL_ASSET_ACCESS_REQUEST,
     ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR, //Error when update asset object when asset owner logs in
     ASSET_QUERY_CHANGE_REQUEST_NOTIFY,
+    ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY,
     DELETE_QUERY_ALERT, //Alert when DELETE queries are executed
     OTHER;
     public static EmailType fromString(String value) {
@@ -21,6 +22,7 @@ public enum EmailType {
             case "APPROVAL_ASSET_ACCESS_REQUEST" -> APPROVAL_ASSET_ACCESS_REQUEST;
             case "ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR" -> ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR;
             case "ASSET_QUERY_CHANGE_REQUEST_NOTIFY" -> ASSET_QUERY_CHANGE_REQUEST_NOTIFY;
+            case "ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY" -> ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY;
             case "DELETE_QUERY_ALERT" -> DELETE_QUERY_ALERT;
             case "OTHER" -> OTHER;
             default -> throw new IllegalArgumentException("Unknown email type: " + value);

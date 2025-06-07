@@ -6,9 +6,12 @@ import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
+
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
@@ -16,6 +19,7 @@ import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.assets.AccessRequestService;
+import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
@@ -47,7 +51,7 @@ public class OwnerAssetController {
     private final AssetService assetService;
     private final AccessRequestService accessRequestService;
     private final UserService userService;
-
+    private final AssetQueryChangeRequestService assetQueryChangeRequestService;
 
     @Autowired
     private EmailService emailService;
@@ -80,11 +84,13 @@ public class OwnerAssetController {
             AssetService assetService,
             AccessRequestService accessRequestService,
             UserService userService,
-            AssetObjectRepository assetObjectRepository) {
+            AssetObjectRepository assetObjectRepository,
+            AssetQueryChangeRequestService assetQueryChangeRequestService) {
         this.assetService = assetService;
         this.accessRequestService = accessRequestService;
         this.userService = userService;
         this.assetObjectRepository = assetObjectRepository;
+        this.assetQueryChangeRequestService = assetQueryChangeRequestService;
     }
 
 
@@ -106,7 +112,7 @@ public class OwnerAssetController {
     @PostMapping("/request/{accessRequestId}/approve")
     public ResponseEntity<AccessRequest> approveAccessRequest(@PathVariable long accessRequestId, @RequestBody AccessRequestDTO accessRequest) {
         try {
-            return ResponseEntity.ok(assetService.setApprovalStatusOfAccessRequest(accessRequestId, accessRequest, ApprovalStatus.APPROVED));
+            return ResponseEntity.ok(accessRequestService.setApprovalStatusOfAccessRequest(accessRequestId, accessRequest, ApprovalStatus.APPROVED));
         } catch (JsonParseException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Can not approve access request");
         }
@@ -115,7 +121,7 @@ public class OwnerAssetController {
     @PostMapping("/request/{accessRequestId}/reject")
     public ResponseEntity<AccessRequest> rejectAccessRequest(@PathVariable long accessRequestId) {
         try {
-            return ResponseEntity.ok(assetService.setApprovalStatusOfAccessRequest(accessRequestId, null, ApprovalStatus.REJECTED));
+            return ResponseEntity.ok(accessRequestService.setApprovalStatusOfAccessRequest(accessRequestId, null, ApprovalStatus.REJECTED));
         } catch (JsonParseException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Can not reject access request");
         }
@@ -123,8 +129,24 @@ public class OwnerAssetController {
 
     @GetMapping("/approvals")
     public ResponseEntity<List<AccessRequest>> getMyAssetApprovals() {
-        return ResponseEntity.ok(assetService.getAssetRequestApprovals());
+        return ResponseEntity.ok(accessRequestService.getAssetRequestApprovals());
     }
+
+    @GetMapping("/change_requests")
+    public ResponseEntity<List<AssetQueryChangeRequest>> getMyAssetChangeRequests() {
+        return ResponseEntity.ok(assetQueryChangeRequestService.getAssetChangeRequests());
+    }
+
+    @GetMapping("/change_requests/{changeRequestId}")
+    public ResponseEntity<AssetQueryChangeRequest> getMyAssetChangeRequest(@PathVariable Long changeRequestId) {
+        return ResponseEntity.ok(assetQueryChangeRequestService.getAssetChangeRequest(changeRequestId));
+    }
+
+    @PostMapping("/change_requests/set_approval")
+    public ResponseEntity<AssetQueryChangeRequest> setApprovalAssetQueryChangeRequest(@RequestBody AccessQueryDTO changeRequestDTO) {
+        return ResponseEntity.ok(assetQueryChangeRequestService.setApprovalAssetChangeRequest(changeRequestDTO));
+    }
+
     @GetMapping("/{assetId}/asset_objects")
     public ResponseEntity<ArrayNode> getAvailableAssetObjects(@PathVariable Long assetId) {
         Asset asset = assetService.findById(assetId);

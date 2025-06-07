@@ -26,6 +26,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.server.ResponseStatusException;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
 
 import java.time.LocalDateTime;
@@ -304,6 +305,8 @@ public class EmailService {
                 return "Developer Asset Access Request";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Approval Asset Access Request";
+            case ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY:
+                return "Asset Query Change Request Approval";
             case DELETE_QUERY_ALERT:
                 return "DELETE Query Security Alert";
             default:
@@ -319,6 +322,8 @@ public class EmailService {
                 return "Failed to send approval asset access request email to %s";
             case ASSET_QUERY_CHANGE_REQUEST_NOTIFY:
                 return "Failed to send asset query change request notification email to %s";
+            case ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY:
+                return "Failed to send asset query change request approval email to %s";
             case DELETE_QUERY_ALERT:
                 return "Failed to send DELETE query alert email to %s";
             default:
@@ -360,6 +365,51 @@ public class EmailService {
             log.error("Failed to send asset query change request notification email to {}", receiver.getEmail(), e);
             throw new EmailSendingException(HttpStatus.INTERNAL_SERVER_ERROR,
                     String.format("Failed to send asset query change request notification email to %s", receiver.getEmail()), e);
+        }
+    }
+
+    public void sendAssetQueryChangeRequestApprovalEmail(User requestor, User approver, Asset asset, 
+                                                        AccessQueryDTO queryDTO, String emailTemplate) {
+        Context context = new Context();
+        context.setVariable(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, requestor.getFirstName());
+        context.setVariable(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, requestor.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_APPROVER_FIRST_NAME, approver.getFirstName());
+        context.setVariable(Constants.EMAIL_VAR_APPROVER_LAST_NAME, approver.getLastName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        context.setVariable(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+        context.setVariable(Constants.EMAIL_VAR_TICKET_REFERENCE, queryDTO.getTicketReference() != null ? queryDTO.getTicketReference() : "");
+        context.setVariable(Constants.EMAIL_VAR_CHANGE_DESCRIPTION, queryDTO.getChangeDescription() != null ? queryDTO.getChangeDescription() : "");
+        context.setVariable(Constants.EMAIL_VAR_QUERY, queryDTO.getQuery() != null ? queryDTO.getQuery() : "");
+        context.setVariable(Constants.EMAIL_VAR_REJECT_REASON, queryDTO.getRejectReason() != null ? queryDTO.getRejectReason() : "");
+        context.setVariable(Constants.EMAIL_VAR_APPROVAL_STATUS, queryDTO.getApprovalStatus().name());
+
+        String emailSubject = String.format("Query Change Request %s - %s", 
+                queryDTO.getApprovalStatus().getDisplayName(), asset.getName());
+        
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode metaData = objectMapper.createObjectNode();
+        metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
+        metaData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
+        metaData.put(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, requestor.getFirstName());
+        metaData.put(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, requestor.getLastName());
+        metaData.put(Constants.EMAIL_VAR_APPROVER_FIRST_NAME, approver.getFirstName());
+        metaData.put(Constants.EMAIL_VAR_APPROVER_LAST_NAME, approver.getLastName());
+        metaData.put(Constants.EMAIL_VAR_TICKET_REFERENCE, queryDTO.getTicketReference() != null ? queryDTO.getTicketReference() : "");
+        metaData.put(Constants.EMAIL_VAR_CHANGE_DESCRIPTION, queryDTO.getChangeDescription() != null ? queryDTO.getChangeDescription() : "");
+        metaData.put(Constants.EMAIL_VAR_QUERY, queryDTO.getQuery() != null ? queryDTO.getQuery() : "");
+        metaData.put(Constants.EMAIL_VAR_REJECT_REASON, queryDTO.getRejectReason() != null ? queryDTO.getRejectReason() : "");
+        metaData.put(Constants.EMAIL_VAR_APPROVAL_STATUS, queryDTO.getApprovalStatus().name());
+
+        String emailContent = templateEngine.process(emailTemplate, context);
+        createEmailEntity(requestor, EmailType.ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY, emailSubject, metaData, emailContent);
+
+        try {
+            sendEmail(requestor.getEmail(), emailSubject, emailContent);
+            log.info("Asset query change request approval email sent to: {}", requestor.getEmail());
+        } catch (MessagingException e) {
+            log.error("Failed to send asset query change request approval email to {}", requestor.getEmail(), e);
+            throw new EmailSendingException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    String.format("Failed to send asset query change request approval email to %s", requestor.getEmail()), e);
         }
     }
 

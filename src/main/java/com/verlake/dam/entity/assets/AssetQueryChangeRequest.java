@@ -1,6 +1,8 @@
 package com.verlake.dam.entity.assets;
 
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.ApprovalStatus;
+
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -25,6 +27,13 @@ public class AssetQueryChangeRequest {
     
     @Column(name = "change_description", columnDefinition = "text")
     private String changeDescription;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status")
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+
+    @Column(name = "reject_reason")
+    private String rejectReason;
     
     @Column(name = "query", columnDefinition = "text")
     private String query;

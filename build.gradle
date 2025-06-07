@@ -160,14 +160,6 @@ tasks.withType(JavaCompile).configureEach {
 	options.compilerArgs << "-parameters";
 }
 
-bootRun {
-	jvmArgs = [
-		'-Dspring.devtools.restart.enabled=true',
-		'-Dspring.devtools.livereload.enabled=true',
-		'-Dspring.devtools.restart.additional-paths=src/main/java,src/main/resources'
-	]
-}
-
 configurations {
 	configureEach {
 		// Exclude log4j-to-slf4j globally

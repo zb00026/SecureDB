@@ -4,13 +4,13 @@ import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
+import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
-import com.verlake.dam.repository.assets.AccessRequestRepository;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.repository.assets.AssetApproversRepository;
 import com.verlake.dam.repository.UserRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -58,10 +57,10 @@ public class AccessRequestService {
     private final UserRepository userRepository;
     private final NotificationTaskRepository notificationTaskRepository;
     private final DatabaseAccessService databaseAccessService;
-    private final AssetQueryChangeRequestService assetQueryChangeRequestService;
-    private final AuditTrailService auditTrailService;
     private final UserService userService;
-    private final ObjectMapper objectMapper;
+    private final AssetCredentialsRepository assetCredentialsRepository;
+    private final AssetRepository assetRepository;
+    private final KeycloakService keycloakService;
 
     public AccessRequestService(
             AccessRequestRepository accessRequestRepository,
@@ -71,9 +70,7 @@ public class AccessRequestService {
             UserRepository userRepository,
             NotificationTaskRepository notificationTaskRepository,
             DatabaseAccessService databaseAccessService,
-            AssetQueryChangeRequestService assetQueryChangeRequestService,
-            AuditTrailService auditTrailService,
-            UserService userService) {
+            UserService userService, AssetCredentialsRepository assetCredentialsRepository, AssetRepository assetRepository, KeycloakService keycloakService) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
@@ -81,10 +78,10 @@ public class AccessRequestService {
         this.userRepository = userRepository;
         this.notificationTaskRepository = notificationTaskRepository;
         this.databaseAccessService = databaseAccessService;
-        this.assetQueryChangeRequestService = assetQueryChangeRequestService;
-        this.auditTrailService = auditTrailService;
         this.userService = userService;
-        this.objectMapper = new ObjectMapper();
+        this.assetCredentialsRepository = assetCredentialsRepository;
+        this.assetRepository = assetRepository;
+        this.keycloakService = keycloakService;
     }
 
     private String generateSql(List<AccessLevelObject> accessLevelObjects) {
@@ -238,7 +235,7 @@ public class AccessRequestService {
 
         notificationData.put(Constants.NOTIFY_DATA_ATTR_RECEIVER_ID, receiver.getId().toString());
         notificationMessage.setData(notificationData);
-        notificationMessage.setTopic("dam_notification");
+        notificationMessage.setTopic(Constants.DAM_NOTIFICATION_TOPIC);
 
         // Create and save notification task
         NotificationTask task = new NotificationTask();
@@ -329,240 +326,174 @@ public class AccessRequestService {
         sendNotifications(accessRequest, accessRequest.getRequestor(), accessRequest.getAsset(), false);
     }
 
-    public Map<String, Object> runQuery(AccessQueryDTO accessQueryDTO) {
-        AccessRequest accessRequest = findById(accessQueryDTO.getRequestId());
-        if (accessRequest == null) {
-            throw new ResourceNotFoundException("No access request provided");
-        }
 
-        AssetCredential devCredential = accessRequest.getAssetCredential();
-        if (devCredential == null) {
-            throw new ResourceNotFoundException("No asset credential found for this access request");
-        }
 
-        // Validate that the access request is approved and not expired
-        if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
-                !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
-            throw new IllegalArgumentException("Access request is not approved");
-        }
+    public List<AccessRequest> getAssetRequestApprovals() {
 
-        if (accessRequest.getExpiryDate() != null && accessRequest.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Access request has expired");
-        }
-
-        Map<String, Object> result = null;
-        boolean querySuccess = false;
-        String errorMessage = null;
-        long startTime = System.currentTimeMillis();
-
-        try {
-            result = databaseAccessService.executeQueryWithCredentials(devCredential, accessQueryDTO.getQuery(), accessQueryDTO.isChangeRequest());
-            querySuccess = true;
-            if (accessQueryDTO.isChangeRequest()) {
-                AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
-                changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
-                changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
-                changeRequest.setQuery(accessQueryDTO.getQuery());
-                
-                // Get current user and asset for notifications
-                User currentUser = userService.getCurrentUser();
-                Asset asset = accessRequest.getAsset();
-                
-                // Save with notifications
-                assetQueryChangeRequestService.saveWithNotifications(changeRequest, asset, currentUser);
-            }
-            
-
-            // Create successful audit log
-            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, null, result, startTime);
-
-            return result;
-        } catch (Exception e) {
-            errorMessage = e.getMessage();
-            log.error("Error executing query for access request: {}", accessQueryDTO.getRequestId(), e);
-
-            // Create failed audit log
-            createQueryAuditLog(accessQueryDTO, accessRequest, devCredential, querySuccess, errorMessage, null,
-                    startTime);
-
-            throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
-        }
+        User currentUser = userService.getCurrentUser();
+        List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserId(currentUser.getId());
+        return assetCredentials.stream()
+                .map(credential -> {
+                    List<AccessRequest> lstAccessRequest = accessRequestRepository.findByAsset(credential.getAsset());
+                    Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
+                    lstAccessRequest.forEach(request -> {
+                        AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
+                        request.setAssetDTO(assetDTO);
+                    });
+                    return lstAccessRequest;
+                })
+                .flatMap(List::stream)
+                .sorted((a1, a2) -> a2.getRequestTime().compareTo(a1.getRequestTime()))
+                .toList();
     }
 
-    private void createQueryAuditLog(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest,
-            AssetCredential credential, boolean success, String errorMessage,
-            Map<String, Object> result, long startTime) {
-        try {
-            long executionTime = System.currentTimeMillis() - startTime;
-            String username = getCurrentUsername();
-            String ipAddress = getCurrentIpAddress();
+    public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, AccessRequestDTO accessRequestDTO, ApprovalStatus approvalStatus)
+            throws JsonParseException {
+        AccessRequest accessRequest = accessRequestRepository.findById(accessRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Access Request Not Found"));
 
-            // Check if this is a DELETE query for notifications
-            String trimmedQuery = accessQueryDTO.getQuery().trim().toUpperCase();
-            boolean isDeleteQuery = trimmedQuery.startsWith("DELETE");
+        Map<String, String> newCredMapper = new HashMap<>();
+        if (approvalStatus == ApprovalStatus.APPROVED) {
+            // Find existing credential or create new one
+            List<AccessRequest> lstAccessRequests = accessRequestRepository.findByUserAndAssetAndUserAccessTypeAndNotExpired(
+                    accessRequest.getRequestor(),
+                    accessRequest.getAsset(),
+                    Roles.DEVELOPER.getOriginalName());
 
-            // Create audit metadata
-            Map<String, Object> auditMetadata = new HashMap<>();
-            auditMetadata.put(Constants.AUDIT_FIELD_REQUEST_ID, accessQueryDTO.getRequestId());
-            auditMetadata.put(Constants.AUDIT_FIELD_ASSET_ID, accessRequest.getAsset().getId());
-            auditMetadata.put(Constants.EMAIL_VAR_ASSET_NAME, accessRequest.getAsset().getName());
-            auditMetadata.put(Constants.EMAIL_VAR_DATABASE_TYPE, accessRequest.getAsset().getDatabaseType().toString());
-            auditMetadata.put(Constants.EMAIL_VAR_HOST_URL, accessRequest.getAsset().getHostUrl());
-            auditMetadata.put(Constants.AUDIT_FIELD_USERNAME, credential.getUsername());
-            auditMetadata.put(Constants.EMAIL_VAR_QUERY, accessQueryDTO.getQuery());
-            auditMetadata.put(Constants.AUDIT_FIELD_EXECUTION_TIME_MS, executionTime);
-            auditMetadata.put(Constants.AUDIT_FIELD_SUCCESS, success);
+            String existUsername = "";
 
-            if (!success && errorMessage != null) {
-                auditMetadata.put(Constants.AUDIT_FIELD_ERROR_MESSAGE, errorMessage);
+            if (!lstAccessRequests.isEmpty()) {
+                // Generate new username and password
+                existUsername = lstAccessRequests.get(0).getAssetCredential().getUsername();
+            } else {
+                // Set AccessRequest's temporary password flag to true if the username is not exist
+                accessRequest.setIsTempPassword(true);
             }
-
-            if (success && result != null) {
-                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
-                auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data != null ? data.size() : 0);
-                List<String> headers = (List<String>) result.get("headers");
-                auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers != null ? headers.size() : 0);
+            checkUserAndSetCredentials(accessRequest.getAsset().getId(), accessRequest.getRequestor(), accessRequest,
+                    existUsername, newCredMapper);
+            if (newCredMapper.containsKey("credentialID")) {
+                AssetCredential credential = assetCredentialsRepository.findById(Long.parseLong(newCredMapper.get("credentialID")))
+                        .orElseThrow(() -> new ResourceNotFoundException("New Created Credential Not Found"));
+                accessRequest.setAssetCredential(credential);
             }
-
-            // Create instance ID for query execution
-            String instanceId = String.format("QUERY_EXECUTION(%s)", accessQueryDTO.getRequestId());
-
-            AuditTrail audit = AuditTrail.builder()
-                    .timestamp(LocalDateTime.now())
-                    .user(username)
-                    .action(success ? "QUERY_EXECUTED" : "QUERY_FAILED")
-                    .instanceId(instanceId)
-                    .actionMetadata(objectMapper.writeValueAsString(auditMetadata))
-                    .previousValue(null) // No previous value for query execution
-                    .newValue(success ? "Query executed successfully" : "Query execution failed")
-                    .ipAddress(ipAddress)
-                    .build();
-
-            auditTrailService.save(audit);
-
-            // Send DELETE query alert to asset owners if it's a successful DELETE operation
-            if (success && isDeleteQuery) {
-                sendDeleteQueryAlert(accessRequest, accessQueryDTO.getQuery(), result);
-            }
-
-            log.info("Audit log created for query execution: requestId={}, success={}, executionTime={}ms",
-                    accessQueryDTO.getRequestId(), success, executionTime);
-
-        } catch (Exception e) {
-            log.error("Failed to create audit log for query execution: {}", e.getMessage(), e);
         }
+        accessRequest.setAssetApproverStatus(approvalStatus);
+
+        // Set expiry hours (default to 3 months = 2160 hours if not provided)
+        accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
+        // Calculate expiry date
+        accessRequest.setExpiryDate(LocalDateTime.now().plusHours(accessRequest.getExpiryHours()));
+
+        accessRequestRepository.save(accessRequest);
+        User currentUser = userService.getCurrentUser();
+        Map<String, String> notificationData = new HashMap<>();
+        notificationData.put("requestId", accessRequest.getId().toString());
+        notificationData.put("assetId", accessRequest.getAsset().getId().toString());
+        notificationData.put("assetName", accessRequest.getAsset().getName());
+        notificationData.put("assetDescription", accessRequest.getAsset().getDescription());
+        notificationData.put("developerName",
+                accessRequest.getRequestor().getFirstName() + " " + accessRequest.getRequestor().getLastName());
+        notificationData.put("approverName",
+                currentUser.getFirstName() + " " + currentUser.getLastName());
+        notificationData.put("approvalStatus", approvalStatus.name());
+        notificationData.put("messageType", "1"); //1 : success, 0: fail
+        if (!newCredMapper.isEmpty()) {
+            notificationData.put(Constants.EMAIL_VAR_DB_USERNAME, newCredMapper.get(Constants.EMAIL_VAR_DB_USERNAME));
+            notificationData.put(Constants.EMAIL_VAR_DB_PASSWORD, newCredMapper.get(Constants.EMAIL_VAR_DB_PASSWORD));
+        }
+        sendApprovalNotificationAndEmail(currentUser, accessRequest.getRequestor(), accessRequest.getAsset(),
+                notificationData, approvalStatus);
+        return accessRequest;
     }
 
-    private void sendDeleteQueryAlert(AccessRequest accessRequest,
-            String query, Map<String, Object> result) {
-        try {
-            // Get asset owners
-            List<User> assetOwners = assetService.getAssetOwners(accessRequest.getAsset());
-
-            // Extract table name from DELETE query (basic parsing)
-            String tableName = extractTableNameFromDeleteQuery(query);
-
-            // Get affected rows count
-            String affectedRows = "Unknown";
-            if (result != null && result.get("data") != null) {
-                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
-                if (!data.isEmpty() && data.get(0).containsKey("Affected Rows")) {
-                    affectedRows = String.valueOf(data.get(0).get("Affected Rows"));
-                }
-            }
-
-            // Prepare notification data for DELETE alert
-            Map<String, String> notificationData = new HashMap<>();
-            notificationData.put(Constants.EMAIL_VAR_ASSET_NAME, accessRequest.getAsset().getName());
-            notificationData.put(Constants.EMAIL_VAR_DATABASE_TYPE,
-                    accessRequest.getAsset().getDatabaseType().toString());
-            notificationData.put(Constants.EMAIL_VAR_HOST_URL, accessRequest.getAsset().getHostUrl());
-            notificationData.put(Constants.EMAIL_VAR_EXECUTOR_NAME, getCurrentUsername());
-            notificationData.put(Constants.EMAIL_VAR_EXECUTION_TIME, LocalDateTime.now().toString());
-            notificationData.put(Constants.EMAIL_VAR_TABLE_NAME, tableName);
-            notificationData.put(Constants.EMAIL_VAR_AFFECTED_ROWS, affectedRows);
-            notificationData.put(Constants.EMAIL_VAR_QUERY, query);
-
-            // Send notification to each asset owner using NotificationTask
-            for (User owner : assetOwners) {
-                notificationData.put(Constants.EMAIL_VAR_OWNER_NAME, owner.getFirstName() + " " + owner.getLastName());
-
-                createDeleteQueryNotificationTask(accessRequest, owner, notificationData);
-            }
-
-            log.info("DELETE query alert notification tasks created for asset: {}, to {} owners",
-                    accessRequest.getAsset().getName(), assetOwners.size());
-
-        } catch (Exception e) {
-            log.error("Failed to create DELETE query alert notifications: {}", e.getMessage(), e);
-        }
-    }
-
-    private String extractTableNameFromDeleteQuery(String query) {
-        try {
-            // Basic parsing to extract table name from DELETE query
-            // Example: "DELETE FROM users WHERE id = 1" -> "users"
-            String upperQuery = query.trim().toUpperCase();
-
-            if (upperQuery.startsWith("DELETE FROM")) {
-                String afterFrom = query.substring(upperQuery.indexOf("FROM") + 4).trim();
-                String[] parts = afterFrom.split("\\s+");
-                if (parts.length > 0) {
-                    // Remove any schema prefix (e.g., "database.table" -> "table")
-                    String tableName = parts[0];
-                    if (tableName.contains(".")) {
-                        String[] tableParts = tableName.split("\\.");
-                        return tableParts[tableParts.length - 1];
-                    }
-                    return tableName;
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to extract table name from DELETE query: {}", e.getMessage());
-        }
-        return "Unknown";
-    }
-
-    private String getCurrentUsername() {
-        try {
-            if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                if (principal instanceof Jwt) {
-                    return ((Jwt) principal).getClaimAsString("email");
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get current username: {}", e.getMessage());
-        }
-        return "system";
-    }
-
-    private void createDeleteQueryNotificationTask(AccessRequest accessRequest, User owner,
-            Map<String, String> notificationData) throws Exception {
+    private void sendApprovalNotificationAndEmail(User approver, User receiver, Asset asset,
+            Map<String, String> notificationData, ApprovalStatus approvalStatus) throws JsonParseException {
         NotificationMessage notificationMessage = new NotificationMessage();
-        notificationMessage.setTitle("DELETE Query Alert - " + accessRequest.getAsset().getName());
-        notificationMessage.setBody(String.format("DELETE operation executed on %s by %s",
-                accessRequest.getAsset().getName(), getCurrentUsername()));
+        notificationMessage.setTitle("Approval Result of Asset Access Request");
+        if (approvalStatus == ApprovalStatus.APPROVED) {
+            if (notificationData.get(Constants.EMAIL_VAR_DB_USERNAME) != null
+                    && notificationData.get(Constants.EMAIL_VAR_DB_PASSWORD) != null) {
+                notificationMessage.setBody(String.format("""
+                        %s %s has approved your request access of asset '%s'
+                        Database Username: %s
+                        Database Password: %s
+                        """,
+                        approver.getFirstName(),
+                        approver.getLastName(),
+                        asset.getName(),
+                        notificationData.get(Constants.EMAIL_VAR_DB_USERNAME),
+                        notificationData.get(Constants.EMAIL_VAR_DB_PASSWORD)));
+            } else {
+                notificationMessage.setBody(String.format("%s %s has approved your request access of asset '%s'",
+                        approver.getFirstName(), approver.getLastName(), asset.getName()));
+            }
+        } else if (approvalStatus == ApprovalStatus.REJECTED) {
+            notificationMessage.setBody(String.format("%s %s has rejected your request access of asset '%s'",
+                    approver.getFirstName(), approver.getLastName(), asset.getName()));
+        }
+        notificationData.put(Constants.NOTIFY_DATA_ATTR_RECEIVER_ID, receiver.getId().toString());
         notificationMessage.setData(notificationData);
-        notificationMessage.setTopic("dam_notification");
+        notificationMessage.setTopic(Constants.DAM_NOTIFICATION_TOPIC);
 
         // Create and save notification task
         NotificationTask task = new NotificationTask();
-        task.setReceiver(owner);
-        task.setSender(accessRequest.getRequestor());
-        task.setAsset(accessRequest.getAsset());
+        task.setReceiver(receiver);
+        task.setSender(approver);
+        task.setAsset(asset);
         task.setNotificationMessage(notificationMessage.toJson());
-        task.setEmailType(EmailType.DELETE_QUERY_ALERT);
+        task.setEmailType(EmailType.APPROVAL_ASSET_ACCESS_REQUEST);
         notificationTaskRepository.save(task);
     }
 
-    private String getCurrentIpAddress() {
+    private void checkUserAndSetCredentials(Long assetId, User requestor, AccessRequest accessRequest,
+            String existUsername, Map<String, String> newCredMapper) {
+        User currentUser = userService.getCurrentUser();
+        final String userKey = keycloakService.getUserKey();
+
+        //Asset Credential has user_access_type, get credentials which are only asset owner's
+        final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserAccessType(assetId, Roles.ASSET_OWNER.getOriginalName());
+
+        List<AssetCredential> validCredentials = credentials.stream()
+                .filter(cred -> {
+                    // Check if credential has required fields
+                    boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
+                            && cred.getPassword() != null && !cred.getPassword().isEmpty();
+
+                    // Check if user is the owner of the asset associated with this credential
+                    boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(currentUser.getId());
+
+                    return hasValidCredentials && isAssetOwner;
+                })
+                .toList();
+
+        if (validCredentials.isEmpty()) {
+            throw new ResourceNotFoundException("No valid credentials found for the current user");
+        }
+
+        AssetCredential cred = validCredentials.get(0);
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
-                    .currentRequestAttributes();
-            return attributes.getRequest().getRemoteAddr();
+            AssetCredential assetOwnerCred = new AssetCredential();
+            assetOwnerCred.setUsername(cred.getUsername());
+            if (!cred.getIsTemporaryPassword()) {
+                String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+                assetOwnerCred.setPassword(decryptedPassword);
+            } else {
+                assetOwnerCred.setPassword(cred.getPassword());
+            }
+            assetOwnerCred.setAsset(cred.getAsset());
+            assetOwnerCred.setUser(cred.getUser());
+
+            databaseAccessService.checkAccessRequestorInAsset(assetOwnerCred, requestor, accessRequest, existUsername,
+                    newCredMapper);
         } catch (Exception e) {
-            return "unknown";
+            throw new DatabaseAccessException(
+                    "Failed to update database objects upon asset owner login due to credential errors. credential: "
+                            + cred.getId(),
+                    e);
         }
     }
+
+
+
 }

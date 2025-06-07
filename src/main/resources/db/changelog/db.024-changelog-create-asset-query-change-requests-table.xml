@@ -73,5 +73,34 @@
             )"
         />
     </changeSet>
+    
+    <changeSet id="add-status-to-query-change-requests" author="admin">
+        <addColumn tableName="asset_query_change_requests">
+            <column name="approval_status" type="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')" defaultValue="PENDING"/>
+            <column name="reject_reason" type="text">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="update-email-type-for-query-change-request-status" author="admin">
+        <modifyDataType 
+            tableName="emails" 
+            columnName="email_type" 
+            newDataType="ENUM(
+                'INVITATION',
+                'OTHER',
+                'RELINQUISH_ASSET_CREDENTIAL',
+                'ASSET_APPROVE_NOTIFY',
+                'DEVELOPER_ASSET_REQUEST_NOTIFY',
+                'DEVELOPER_RELINQUISH_ASSET_NOTIFY',
+                'APPROVAL_ASSET_ACCESS_REQUEST',
+                'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR',
+                'DELETE_QUERY_ALERT',
+                'ASSET_QUERY_CHANGE_REQUEST_NOTIFY',
+                'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY'
+            )"
+        />
+    </changeSet>
 
 </databaseChangeLog> 

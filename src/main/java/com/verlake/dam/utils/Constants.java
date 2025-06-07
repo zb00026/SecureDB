@@ -70,6 +70,8 @@ public class Constants {
     public static final String EMAIL_VAR_ASSET_ID = "assetId";
     public static final String EMAIL_VAR_REQUESTOR_NAME = "requestorName";
     public static final String EMAIL_VAR_MESSAGE_TYPE = "messageType";
+    public static final String EMAIL_VAR_CHANGE_REQUEST_ID = "changeRequestId";
+    public static final String EMAIL_VAR_REJECT_REASON = "rejectReason";
     
     // Default values
     public static final String DEFAULT_UNKNOWN_VALUE = "Unknown";
@@ -97,6 +99,8 @@ public class Constants {
     public static final String MYSQL_QUERY_EXPLAIN = "EXPLAIN";
     public static final String MYSQL_QUERY_DESC = "DESC";
     public static final String MYSQL_QUERY_EXECUTE = "EXECUTE";
+
+    public static final String DAM_NOTIFICATION_TOPIC = "dam_notifications";
 
     public static final String JDBC_MYSQL_URL = "jdbc:mysql://";
     public static final String JDBC_POSTGRESQL_URL = "jdbc:postgresql://";

@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.enums.EmailType;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 
 @Configuration
 @EnableBatchProcessing
@@ -259,6 +260,18 @@ public class NotificationJobConfig {
             EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, this::sendDeveloperAssetRequestEmail,
             EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY, this::sendDeveloperRelinquishAssetEmail,
             EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY, this::sendAssetQueryChangeRequestEmail,
+            EmailType.ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY, notificationTask -> {
+                try {
+                    sendAssetQueryChangeRequestApprovalEmail(notificationTask);
+                } catch (Exception e) {
+                    throw new NotificationProcessingException(
+                        "Failed to send asset query change request approval email",
+                        notificationTask.getId(),
+                        notificationTask.getReceiver().getEmail(),
+                        e
+                    );
+                }
+            },
             EmailType.APPROVAL_ASSET_ACCESS_REQUEST, notificationTask -> {
                 try {
                     sendApprovalAssetAccessRequestEmail(notificationTask);
@@ -277,9 +290,9 @@ public class NotificationJobConfig {
                 } catch (Exception e) {
                     throw new NotificationProcessingException(
                             "Failed to send DELETE query notify email",
-                            notificationTask.getId(),
-                            notificationTask.getReceiver().getEmail(),
-                            e
+                        notificationTask.getId(),
+                        notificationTask.getReceiver().getEmail(),
+                        e
                     );
                 }
             }
@@ -343,6 +356,37 @@ public class NotificationJobConfig {
                 e
             );
         }
+    }
+
+    private void sendAssetQueryChangeRequestApprovalEmail(NotificationTask task) throws Exception {
+        ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
+        JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        
+        if (dataNode == null) {
+            throw new JsonParseException(null, "Data node not found in asset query change request approval notification");
+        }
+        
+        // Create AccessQueryDTO from notification data
+        AccessQueryDTO queryDTO = new AccessQueryDTO();
+        queryDTO.setApprovalStatus(ApprovalStatus.valueOf(
+            dataNode.has(Constants.EMAIL_VAR_APPROVAL_STATUS) ? 
+            dataNode.get(Constants.EMAIL_VAR_APPROVAL_STATUS).asText() : "PENDING"));
+        queryDTO.setTicketReference(dataNode.has(Constants.EMAIL_VAR_TICKET_REFERENCE) ? 
+            dataNode.get(Constants.EMAIL_VAR_TICKET_REFERENCE).asText() : "");
+        queryDTO.setChangeDescription(dataNode.has(Constants.EMAIL_VAR_CHANGE_DESCRIPTION) ? 
+            dataNode.get(Constants.EMAIL_VAR_CHANGE_DESCRIPTION).asText() : "");
+        queryDTO.setQuery(dataNode.has(Constants.EMAIL_VAR_QUERY) ? 
+            dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : "");
+        queryDTO.setRejectReason(dataNode.has(Constants.EMAIL_VAR_REJECT_REASON) ? 
+            dataNode.get(Constants.EMAIL_VAR_REJECT_REASON).asText() : "");
+        
+        emailService.sendAssetQueryChangeRequestApprovalEmail(
+            task.getReceiver(),
+            task.getSender(),
+            task.getAsset(),
+            queryDTO,
+            "approval-asset-query-change-request"
+        );
     }
 
     private void sendApprovalAssetAccessRequestEmail(NotificationTask task) throws Exception {
