@@ -128,7 +128,8 @@ public class AccessRequestService {
 
         // Check if this is an update to an existing request
         if (requestDTO.getRequestId() != null) {
-            request = findById(requestDTO.getRequestId());
+            List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
+            request = requests.isEmpty() ? null : requests.get(0);
         } else {
             request = new AccessRequest();
         }
@@ -257,11 +258,6 @@ public class AccessRequestService {
         request.setAssetApproverStatus(ApprovalStatus.PENDING);
         return accessRequestRepository.save(request);
     }
-
-    public List<AccessRequest> getPendingRequests() {
-        return accessRequestRepository.findPendingRequests();
-    }
-
     public List<AccessRequest> getRequestsNeedingDeveloperApproval() {
         return accessRequestRepository.findRequestsNeedingDeveloperApproval();
     }
@@ -334,7 +330,7 @@ public class AccessRequestService {
         List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserId(currentUser.getId());
         return assetCredentials.stream()
                 .map(credential -> {
-                    List<AccessRequest> lstAccessRequest = accessRequestRepository.findByAsset(credential.getAsset());
+                    List<AccessRequest> lstAccessRequest = accessRequestRepository.findPendingsByAsset(credential.getAsset());
                     Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
                             .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
                     lstAccessRequest.forEach(request -> {
@@ -377,6 +373,8 @@ public class AccessRequestService {
                         .orElseThrow(() -> new ResourceNotFoundException("New Created Credential Not Found"));
                 accessRequest.setAssetCredential(credential);
             }
+        } else if (approvalStatus == ApprovalStatus.REJECTED) {
+            accessRequest.setRejectReason(accessRequestDTO.getRejectReason());
         }
         accessRequest.setAssetApproverStatus(approvalStatus);
 

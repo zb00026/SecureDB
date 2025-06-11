@@ -41,6 +41,9 @@ public class AccessRequest {
     @Column(name = "request_reason")
     private String requestReason;
 
+    @Column(name = "reject_reason")
+    private String rejectReason;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "developer_approver_status")
     private ApprovalStatus developerApproverStatus = ApprovalStatus.PENDING;

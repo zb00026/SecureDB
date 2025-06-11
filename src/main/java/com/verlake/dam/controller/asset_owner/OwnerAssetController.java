@@ -21,6 +21,7 @@ import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.assets.DatabaseAccessService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.UserService;
@@ -68,7 +69,8 @@ public class OwnerAssetController {
     private AccessRequestRepository accessRequestRepository;
     @Autowired
     private AccessLevelObjectRepository accessLevelObjectRepository;
-
+    @Autowired
+    private DatabaseAccessService databaseAccessService;
     /**
      * Constructor for OwnerAssetController.
      * 
@@ -85,11 +87,13 @@ public class OwnerAssetController {
             AccessRequestService accessRequestService,
             UserService userService,
             AssetObjectRepository assetObjectRepository,
+            DatabaseAccessService databaseAccessService,
             AssetQueryChangeRequestService assetQueryChangeRequestService) {
         this.assetService = assetService;
         this.accessRequestService = accessRequestService;
         this.userService = userService;
         this.assetObjectRepository = assetObjectRepository;
+        this.databaseAccessService = databaseAccessService;
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
     }
 
@@ -119,9 +123,9 @@ public class OwnerAssetController {
     }
 
     @PostMapping("/request/{accessRequestId}/reject")
-    public ResponseEntity<AccessRequest> rejectAccessRequest(@PathVariable long accessRequestId) {
+    public ResponseEntity<AccessRequest> rejectAccessRequest(@PathVariable long accessRequestId, @RequestBody AccessRequestDTO accessRequest) {
         try {
-            return ResponseEntity.ok(accessRequestService.setApprovalStatusOfAccessRequest(accessRequestId, null, ApprovalStatus.REJECTED));
+            return ResponseEntity.ok(accessRequestService.setApprovalStatusOfAccessRequest(accessRequestId, accessRequest, ApprovalStatus.REJECTED));
         } catch (JsonParseException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Can not reject access request");
         }
@@ -226,6 +230,9 @@ public class OwnerAssetController {
         try (Connection connection = DriverManager.getConnection(jdbcUrlPrefix + host, username, password)) {
             if (connection != null) {
                 if (authProvider.contains(AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
+                    existingCredential.setUsername(username);
+                    existingCredential.setPassword(password);
+                    databaseAccessService.updateAssetObjects(existingCredential);
                     String userKey = keycloakService.getUserKey();
                     if(userKey != null && !userKey.isEmpty()) {
                         password = encryptPasswordWithKey(userKey, password);

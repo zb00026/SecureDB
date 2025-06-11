@@ -30,5 +30,6 @@
     <include file="db/changelog/db.022-changelog-add-initial-password-to-users-table.xml"/>
     <include file="db/changelog/db.023-changelog-update-email-type.xml"/>
     <include file="db/changelog/db.024-changelog-create-asset-query-change-requests-table.xml"/>
+    <include file="db/changelog/db.025-changelog-add-reject-reason-access-request.xml"/>
     <include file="db/changelog/db.027-changelog-fix-database-charset-utf8mb4.xml"/>
 </databaseChangeLog>

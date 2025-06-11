@@ -100,6 +100,9 @@ public class EmailService {
         String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
         String redirectLink = hostDomainUri + "?inviteCode=" + inviteCode;
         context.setVariable(Constants.EMAIL_VAR_REDIRECT_LINK, redirectLink);
+        
+        // Add password guidelines to email context
+        context.setVariable("passwordGuidelines", getPasswordGuidelines());
 
         String emailSubject = "Invitation to Join Our DAM System";
         ObjectMapper objectMapper = new ObjectMapper();
@@ -121,6 +124,18 @@ public class EmailService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to send invitation email to " + user.getEmail());
         }
+    }
+
+    /**
+     * Returns password complexity guidelines as a formatted HTML string for emails
+     */
+    private String getPasswordGuidelines() {
+        return "<strong>Password Requirements:</strong><br/>" +
+               "• Minimum 12 characters<br/>" +
+               "• At least one uppercase letter (A–Z)<br/>" +
+               "• At least one lowercase letter (a–z)<br/>" +
+               "• At least one digit (0–9)<br/>" +
+               "• At least one special character (!@#$%^&*()-_=+[]{}|;:'\",.<>/?)";
     }
 
     public void sendAssetRelinquishEmail(User admin, User owner, AssetCredential assetCredential,

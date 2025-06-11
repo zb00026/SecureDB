@@ -93,8 +93,13 @@ public class AuthController {
         if (userDto.getPassword() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Password can not be empty.");
         }
+        
+        // Check password complexity
+        userService.checkPasswordComplexity(userDto.getPassword());
+        
         User curUser = userService.getCurrentUser();
         if (curUser != null) {
+            curUser.setPassword(userDto.getPassword());
             if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
                 keycloakService.saveUser(curUser.getEmail(),
                         curUser.getEmail(),

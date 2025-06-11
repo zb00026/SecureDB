@@ -11,8 +11,14 @@
     <p>Dear <strong th:text="${userName}"></strong>,</p>
     <p>We are excited to have you on board. Please click the link below to activate your account:</p>
     <a th:href="@{${redirectLink}}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Activate Account</a>
-    <p style="margin-top: 10px">You can log in with this temporary password: <span style="color: #a0a0a0; font-size: 14px; font-weight: bold;" th:text="${tempPassword}"></span> </p>
-    <p style="margin-top: 10px; color: #a0a0a0;">If you didn’t request this, please ignore this email.</p>
+    
+    <div style="margin-top: 20px; padding: 15px; background-color: #fff; border: 1px solid #ddd; border-radius: 5px;">
+        <p style="margin-top: 0; margin-bottom: 10px;">Your temporary password is: <span style="color: #d32f2f; font-size: 14px; font-weight: bold; font-family: monospace;" th:text="${tempPassword}"></span></p>
+        <div style="color: #666; font-size: 14px;" th:utext="${passwordGuidelines}"></div>
+        <p style="margin-bottom: 0; margin-top: 10px; color: #d32f2f; font-size: 14px;"><strong>Important:</strong> You must change this password upon first login.</p>
+    </div>
+    
+    <p style="margin-top: 10px; color: #a0a0a0;">If you didn't request this, please ignore this email.</p>
     <p style="margin-top: 10px;">Best Regards, <br> The Team</p>
 </div>
 </body>

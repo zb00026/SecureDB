@@ -14,7 +14,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 public class UserService {
@@ -98,4 +100,80 @@ public class UserService {
 
         return userRepository.findByEmail(email).orElseThrow(() -> new AccessDeniedException("Current User not found"));
     }
+
+    /**
+     * Validates password complexity according to the following requirements:
+     * - Minimum 12 characters
+     * - At least one uppercase letter (A–Z)
+     * - At least one lowercase letter (a–z)
+     * - At least one digit (0–9)
+     * - At least one special character
+     */
+    public void checkPasswordComplexity(String password) {
+        if (password == null || password.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password cannot be empty");
+        }
+
+        if (password.length() < 12) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "Password must be at least 12 characters long");
+        }
+
+        if (!Pattern.compile("[A-Z]").matcher(password).find()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "Password must contain at least one uppercase letter (A–Z)");
+        }
+
+        if (!Pattern.compile("[a-z]").matcher(password).find()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "Password must contain at least one lowercase letter (a–z)");
+        }
+
+        if (!Pattern.compile("\\d").matcher(password).find()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "Password must contain at least one digit (0–9)");
+        }
+
+        if (!Pattern.compile("[!@#$%^&*()\\-_=+\\[\\]{}|;:'\",.<>/?]").matcher(password).find()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "Password must contain at least one special character (!@#$%^&*()-_=+[]{}|;:'\",.<>/?)");
+        }
+    }
+
+    /**
+     * Generates a complex password that meets all complexity requirements
+     */
+    public String generateComplexPassword() {
+        SecureRandom random = new SecureRandom();
+        String upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        String lowerCase = "abcdefghijklmnopqrstuvwxyz";
+        String digits = "0123456789";
+        String specialChars = "!@#$%^&*()-_=+[]{}|;:'\",.<>/?";
+        String allChars = upperCase + lowerCase + digits + specialChars;
+
+        StringBuilder password = new StringBuilder();
+        
+        // Ensure at least one character from each required category
+        password.append(upperCase.charAt(random.nextInt(upperCase.length())));
+        password.append(lowerCase.charAt(random.nextInt(lowerCase.length())));
+        password.append(digits.charAt(random.nextInt(digits.length())));
+        password.append(specialChars.charAt(random.nextInt(specialChars.length())));
+
+        // Fill the rest with random characters to reach 12+ characters
+        for (int i = 4; i < 12; i++) {
+            password.append(allChars.charAt(random.nextInt(allChars.length())));
+        }
+
+        // Shuffle the password to avoid predictable patterns
+        char[] passwordArray = password.toString().toCharArray();
+        for (int i = passwordArray.length - 1; i > 0; i--) {
+            int j = random.nextInt(i + 1);
+            char temp = passwordArray[i];
+            passwordArray[i] = passwordArray[j];
+            passwordArray[j] = temp;
+        }
+
+        return new String(passwordArray);
+    }
+
 }

@@ -74,11 +74,15 @@ public class UserController {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
+        // Check password complexity
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            userService.checkPasswordComplexity(user.getPassword());
+        }
         if (userAuthProvider == AuthProvider.KEYCLOAK) {
             keycloakService.saveUser(user.getEmail(), user.getEmail(),
                     user.getFirstName(),
                     user.getLastName(),
-                    user.getPassword(), true);
+                    user.getPassword(), false);
         }
         user.setIsActive(false);
         userRepository.save(user);
@@ -96,6 +100,12 @@ public class UserController {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with the email '" + user.getEmail() + "' already exists.");
         }
+        
+        // Check password complexity
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            userService.checkPasswordComplexity(user.getPassword());
+        }
+        
         if (authProvider.contains(AuthProvider.KEYCLOAK.toString().toLowerCase())) {
             keycloakService.saveUser(user.getEmail(),
                     user.getEmail(),
@@ -115,6 +125,13 @@ public class UserController {
                     user.setFirstName(userDetails.getFirstName());
                     user.setLastName(userDetails.getLastName());
                     user.setEmail(userDetails.getEmail());
+                    
+                    // Check password complexity if password is being updated
+                    if (userDetails.getPassword() != null && !userDetails.getPassword().isEmpty()) {
+                        userService.checkPasswordComplexity(userDetails.getPassword());
+                        user.setPassword(userDetails.getPassword());
+                    }
+                    
                     if (userDetails.getRoles() != null && !userDetails.getRoles().isEmpty()) {
                         Set<Long> roleIds = userDetails.getRoles().stream()
                                 .map(Role::getId)

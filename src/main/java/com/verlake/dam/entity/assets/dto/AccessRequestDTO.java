@@ -12,6 +12,7 @@ public class AccessRequestDTO {
     private Long assetId;
     private List<AccessLevelObject> accessLevelObjects;
     private String requestReason;
+    private String rejectReason;
     private AccessRequest accessRequest;
     private Integer expirationHours;
 

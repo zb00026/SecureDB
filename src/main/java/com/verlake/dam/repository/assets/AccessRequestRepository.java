@@ -22,6 +22,9 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     
     // Find requests for a specific asset
     List<AccessRequest> findByAsset(Asset asset);
+
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
+    List<AccessRequest> findPendingsByAsset(Asset asset);
     
     // Delete all access requests for a specific asset
     void deleteByAsset(Asset asset);
@@ -31,11 +34,11 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     List<AccessRequest> findByAssetApproverStatus(ApprovalStatus status);
     
     // Find pending requests (both statuses are PENDING)
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'PENDING' OR ar.assetApproverStatus = 'PENDING'")
-    List<AccessRequest> findPendingRequests();
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.assetApproverStatus = 'PENDING' AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
+    List<AccessRequest> findPendingRequestsByAsset(@Param("asset") Asset asset);
     
     // Find requests by asset and requestor
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.requestor = :requestor AND ar.expiryDate > CURRENT_TIMESTAMP")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.requestor = :requestor AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
     List<AccessRequest> findByAssetAndRequestor(@Param("asset") Asset asset, @Param("requestor") User requestor);
     
     // Find latest request for an asset and user
