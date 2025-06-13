@@ -1,22 +1,22 @@
 package com.verlake.dam.controller.asset_owner;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.verlake.dam.entity.assets.AccessLevelObject;
+import com.verlake.dam.controller.common.BaseAssetAccessController;
 import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
+import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
-
+import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
+import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
+import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
@@ -26,6 +26,9 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -33,29 +36,29 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.server.ResponseStatusException;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import static com.verlake.dam.utils.Constants.AUTH_PROVIDER_KEYCLOAK;
 
-
 @RestController
 @RequestMapping("/api/asset_owner/assets")
-public class OwnerAssetController {
-    private final AssetService assetService;
+public class OwnerAssetController extends BaseAssetAccessController {
+
     private final AccessRequestService accessRequestService;
     private final UserService userService;
     private final AssetQueryChangeRequestService assetQueryChangeRequestService;
 
     @Autowired
     private EmailService emailService;
+
     @Autowired
     private KeycloakService keycloakService;
 
@@ -64,21 +67,39 @@ public class OwnerAssetController {
 
     @Value("${auth.provider}")
     private String authProvider;
+
     private AssetObjectRepository assetObjectRepository;
     @Autowired
     private AccessRequestRepository accessRequestRepository;
+
     @Autowired
     private AccessLevelObjectRepository accessLevelObjectRepository;
+
     @Autowired
     private DatabaseAccessService databaseAccessService;
+
     /**
      * Constructor for OwnerAssetController.
      * 
-     * This constructor is intentionally empty as it's used by Spring's dependency injection.
-     * Spring will automatically inject the required dependencies through constructor injection.
-     * The @RequiredArgsConstructor annotation from Lombok will generate the actual constructor
-     * with all final fields.
+     * This constructor is used by Spring's dependency injection framework to create
+     * an instance of OwnerAssetController with all required dependencies.
      * 
+     * @param assetService the service for managing assets
+     * @param accessRequestService the service for managing access requests
+     * @param userService the service for managing users
+     * @param assetObjectRepository the repository for asset objects
+     * @param databaseAccessService the service for database access operations
+     * @param assetQueryChangeRequestService the service for asset query change requests
+     * 
+     * @implNote This constructor initializes all final fields and should only be called
+     *           by Spring's dependency injection framework. The @RequiredArgsConstructor
+     *           annotation from Lombok generates this constructor automatically for all
+     *           final fields, ensuring that all dependencies are properly injected.
+     * 
+     * @see RequiredArgsConstructor
+     * @since 1.0
+     * 
+     * @throws IllegalArgumentException if any of the required parameters are null
      * @throws UnsupportedOperationException if this constructor is called directly
      *         instead of being used by Spring's dependency injection
      */
@@ -89,7 +110,7 @@ public class OwnerAssetController {
             AssetObjectRepository assetObjectRepository,
             DatabaseAccessService databaseAccessService,
             AssetQueryChangeRequestService assetQueryChangeRequestService) {
-        this.assetService = assetService;
+        super(assetService);
         this.accessRequestService = accessRequestService;
         this.userService = userService;
         this.assetObjectRepository = assetObjectRepository;
@@ -111,6 +132,21 @@ public class OwnerAssetController {
     @GetMapping("/{assetId}")
     public ResponseEntity<AssetDTO> getAsset(@PathVariable long assetId) {
         return ResponseEntity.ok(assetService.findDTOById(assetId));
+    }
+
+    /**
+     * Get real-time user access information for an asset by querying the target database directly
+     */
+    @GetMapping("/{id}/access")
+    @Override
+    public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
+        return super.getAssetAccess(id);
+    }
+
+    @Override
+    protected ResponseEntity<?> handleGenericError(RuntimeException e) {
+        // Asset owner controller returns internal server error for generic errors
+        return ResponseEntity.internalServerError().build();
     }
 
     @PostMapping("/request/{accessRequestId}/approve")

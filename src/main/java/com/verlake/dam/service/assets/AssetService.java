@@ -6,6 +6,7 @@ import com.verlake.dam.entity.assets.AssetApprover;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
+import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.entity.user.User;
@@ -16,11 +17,15 @@ import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.persistence.Access;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -52,8 +57,10 @@ public class AssetService {
     private final AssetObjectRepository assetObjectRepository;
     private final KeycloakService keycloakService;
     private final DatabaseAccessService databaseAccessService;
+    private final DatabaseConnectionUtils databaseConnectionUtils;
     private final NotificationTaskRepository notificationTaskRepository;
     private final AccessLevelObjectRepository accessLevelObjectRepository;
+    private static final Logger logger = LoggerFactory.getLogger(AssetService.class);
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
@@ -64,6 +71,7 @@ public class AssetService {
                         AssetCredentialsRepository assetCredentialsRepository,
                         AssetObjectRepository assetObjectRepository,
                         KeycloakService keycloakService, DatabaseAccessService databaseAccessService,
+                        DatabaseConnectionUtils databaseConnectionUtils,
                         NotificationTaskRepository notificationTaskRepository, AccessLevelObjectRepository accessLevelObjectRepository) {
         this.assetRepository = assetRepository;
         this.credentialsRepository = credentialsRepository;
@@ -75,6 +83,7 @@ public class AssetService {
         this.assetObjectRepository = assetObjectRepository;
         this.keycloakService = keycloakService;
         this.databaseAccessService = databaseAccessService;
+        this.databaseConnectionUtils = databaseConnectionUtils;
         this.notificationTaskRepository = notificationTaskRepository;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
     }
@@ -339,5 +348,104 @@ public class AssetService {
 
     public void deleteAssetCredential(AssetCredential credential) {
         credentialsRepository.delete(credential);
+    }
+
+    /**
+     * Retrieves access information for a specific asset, showing current database users and their permissions
+     * @param assetId The ID of the asset
+     * @return AssetAccessDTO containing asset and user access information
+     * @throws AccessDeniedException if user has no valid credentials for the asset
+     * @throws RuntimeException for technical errors
+     */
+    public AssetAccessDTO getAssetAccess(Long assetId) {
+        logger.info("=== STARTING getAssetAccess for asset ID: {} ===", assetId);
+        
+        try {
+            Asset asset = findById(assetId);
+            User currentUser = userService.getCurrentUser();
+            logger.info("Current user: {} (ID: {})", currentUser.getEmail(), currentUser.getId());
+
+            AssetCredential userCredential = findUserCredentialForAsset(assetId, currentUser);
+            logger.info("Using credential: {} for asset access query", userCredential.getUsername());
+
+            return databaseAccessService.fetchAssetUserAccess(asset, userCredential);
+            
+        } catch (AccessDeniedException e) {
+            logger.warn("Access denied for user and asset ID: {}. Reason: {}", assetId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            logger.error("ERROR in getAssetAccess for asset ID: {}. Exception: {}", assetId, e.getClass().getSimpleName());
+            logger.error("Error message: {}", e.getMessage());
+            logger.error("Full stack trace:", e);
+            
+            // Convert credential-related errors to access denied
+            if (databaseConnectionUtils.isCredentialRelatedError(e)) {
+                throw new AccessDeniedException("User has no access to asset");
+            }
+            
+            throw new AccessDeniedException("Failed to fetch asset access information", e);
+        }
+    }
+
+    /**
+     * Finds the appropriate credential for the current user to access the specified asset
+     * @param assetId The asset ID
+     * @param currentUser The current user
+     * @return AssetCredential to use for database access
+     * @throws AccessDeniedException if no valid credentials are found
+     */
+    private AssetCredential findUserCredentialForAsset(Long assetId, User currentUser) {
+        // First, try to find user's own credential
+        AssetCredential userCredential = findUserOwnCredential(assetId, currentUser);
+        
+        if (userCredential != null) {
+            logger.info("Found user's own credential for asset ID: {}", assetId);
+            return userCredential;
+        }
+
+        // If no personal credential, check if user is an asset owner
+        AssetCredential ownerCredential = findAssetOwnerCredential(assetId, currentUser);
+        
+        if (ownerCredential != null) {
+            logger.info("Using asset owner credential for user: {}", currentUser.getEmail());
+            return ownerCredential;
+        }
+
+        logger.warn("No valid credentials found for user {} and asset ID: {}", 
+                   currentUser.getEmail(), assetId);
+        throw new AccessDeniedException("User has no access to asset");
+    }
+
+    /**
+     * Finds the user's own credential for the asset
+     */
+    private AssetCredential findUserOwnCredential(Long assetId, User currentUser) {
+        return assetCredentialsRepository
+            .findByAssetIdAndUserId(assetId, currentUser.getId())
+            .stream()
+            .filter(databaseConnectionUtils::hasValidPassword)
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * Finds the asset owner credential if the current user is an asset owner
+     */
+    private AssetCredential findAssetOwnerCredential(Long assetId, User currentUser) {
+        return assetCredentialsRepository
+            .findByAssetIdAndUserAccessType(assetId, "Owner")
+            .stream()
+            .filter(cred -> isValidOwnerCredential(cred, currentUser))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * Checks if the credential is valid for the owner and belongs to the current user
+     */
+    private boolean isValidOwnerCredential(AssetCredential credential, User currentUser) {
+        return credential.getUser() != null && 
+               credential.getUser().getId().equals(currentUser.getId()) &&
+               databaseConnectionUtils.hasValidPassword(credential);
     }
 }

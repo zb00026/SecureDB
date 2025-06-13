@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
+import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
+import com.verlake.dam.entity.assets.dto.UserAccessDTO;
+import com.verlake.dam.entity.assets.dto.PermissionDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
@@ -20,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.fetchers.*;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -45,15 +50,18 @@ public class DatabaseAccessService {
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
     private final UserService userService;
+    private final DatabaseConnectionUtils databaseConnectionUtils;
 
     public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
             AssetCredentialsRepository assetCredentialsRepository,
-            KeycloakService keycloakService, UserService userService) {
+            KeycloakService keycloakService, UserService userService,
+            DatabaseConnectionUtils databaseConnectionUtils) {
         this.assetObjectRepository = assetObjectRepository;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.keycloakService = keycloakService;
         this.objectMapper = new ObjectMapper();
         this.userService = userService;
+        this.databaseConnectionUtils = databaseConnectionUtils;
     }
 
     public void updateAssetObjects(AssetCredential credential) throws SQLException {
@@ -88,7 +96,7 @@ public class DatabaseAccessService {
     }
 
     private String fetchMySQLObjects(AssetCredential credential, ObjectNode rootNode) throws SQLException {
-        String jdbcUrl = Constants.JDBC_MYSQL_URL + credential.getAsset().getHostUrl();
+        String jdbcUrl = databaseConnectionUtils.buildJdbcUrl(credential.getAsset());
 
         Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(),
                 credential.getPassword());
@@ -105,7 +113,6 @@ public class DatabaseAccessService {
         fetchInformationSchemaObjects(connection, rootNode);
 
         return rootNode.toString();
-
     }
 
     private void initializeCategories(ObjectNode rootNode) {
@@ -554,39 +561,16 @@ public class DatabaseAccessService {
         return rootNode.toString();
     }
 
-    private Connection getConnectionFromAssetCredential(AssetCredential credential) throws SQLException {
-        String jdbcUrl;
-        switch (credential.getAsset().getDatabaseType()) {
-            case MYSQL:
-                jdbcUrl = Constants.JDBC_MYSQL_URL + credential.getAsset().getHostUrl();
-                break;
-            case POSTGRESQL:
-                jdbcUrl = Constants.JDBC_POSTGRESQL_URL + credential.getAsset().getHostUrl();
-                break;
-            case ORACLE:
-                jdbcUrl = Constants.JDBC_ORACLE_URL + credential.getAsset().getHostUrl();
-                break;
-            case SQLSERVER:
-                jdbcUrl = Constants.JDBC_SQLSERVER_URL + credential.getAsset().getHostUrl();
-                break;
-            default:
-                throw new DatabaseAccessException(
-                        "Unsupported database type: " + credential.getAsset().getDatabaseType(), null);
-        }
-        return DriverManager.getConnection(jdbcUrl, credential.getUsername(),
-                credential.getPassword());
-    }
-
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateAccessRequestCredentialPassword(AssetCredential devCredential, String newPassword)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
         String userKey = keycloakService.getUserKey();
         if (!devCredential.getIsTemporaryPassword()) {
-            String decPsd = CommonUtils.decrypt(userKey, devCredential.getPassword());
+            String decPsd = databaseConnectionUtils.decryptCredentialPassword(devCredential);
             devCredential.setPassword(decPsd);
         }
-        try (Connection connection = getConnectionFromAssetCredential(devCredential)) {
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(devCredential)) {
             String alterUserSql;
             PreparedStatement statement;
 
@@ -629,7 +613,7 @@ public class DatabaseAccessService {
     public void checkAccessRequestorInAsset(AssetCredential credential, User requestor, AccessRequest accessRequest,
             String existUsername, Map<String, String> newCredMapper) {
 
-        try (Connection connection = getConnectionFromAssetCredential(credential)) {
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
             // Extract username from email (everything before @)
             String username = getCredentialForAccess(connection, credential, requestor, existUsername, newCredMapper);
 
@@ -760,7 +744,7 @@ public class DatabaseAccessService {
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
 
-        try (Connection connection = getConnectionFromAssetCredential(ownerCredential)) { // Use owner's connection
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(ownerCredential)) { // Use owner's connection
             String revokeUserSql;
             PreparedStatement statement;
 
@@ -859,7 +843,7 @@ public class DatabaseAccessService {
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
         
         String decryptedPassword = getDecryptedPassword(credential, query);
-        String jdbcUrl = buildJdbcUrl(credential.getAsset());
+        String jdbcUrl = databaseConnectionUtils.buildJdbcUrl(credential.getAsset());
         
         try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
             String preparedQuery = prepareQueryForExecution(query, isChangeRequest, isDryRun);
@@ -882,8 +866,7 @@ public class DatabaseAccessService {
             throw new DatabaseAccessException("Can not run query with temporary password: " + query, null);
         }
 
-        String userKey = keycloakService.getUserKey();
-        return CommonUtils.decrypt(userKey, credential.getPassword());
+        return databaseConnectionUtils.decryptCredentialPassword(credential);
     }
 
     private String prepareQueryForExecution(String query, boolean isChangeRequest, boolean isDryRun) {
@@ -1061,25 +1044,83 @@ public class DatabaseAccessService {
         TRANSACTION_CONTROL
     }
 
-    private String buildJdbcUrl(Asset asset) {
-        String baseUrl;
-        switch (asset.getDatabaseType()) {
-            case MYSQL:
-                baseUrl = Constants.JDBC_MYSQL_URL + asset.getHostUrl();
-                break;
-            case POSTGRESQL:
-                baseUrl = Constants.JDBC_POSTGRESQL_URL + asset.getHostUrl();
-                break;
-            case ORACLE:
-                baseUrl = Constants.JDBC_ORACLE_URL + asset.getHostUrl();
-                break;
-            case SQLSERVER:
-                baseUrl = Constants.JDBC_SQLSERVER_URL + asset.getHostUrl();
-                break;
-            default:
-                throw new DatabaseAccessException(
-                        "Unsupported database type: " + asset.getDatabaseType(), null);
-        }
-        return baseUrl;
+    /**
+     * Fetch actual user access information by querying the target database directly
+     * This method provides real-time information about database users and their permissions
+     * 
+     * @param asset The asset containing database connection information
+     * @param adminCredential The credential to use for database connection
+     * @return AssetAccessDTO containing all users and their permissions in the database
+     * @throws DatabaseAccessException for database connection or access issues
+     */
+    public AssetAccessDTO fetchAssetUserAccess(Asset asset, AssetCredential adminCredential) {
+        
+        log.info("=== Starting fetchAssetUserAccess for asset: {} (ID: {}) ===", 
+                asset.getName(), asset.getId());
+        log.info("Using credential username: {}", adminCredential.getUsername());
+        
+        // Validate inputs
+        validateInputs(asset, adminCredential);
+        
+        String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(adminCredential);
+        
+        // Create temporary credential for connection
+        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential, decryptedPassword);
+        
+        List<UserAccessDTO> users = fetchUsersByDatabaseType(asset, tempCredential);
+        
+        log.info("Successfully fetched access information for {} users", users.size());
+        return new AssetAccessDTO(
+            asset.getId(),
+            asset.getName(),
+            asset.getDatabaseType().toString(),
+            users
+        );
     }
+
+    /**
+     * Validates the inputs for fetchAssetUserAccess method
+     */
+    private void validateInputs(Asset asset, AssetCredential adminCredential) {
+        if (asset == null) {
+            throw new DatabaseAccessException("Asset cannot be null", null);
+        }
+        
+        if (adminCredential == null) {
+            throw new DatabaseAccessException("Admin credential cannot be null", null);
+        }
+        
+        if (!databaseConnectionUtils.hasValidPassword(adminCredential)) {
+            log.warn("Credential ID: {} has no password", adminCredential.getId());
+            throw new DatabaseAccessException("User has no access to asset", null);
+        }
+    }
+
+    /**
+     * Fetches users based on the database type
+     */
+    private List<UserAccessDTO> fetchUsersByDatabaseType(Asset asset, AssetCredential tempCredential) {
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
+            log.debug("Successfully connected to database: {}", asset.getDatabaseType());
+            
+            DatabaseUserAccessFetcher fetcher = switch (asset.getDatabaseType()) {
+                case MYSQL -> new MySQLUserAccessFetcher();
+                case POSTGRESQL -> new PostgreSQLUserAccessFetcher();
+                case SQLSERVER -> new SQLServerUserAccessFetcher();
+                case ORACLE -> new OracleUserAccessFetcher();
+                default -> throw new DatabaseAccessException(
+                        "Unsupported database type: " + asset.getDatabaseType(), null);
+            };
+            
+            return fetcher.fetchUserAccess(connection, asset.getDatabaseName());
+        } catch (SQLException e) {
+            log.error("Database connection or query error for asset ID: {} - {}", 
+                     asset.getId(), e.getMessage());
+            throw new DatabaseAccessException("Failed to connect to database or execute query", e);
+        }
+    }
+
+
+
+
 }
