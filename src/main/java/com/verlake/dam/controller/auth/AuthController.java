@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.verlake.dam.enums.AuthProvider;
-import com.verlake.dam.service.UserService;
+
 import org.springframework.web.server.ResponseStatusException;
 import com.verlake.dam.service.assets.DatabaseAccessService;
 import com.verlake.dam.service.auth.AuthService;
@@ -27,6 +27,7 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.auth.TokenService;
 import com.verlake.dam.service.auth.TokenServiceManager;
 import com.verlake.dam.service.firebase.FirebaseMessagingService;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.assets.AssetService;
 
 import org.slf4j.Logger;

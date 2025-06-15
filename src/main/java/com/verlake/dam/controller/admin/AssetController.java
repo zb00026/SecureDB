@@ -9,7 +9,7 @@ import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.email.EmailService;
-import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

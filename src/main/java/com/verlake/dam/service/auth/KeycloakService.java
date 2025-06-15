@@ -117,12 +117,14 @@ public class KeycloakService {
         user.setLastName(lastName);
         user.setEnabled(true);
 
-        // Set password credentials
-        CredentialRepresentation credential = new CredentialRepresentation();
-        credential.setType(CredentialRepresentation.PASSWORD);
-        credential.setValue(password);
-        credential.setTemporary(isTemporaryPsd);
-        user.setCredentials(Arrays.asList(credential));
+        // Set password credentials - avoid deprecated credentials format
+        if (password != null && !password.isEmpty()) {
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(password);
+            credential.setTemporary(isTemporaryPsd);
+            user.setCredentials(Arrays.asList(credential));
+        }
 
         Response response = usersResource.create(user);
         if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
@@ -133,6 +135,16 @@ public class KeycloakService {
 
         // Get the user ID from the response
         String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
+
+        // Set password after user creation to avoid deprecated format warning
+        if (password != null && !password.isEmpty()) {
+            UserResource userResource = usersResource.get(userId);
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(password);
+            credential.setTemporary(isTemporaryPsd);
+            userResource.resetPassword(credential);
+        }
 
         // Assign manage-account role
         RealmResource realmResource = getRealmInstance();

@@ -12,7 +12,6 @@ import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AccessLevelService;
-import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.persistence.Access;
@@ -26,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.users.UserService;
+
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 
 import java.security.InvalidAlgorithmParameterException;

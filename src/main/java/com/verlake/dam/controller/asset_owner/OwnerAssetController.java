@@ -24,7 +24,7 @@ import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseAccessService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
-import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;

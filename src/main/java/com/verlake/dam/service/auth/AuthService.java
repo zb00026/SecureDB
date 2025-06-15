@@ -2,7 +2,7 @@ package com.verlake.dam.service.auth;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
-import com.verlake.dam.service.UserService;
+import com.verlake.dam.service.users.UserService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

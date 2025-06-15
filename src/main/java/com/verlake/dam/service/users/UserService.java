@@ -1,9 +1,10 @@
-package com.verlake.dam.service;
+package com.verlake.dam.service.users;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserFilter;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -15,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
 
 @Service
@@ -174,6 +175,48 @@ public class UserService {
         }
 
         return new String(passwordArray);
+    }
+
+    /**
+     * Generates a secure temporary password that meets complexity requirements
+     */
+    public String generateSecureTemporaryPassword() {
+        // Use a secure random generator
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        
+        // Define character sets
+        String lowercase = Constants.PSSWD_LOWERCASE;
+        String uppercase = Constants.PSSWD_UPPERCASE;
+        String digits = Constants.PSSWD_DIGITS;
+        String specials = Constants.PSSWD_SPECIALS;
+        String allChars = lowercase + uppercase + digits + specials;
+        
+        StringBuilder password = new StringBuilder();
+        
+        // Ensure at least one character from each required set
+        password.append(lowercase.charAt(random.nextInt(lowercase.length())));
+        password.append(uppercase.charAt(random.nextInt(uppercase.length())));
+        password.append(digits.charAt(random.nextInt(digits.length())));
+        password.append(specials.charAt(random.nextInt(specials.length())));
+        
+        // Fill the rest randomly (minimum 12 characters total)
+        for (int i = 4; i < 16; i++) {
+            password.append(allChars.charAt(random.nextInt(allChars.length())));
+        }
+        
+        // Shuffle the password to avoid predictable patterns
+        List<Character> passwordChars = new ArrayList<>();
+        for (char c : password.toString().toCharArray()) {
+            passwordChars.add(c);
+        }
+        Collections.shuffle(passwordChars, random);
+        
+        StringBuilder shuffledPassword = new StringBuilder();
+        for (char c : passwordChars) {
+            shuffledPassword.append(c);
+        }
+        
+        return shuffledPassword.toString();
     }
 
 }

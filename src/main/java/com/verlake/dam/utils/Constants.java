@@ -88,6 +88,80 @@ public class Constants {
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 
+    // User management constants
+    public static final String USER_EMAIL_ALREADY_EXISTS = "A user with the email '%s' already exists.";
+    public static final String USER_NOT_FOUND = "User ID %d does not exist";
+    public static final String USER_NOT_FOUND_DOT = "User ID %d does not exist.";
+    public static final String ROLES_NOT_FOUND = "One or more roles not found";
+    
+    // Email template names
+    public static final String EMAIL_TEMPLATE_GOOGLE_INVITE = "google-invite";
+    public static final String EMAIL_TEMPLATE_KEYCLOAK_INVITE = "keycloak-invite";
+    
+    // Password generation character sets
+    public static final String PSSWD_LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
+    public static final String PSSWD_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    public static final String PSSWD_DIGITS = "0123456789";
+    public static final String PSSWD_SPECIALS = "!@#$%^&*()-_=+[]{}|;:'\",.<>/?";
+    
+    // CSV constants
+    public static final String CSV_EXTENSION = ".csv";
+    public static final String CSV_HEADER = "firstName,lastName,email,roleName";
+    public static final String CSV_FILENAME = "user_bulk_upload_sample.csv";
+    public static final String CSV_CONTENT_TYPE = "text/csv; charset=utf-8";
+    public static final String CSV_ATTACHMENT_HEADER = "attachment; filename=" + CSV_FILENAME;
+    public static final String CSV_COMMENT_PREFIX = "#";
+    
+    // Role names
+    public static final String ROLE_ADMIN = "Admin";
+    public static final String ROLE_DEVELOPER = "Developer";
+    public static final String ROLE_ASSET_OWNER = "Asset Owner";
+    public static final String ROLE_APPROVER = "Approver";
+    public static final String ROLE_AUDITOR = "Auditor";
+    
+    // Response field names
+    public static final String RESPONSE_SUCCESS = "success";
+    public static final String RESPONSE_MESSAGE = "message";
+    public static final String RESPONSE_ERRORS = "errors";
+    public static final String RESPONSE_TOTAL_USERS = "totalUsers";
+    public static final String RESPONSE_SUCCESSFUL_USERS = "successfulUsers";
+    public static final String RESPONSE_FAILED_USERS = "failedUsers";
+    public static final String RESPONSE_USERS = "users";
+    public static final String RESPONSE_ID = "id";
+    public static final String RESPONSE_EMAIL = "email";
+    public static final String RESPONSE_FIRST_NAME = "firstName";
+    public static final String RESPONSE_LAST_NAME = "lastName";
+    
+    // User field names
+    public static final String USER_FIELD_ID = "id";
+    public static final String USER_FIELD_FIRST_NAME = "firstName";
+    public static final String USER_FIELD_LAST_NAME = "lastName";
+    public static final String USER_FIELD_EMAIL = "email";
+    public static final String USER_FIELD_ROLE_NAME = "roleName";
+    public static final String USER_FIELD_LINE_NUMBER = "lineNumber";
+    
+    // Error messages
+    public static final String ERROR_UPLOADED_FILE_EMPTY = "Uploaded file is empty";
+    public static final String ERROR_FILE_MUST_BE_CSV = "File must be a CSV file";
+    public static final String ERROR_NO_VALID_USER_DATA = "No valid user data found in CSV file";
+    public static final String ERROR_VALIDATION_ERRORS_FOUND = "Validation errors found";
+    public static final String ERROR_BULK_UPLOAD_FAILED = "Bulk upload failed: %s";
+    public static final String ERROR_FAILED_TO_GENERATE_CSV = "Failed to generate sample CSV: %s";
+    public static final String ERROR_FIELD_REQUIRED = "%s is required";
+    public static final String ERROR_INVALID_EMAIL_FORMAT = "invalid email format: %s";
+    public static final String ERROR_DUPLICATE_EMAIL_CSV = "duplicate email in CSV: %s";
+    public static final String ERROR_EMAIL_ALREADY_EXISTS_SYSTEM = "email already exists in system: %s";
+    public static final String ERROR_INVALID_ROLE_NAME = "invalid role name: '%s'. Available roles: " + ROLE_ADMIN + ", " + ROLE_DEVELOPER + ", " + ROLE_ASSET_OWNER + ", " + ROLE_APPROVER + ", " + ROLE_AUDITOR;
+    
+    // Success messages
+    public static final String SUCCESS_CSV_GENERATED = "Sample CSV generated successfully";
+    public static final String SUCCESS_USERS_CREATED = "Successfully created %d users and sent email invites";
+    public static final String SUCCESS_CREATED_USERS_AND_SENT_INVITES = "Successfully created %d users and sent email invites";
+    public static final String SUCCESS_GENERATING_CSV = "Generating sample CSV for bulk user creation";
+    
+    // Email regex pattern
+    public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@(.+)$";
+
     public static final String MYSQL_QUERY_SELECT = "SELECT";
     public static final String MYSQL_QUERY_SHOW = "SHOW";
     public static final String MYSQL_QUERY_DESCRIBE = "DESCRIBE";

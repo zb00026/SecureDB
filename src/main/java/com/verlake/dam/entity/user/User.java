@@ -6,10 +6,10 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import com.verlake.dam.listener.AuditEntityListener;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.Role;
-import com.verlake.dam.service.UserService;
 import com.verlake.dam.utils.SpringContext;
 
 import java.util.*;
