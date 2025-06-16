@@ -1,6 +1,7 @@
 package com.verlake.dam.security;
 
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.utils.Constants;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,14 +37,14 @@ public class SecurityConfiguration {
                 .csrf(csrf -> csrf.disable()) // Disable CSRF for simplicity (optional)
                 .cors(cors -> cors.disable()) // Disable CORS (optional, enable as per your requirements)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/public/**", "/api/auth/**", "/api/firebase/notifications/**").permitAll()
-                        .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Roles.ADMIN.name())
-                        .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.ASSET_OWNER.name())
-                        .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Roles.DEVELOPER.name())
-                        .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Roles.APPROVER.name())
-                        .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Roles.AUDITOR.name())
-                        .requestMatchers("/api" + Roles.ASSET_OWNER.getAvailablePath()).hasAuthority(Roles.ASSET_OWNER.name())
-                        .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Roles.ADMIN.name(), Roles.AUDITOR.name())
+                        .requestMatchers("/public/**", "/api/auth/**", "/api/firebase/notifications/**", "/api/license/status").permitAll()
+                        .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
+                        .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name())
+                        .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())
+                        .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.APPROVER.name())
+                        .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
+                        .requestMatchers("/api" + Roles.ASSET_OWNER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name())
+                        .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
                         .anyRequest().denyAll()
                 )
                 .sessionManagement(session -> session

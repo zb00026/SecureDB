@@ -8,6 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.GrantedAuthority;
 import java.io.IOException;
 
 @Component
@@ -36,7 +39,14 @@ public class LicenseValidationFilter implements Filter {
         }
 
         if (!licenseManager.isLicenseValid()) {
-            logger.error("License validation failed");
+            // Check if user is admin and accessing admin-related endpoints
+            if (isAdminUser() && isAdminAccessibleEndpoint(httpRequest.getRequestURI())) {
+                logger.warn("License invalid but allowing admin access to: {}", httpRequest.getRequestURI());
+                chain.doFilter(request, response);
+                return;
+            }
+            
+            logger.error("License validation failed for non-admin or non-admin endpoint: {}", httpRequest.getRequestURI());
             httpResponse.setStatus(HttpServletResponse.SC_FORBIDDEN);
             httpResponse.getWriter().write("Invalid license");
             return;
@@ -47,7 +57,35 @@ public class LicenseValidationFilter implements Filter {
 
     private boolean isPublicEndpoint(String uri) {
         return uri.startsWith("/public/") || 
-               uri.startsWith("/api/auth/verifyToken");
+               uri.startsWith("/api/auth/verifyToken") ||
+               uri.startsWith("/api/license/status");
+    }
+    
+    /**
+     * Check if the current user has admin role
+     */
+    private boolean isAdminUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(authority -> authority.equals("ROLE_ADMIN"));
+    }
+    
+    /**
+     * Check if the endpoint should be accessible to admins even when license is invalid
+     */
+    private boolean isAdminAccessibleEndpoint(String uri) {
+        return uri.startsWith("/api/admin/license") ||           // License management endpoints
+               uri.startsWith("/api/admin/users") ||             // User management (to manage admin users)
+               uri.equals("/api/admin/dashboard") ||             // Admin dashboard
+               uri.startsWith("/api/user/profile") ||            // User profile (for admin's own profile)
+               uri.startsWith("/api/auth/") ||                   // Authentication endpoints
+               uri.startsWith("/api/license/status") ||          // License status check
+               uri.equals("/api/admin/settings/get-current-audit-log-storage"); // Audit log storage settings
     }
 
     @Override

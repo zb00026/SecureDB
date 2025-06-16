@@ -88,6 +88,13 @@ public class Constants {
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 
+    // License constants
+    public static final String LICENSE_SOURCE_DATABASE = "Database";
+    public static final String LICENSE_SOURCE_RESOURCES = "Resources";
+    public static final String LICENSE_USING_DATABASE_LICENSE = "usingDatabaseLicense";
+    
+    // Security constants
+    public static final String SECURITY_ROLE_PREFIX = "ROLE_";
     // User management constants
     public static final String USER_EMAIL_ALREADY_EXISTS = "A user with the email '%s' already exists.";
     public static final String USER_NOT_FOUND = "User ID %d does not exist";

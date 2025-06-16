@@ -3,7 +3,6 @@ package com.verlake.dam.security;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
-
 import java.util.List;
 
 public class CompositeJwtDecoder implements JwtDecoder {

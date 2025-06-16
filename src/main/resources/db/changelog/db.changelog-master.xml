@@ -32,4 +32,5 @@
     <include file="db/changelog/db.024-changelog-create-asset-query-change-requests-table.xml"/>
     <include file="db/changelog/db.025-changelog-add-reject-reason-access-request.xml"/>
     <include file="db/changelog/db.027-changelog-fix-database-charset-utf8mb4.xml"/>
+    <include file="db/changelog/db.028-changelog-create-licenses-table.xml"/>
 </databaseChangeLog>

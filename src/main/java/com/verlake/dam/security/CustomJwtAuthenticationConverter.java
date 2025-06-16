@@ -49,7 +49,7 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
         if (user != null && user.getRoles() != null && !user.getRoles().isEmpty()) {
             Set<Role> roles = user.getRoles();
             return roles.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName().toUpperCase().replace(" ", "_")))
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName().toUpperCase().replace(" ", "_")))
                 .toList();
         }
 
