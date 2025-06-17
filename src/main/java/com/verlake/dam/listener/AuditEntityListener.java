@@ -4,7 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.AuditAction;
+import com.verlake.dam.utils.Constants;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.utils.SpringContext;
 import jakarta.persistence.*;
@@ -71,6 +74,9 @@ public class AuditEntityListener {
 
             mapper.registerModule(new JavaTimeModule());
             
+            // Extract asset entity if available
+            Asset assetEntity = extractAsset(target);
+            
             AuditTrail audit = AuditTrail.builder()
                 .timestamp(LocalDateTime.now())
                 .user(username)
@@ -80,6 +86,7 @@ public class AuditEntityListener {
                 .previousValue(previousValue)
                 .newValue(action != AuditAction.DELETE ? mapper.writeValueAsString(target) : null)
                 .ipAddress(ipAddress)
+                .asset(assetEntity)
                 .build();
 
             AuditTrailService auditService = SpringContext.getBean(AuditTrailService.class);
@@ -119,6 +126,50 @@ public class AuditEntityListener {
             return target.getClass().getMethod("getId").invoke(target).toString();
         } catch (Exception e) {
             return "unknown";
+        }
+    }
+
+    /**
+     * Extracts asset entity from the target entity if it's asset-related
+     */
+    private Asset extractAsset(Object target) {
+        try {
+            // Direct asset entity
+            if (target instanceof Asset asset) {
+                return asset;
+            }
+            
+            // Access requests related to assets
+            if (target instanceof AccessRequest) {
+                Object asset = target.getClass().getMethod(Constants.METHOD_GET_ASSET).invoke(target);
+                if (asset instanceof Asset assetEntity) {
+                    return assetEntity;
+                }
+            }
+            
+            // Asset-related entities (AssetCredential, AssetApprover, etc.)
+            if (hasAssetField(target)) {
+                Object asset = target.getClass().getMethod(Constants.METHOD_GET_ASSET).invoke(target);
+                if (asset instanceof Asset assetEntity) {
+                    return assetEntity;
+                }
+            }
+            
+        } catch (Exception e) {
+            log.debug("Could not extract asset from {}: {}", target.getClass().getSimpleName(), e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Checks if the target entity has an asset field
+     */
+    private boolean hasAssetField(Object target) {
+        try {
+            target.getClass().getMethod(Constants.METHOD_GET_ASSET);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
         }
     }
 } 

@@ -178,6 +178,15 @@ public class UserService {
     }
 
     /**
+     * Get users that have the specified user as their approver
+     * @param approver The approver user
+     * @return List of users that have this approver
+     */
+    public List<User> getUsersByApprover(User approver) {
+        return userRepository.findByApprover(approver.getId());
+    }
+
+    /**
      * Generates a secure temporary password that meets complexity requirements
      */
     public String generateSecureTemporaryPassword() {

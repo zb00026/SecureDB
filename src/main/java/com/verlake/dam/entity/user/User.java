@@ -49,6 +49,9 @@ public class User {
     @JoinColumn(name = "invite_email_id")
     private Email inviteEmail;
 
+    @Column(name="invite_code")
+    private String inviteCode;
+
     @Column(name="is_active")
     private Boolean isActive;
 

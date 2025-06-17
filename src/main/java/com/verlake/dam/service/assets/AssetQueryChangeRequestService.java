@@ -389,6 +389,7 @@ public class AssetQueryChangeRequestService {
                     .previousValue(null) // No previous value for query execution
                     .newValue(success ? "Query executed successfully" : "Query execution failed")
                     .ipAddress(ipAddress)
+                    .asset(asset)
                     .build();
 
             auditTrailService.save(audit);

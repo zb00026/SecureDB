@@ -67,4 +67,12 @@
             <where>`id` = 1</where>
         </update>
     </changeSet>
+
+    <changeSet id="add-invite-code-to-users" author="admin">
+        <addColumn tableName="users">
+            <column name="invite_code" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

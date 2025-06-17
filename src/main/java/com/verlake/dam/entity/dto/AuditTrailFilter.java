@@ -1,6 +1,7 @@
 package com.verlake.dam.entity.dto;
 
 import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.utils.Constants;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class AuditTrailFilter extends PageRequestDTO implements FilterMetaData<A
     private String ipAddress;
     private String previousValue;
     private String newValue;
+    private Long assetId;
 
     @Override
     public Specification<AuditTrail> toSpecification() {
@@ -85,8 +87,12 @@ public class AuditTrailFilter extends PageRequestDTO implements FilterMetaData<A
                 ));
             }
 
-            log.debug("Filter conditions: startDate={}, endDate={}, action={}, user={}, previousValue={}, newValue={}, ipAddress={}",
-                startDate, endDate, action, user, previousValue, newValue, ipAddress);
+            if (assetId != null) {
+                predicates.add(cb.equal(root.get(Constants.AUDIT_TRAIL_FIELD_ASSET).get(Constants.FIELD_ID), assetId));
+            }
+
+            log.debug("Filter conditions: startDate={}, endDate={}, action={}, user={}, previousValue={}, newValue={}, ipAddress={}, assetId={}",
+                startDate, endDate, action, user, previousValue, newValue, ipAddress, assetId);
 
             return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
         };

@@ -74,18 +74,18 @@ public class UserCsvService {
                     log.debug("CSV headers: {}", Arrays.toString(headers));
                 } else {
                     // Process data line
-                    if (values.length != headers.length) {
-                        throw new IllegalArgumentException(
-                            String.format("Line %d has %d columns but expected %d", 
-                            lineNumber, values.length, headers.length));
-                    }
-                    
-                    Map<String, String> userData = new HashMap<>();
-                    for (int i = 0; i < headers.length; i++) {
-                        userData.put(headers[i].trim(), values[i].trim());
-                    }
-                    userData.put(Constants.USER_FIELD_LINE_NUMBER, String.valueOf(lineNumber));
-                    userDataList.add(userData);
+                if (values.length != headers.length) {
+                    throw new IllegalArgumentException(
+                        String.format("Line %d has %d columns but expected %d", 
+                        lineNumber, values.length, headers.length));
+                }
+                
+                Map<String, String> userData = new HashMap<>();
+                for (int i = 0; i < headers.length; i++) {
+                    userData.put(headers[i].trim(), values[i].trim());
+                }
+                userData.put(Constants.USER_FIELD_LINE_NUMBER, String.valueOf(lineNumber));
+                userDataList.add(userData);
                 }
             }
         }
@@ -156,15 +156,15 @@ public class UserCsvService {
      * Validates email field with format, duplicates, and database existence checks
      */
     private void validateEmailField(Map<String, String> userData, String prefix, Set<String> emails, List<String> errors) {
-        String email = userData.get(Constants.USER_FIELD_EMAIL);
+            String email = userData.get(Constants.USER_FIELD_EMAIL);
         
-        if (email == null || email.trim().isEmpty()) {
-            errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, Constants.USER_FIELD_EMAIL));
+            if (email == null || email.trim().isEmpty()) {
+                errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, Constants.USER_FIELD_EMAIL));
             return;
         }
         
-        email = email.trim().toLowerCase();
-        
+                email = email.trim().toLowerCase();
+                
         validateEmailFormat(email, prefix, errors);
         validateEmailDuplication(email, prefix, emails, errors);
         validateEmailExistence(email, prefix, errors);
@@ -174,44 +174,44 @@ public class UserCsvService {
      * Validates email format
      */
     private void validateEmailFormat(String email, String prefix, List<String> errors) {
-        if (!email.matches(Constants.EMAIL_REGEX)) {
-            errors.add(prefix + String.format(Constants.ERROR_INVALID_EMAIL_FORMAT, email));
+                if (!email.matches(Constants.EMAIL_REGEX)) {
+                    errors.add(prefix + String.format(Constants.ERROR_INVALID_EMAIL_FORMAT, email));
         }
-    }
-
+                }
+                
     /**
      * Validates email duplication within CSV
      */
     private void validateEmailDuplication(String email, String prefix, Set<String> emails, List<String> errors) {
-        if (emails.contains(email)) {
-            errors.add(prefix + String.format(Constants.ERROR_DUPLICATE_EMAIL_CSV, email));
-        } else {
-            emails.add(email);
+                if (emails.contains(email)) {
+                    errors.add(prefix + String.format(Constants.ERROR_DUPLICATE_EMAIL_CSV, email));
+                } else {
+                    emails.add(email);
         }
-    }
-
+                }
+                
     /**
      * Validates email existence in database
      */
     private void validateEmailExistence(String email, String prefix, List<String> errors) {
-        if (userRepository.existsByEmail(email)) {
-            errors.add(prefix + String.format(Constants.ERROR_EMAIL_ALREADY_EXISTS_SYSTEM, email));
-        }
-    }
-
+                if (userRepository.existsByEmail(email)) {
+                    errors.add(prefix + String.format(Constants.ERROR_EMAIL_ALREADY_EXISTS_SYSTEM, email));
+                }
+            }
+            
     /**
      * Validates role field and individual role names
      */
     private void validateRoleField(Map<String, String> userData, String prefix, List<String> errors) {
-        String roleName = userData.get(Constants.USER_FIELD_ROLE_NAME);
+            String roleName = userData.get(Constants.USER_FIELD_ROLE_NAME);
         
-        if (roleName == null || roleName.trim().isEmpty()) {
-            errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, Constants.USER_FIELD_ROLE_NAME));
+            if (roleName == null || roleName.trim().isEmpty()) {
+                errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, Constants.USER_FIELD_ROLE_NAME));
             return;
         }
         
-        String[] roleNameArray = roleName.split(",");
-        for (String name : roleNameArray) {
+                String[] roleNameArray = roleName.split(",");
+                for (String name : roleNameArray) {
             validateIndividualRole(name.trim(), prefix, errors);
         }
     }

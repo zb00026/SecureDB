@@ -116,6 +116,7 @@ public class AuditTrailService {
                     auditRecord.put("newValue", audit.getNewValue());
                     auditRecord.put("actionMetadata", audit.getActionMetadata());
                     auditRecord.put("ipAddress", audit.getIpAddress());
+                    auditRecord.put("assetId", audit.getAsset() != null ? audit.getAsset().getId() : null);
 
                     writer.write(auditRecord);
                 }

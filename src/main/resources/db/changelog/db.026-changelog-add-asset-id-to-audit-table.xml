@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="add-asset-id-to-audit-trails" author="verlake">
+        <addColumn tableName="audit_trails">
+            <column name="asset_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <createIndex tableName="audit_trails" indexName="idx_audit_trails_asset_id">
+            <column name="asset_id"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="audit_trails" indexName="idx_audit_trails_asset_id"/>
+            <dropColumn tableName="audit_trails" columnName="asset_id"/>
+        </rollback>
+    </changeSet>
+    
+</databaseChangeLog> 

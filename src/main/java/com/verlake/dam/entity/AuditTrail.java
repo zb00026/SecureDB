@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.verlake.dam.entity.assets.Asset;
 import java.time.LocalDateTime;
 
 @Entity
@@ -44,4 +45,8 @@ public class AuditTrail {
 
     @Column(name = "ip_address")
     private String ipAddress;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "asset_id")
+    private Asset asset;
 } 

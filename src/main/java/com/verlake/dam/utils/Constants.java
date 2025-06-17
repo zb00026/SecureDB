@@ -85,6 +85,30 @@ public class Constants {
     public static final String AUDIT_FIELD_ERROR_MESSAGE = "errorMessage";
     public static final String AUDIT_FIELD_ROW_COUNT = "rowCount";
     public static final String AUDIT_FIELD_COLUMN_COUNT = "columnCount";
+    
+    // Audit trail filter constants
+    public static final String AUDIT_TRAIL_FIELD_ACTION_METADATA = "actionMetadata";
+    public static final String AUDIT_TRAIL_FIELD_INSTANCE_ID = "instanceId";
+    public static final String AUDIT_TRAIL_FIELD_USER = "user";
+    public static final String AUDIT_TRAIL_FIELD_ACTION = "action";
+    public static final String AUDIT_TRAIL_FIELD_ASSET = "asset";
+    
+    // Common field names
+    public static final String FIELD_ID = "id";
+    public static final String METHOD_GET_ASSET = "getAsset";
+    
+    // Audit trail JSON field patterns
+    public static final String AUDIT_JSON_ASSET_ID = "assetId";
+    public static final String AUDIT_JSON_ASSET_ID_ALT = "asset_id";
+    
+    // Audit trail instance ID patterns
+    public static final String AUDIT_INSTANCE_ASSET_PREFIX = "ASSET(";
+    public static final String AUDIT_INSTANCE_ASSET_SUFFIX = ")";
+    
+    // Audit trail action patterns
+    public static final String AUDIT_ACTION_APPROVAL = "APPROVAL";
+    public static final String AUDIT_ACTION_APPROVE = "APPROVE";
+    public static final String AUDIT_ACTION_REJECT = "REJECT";
 
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
 
@@ -246,7 +270,8 @@ public class Constants {
                     {"name": "previousValue", "type": ["null", "string"]},
                     {"name": "newValue", "type": ["null", "string"]},
                     {"name": "actionMetadata", "type": ["null", "string"]},
-                    {"name": "ipAddress", "type": ["null", "string"]}
+                    {"name": "ipAddress", "type": ["null", "string"]},
+                    {"name": "assetId", "type": ["null", "long"]}
                   ]
                 }
             """);
