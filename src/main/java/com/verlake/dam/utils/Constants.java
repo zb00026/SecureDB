@@ -168,6 +168,7 @@ public class Constants {
     public static final String USER_FIELD_FIRST_NAME = "firstName";
     public static final String USER_FIELD_LAST_NAME = "lastName";
     public static final String USER_FIELD_EMAIL = "email";
+    public static final String USER_FIELD_IS_ACTIVE = "isActive";
     public static final String USER_FIELD_ROLE_NAME = "roleName";
     public static final String USER_FIELD_LINE_NUMBER = "lineNumber";
     

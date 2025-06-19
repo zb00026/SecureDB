@@ -193,6 +193,10 @@ public class EmailService {
             log.debug("Generated invite code: {}", inviteCode);
             log.debug("Redirect link: {}", redirectLink);
             
+            // Store invite code in user record for validation
+            user.setInviteCode(inviteCode);
+            userRepository.save(user);
+            
             // Add password guidelines to email context
             context.setVariable("passwordGuidelines", getPasswordGuidelines());
 

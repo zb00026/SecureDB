@@ -9,6 +9,7 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.exception.EmailSendingException;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.CommonUtils;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -306,6 +307,11 @@ public class UserCsvService {
         
         for (User user : users) {
             try {
+                // Generate and store invite code for each user
+                String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
+                user.setInviteCode(inviteCode);
+                userRepository.save(user);
+                
                 emailService.sendInvitationEmail(user, emailTmplFile);
                 log.debug("Email invite sent to: {}", user.getEmail());
             } catch (Exception e) {

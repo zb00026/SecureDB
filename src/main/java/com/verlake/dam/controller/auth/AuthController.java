@@ -77,6 +77,9 @@ public class AuthController {
 
     @PostMapping("/api/auth/verifyToken")
     public ResponseEntity<UserDTO> verifyToken(@RequestBody UserDTO userDto) {
+        log.info("Received authentication request for provider: {}, inviteCode: {}", 
+                 userDto.getAuthProvider(), userDto.getInviteCode());
+        
         TokenService tokenService = getTokenService(userDto.getAuthProvider());
         authService.validateToken(userDto, tokenService);
         User user = authService.authenticateUser(userDto, tokenService);
@@ -109,6 +112,10 @@ public class AuthController {
                         userDto.getPassword(), false);
             }
             curUser.setIsInitialPassword(false);
+            
+            // Activate user when they set their permanent password
+            // This completes the invitation/activation process
+            curUser = userService.completeUserActivation(curUser);
         }
         userService.saveUser(curUser);
         return ResponseEntity.ok().body(userDto);

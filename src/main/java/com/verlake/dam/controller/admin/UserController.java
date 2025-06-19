@@ -203,6 +203,36 @@ public class UserController {
         return userService.unsetApproverForUser(id);
     }
 
+    /**
+     * Activate a user account
+     */
+    @PutMapping("/activate/{id}")
+    public ResponseEntity<User> activateUser(@PathVariable Long id) {
+        User user = userService.findById(id);
+        if (user == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, String.format(Constants.USER_NOT_FOUND, id));
+        }
+        
+        User activatedUser = userService.activateUser(user);
+        return ResponseEntity.ok(activatedUser);
+    }
+
+    /**
+     * Deactivate a user account
+     */
+    @PutMapping("/deactivate/{id}")
+    public ResponseEntity<User> deactivateUser(@PathVariable Long id) {
+        User user = userService.findById(id);
+        if (user == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, String.format(Constants.USER_NOT_FOUND, id));
+        }
+        
+        User deactivatedUser = userService.deactivateUser(user);
+        return ResponseEntity.ok(deactivatedUser);
+    }
+
     @GetMapping("/download-sample-csv")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<String> downloadSampleCSV() {

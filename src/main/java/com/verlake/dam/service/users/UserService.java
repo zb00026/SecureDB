@@ -6,6 +6,7 @@ import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 @Service
+@Slf4j
 public class UserService {
     private final UserRepository userRepository;
 
@@ -226,6 +228,73 @@ public class UserService {
         }
         
         return shuffledPassword.toString();
+    }
+
+    /**
+     * Activates a user account
+     * @param user The user to activate
+     * @return The activated user
+     */
+    public User activateUser(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        
+        user.setIsActive(true);
+        user.setInviteCode(null);
+        user.setInviteEmail(null);
+        
+        User savedUser = userRepository.save(user);
+        log.info("User {} has been activated", user.getEmail());
+        
+        return savedUser;
+    }
+
+    /**
+     * Deactivates a user account
+     * @param user The user to deactivate
+     * @return The deactivated user
+     */
+    public User deactivateUser(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        
+        user.setIsActive(false);
+        User savedUser = userRepository.save(user);
+        log.info("User {} has been deactivated", user.getEmail());
+        
+        return savedUser;
+    }
+
+    /**
+     * Checks if a user is active
+     * @param user The user to check
+     * @return true if the user is active, false otherwise
+     */
+    public boolean isUserActive(User user) {
+        if (user == null) {
+            return false;
+        }
+        return user.getIsActive() != null && user.getIsActive();
+    }
+
+    /**
+     * Activates user when they complete invitation process (e.g., setting password)
+     * @param user The user to activate
+     * @return The activated user
+     */
+    public User completeUserActivation(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        
+        // Only activate if user is currently inactive
+        if (!isUserActive(user)) {
+            return activateUser(user);
+        }
+        
+        return user;
     }
 
 }
