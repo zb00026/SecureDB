@@ -4,6 +4,7 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.enums.LockType;
 
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,8 @@ public class AssetDTO {
     private String portNumber;
     private String databaseName;
     private String fetchTemplate;
+    private boolean locked;
+    private LockType lockType;
     private AccessRequest accessRequest;
     private List<User> owners;
     private List<User> approvers;

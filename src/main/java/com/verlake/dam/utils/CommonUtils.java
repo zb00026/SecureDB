@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.LinkedHashMap;
@@ -17,6 +18,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.spec.InvalidKeySpecException;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -72,49 +74,58 @@ public class CommonUtils {
         return keycloakUserId;
     }
 
-    public static String encrypt(String password, String data) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
-        SecretKeySpec secretKey = generateKeyFromPassword(password);
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    public static String encrypt(String password, String data) throws CryptoException {
+        try {
+            SecretKeySpec secretKey = generateKeyFromPassword(password);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 
-        // Generate random IV (12 bytes is recommended for GCM)
-        byte[] iv = new byte[12];
-        SecureRandom secureRandom = new SecureRandom();
-        secureRandom.nextBytes(iv);
-        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv); // 128-bit authentication tag
+            // Generate random IV (12 bytes is recommended for GCM)
+            byte[] iv = new byte[12];
+            SecureRandom secureRandom = new SecureRandom();
+            secureRandom.nextBytes(iv);
+            GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv); // 128-bit authentication tag
 
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
-        byte[] encryptedData = cipher.doFinal(data.getBytes());
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+            byte[] encryptedData = cipher.doFinal(data.getBytes());
 
-        // Combine IV and encrypted data
-        byte[] combined = new byte[iv.length + encryptedData.length];
-        System.arraycopy(iv, 0, combined, 0, iv.length);
-        System.arraycopy(encryptedData, 0, combined, iv.length, encryptedData.length);
+            // Combine IV and encrypted data
+            byte[] combined = new byte[iv.length + encryptedData.length];
+            System.arraycopy(iv, 0, combined, 0, iv.length);
+            System.arraycopy(encryptedData, 0, combined, iv.length, encryptedData.length);
 
-        return Base64.getEncoder().encodeToString(combined);
+            return Base64.getEncoder().encodeToString(combined);
+        } catch (NoSuchPaddingException | NoSuchAlgorithmException | InvalidKeyException | IllegalBlockSizeException
+                | BadPaddingException | InvalidAlgorithmParameterException e) {
+            throw new CryptoException("Encryption failed", e);
+        }
     }
 
     // Method to decrypt the string using AES-256
-    public static String decrypt(String password, String encryptedData) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException,
-            IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
-        byte[] combined = Base64.getDecoder().decode(encryptedData);
+    public static String decrypt(String password, String encryptedData) throws CryptoException {
+        try {
+            byte[] combined = Base64.getDecoder().decode(encryptedData);
 
-        // Extract IV
-        byte[] iv = new byte[12];
-        System.arraycopy(combined, 0, iv, 0, iv.length);
-        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
+            // Extract IV
+            byte[] iv = new byte[12];
+            System.arraycopy(combined, 0, iv, 0, iv.length);
+            GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
 
-        // Extract encrypted data
-        byte[] encrypted = new byte[combined.length - iv.length];
-        System.arraycopy(combined, iv.length, encrypted, 0, encrypted.length);
+            // Extract encrypted data
+            byte[] encrypted = new byte[combined.length - iv.length];
+            System.arraycopy(combined, iv.length, encrypted, 0, encrypted.length);
 
-        SecretKeySpec secretKey = generateKeyFromPassword(password);
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+            SecretKeySpec secretKey = generateKeyFromPassword(password);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
 
-        byte[] decryptedData = cipher.doFinal(encrypted);
-        return new String(decryptedData);
+            byte[] decryptedData = cipher.doFinal(encrypted);
+            return new String(decryptedData);
+        } catch (Exception e) {
+            throw new CryptoException("Decryption failed with both legacy and hash methods", e);
+        }
     }
+
+    
 
     private static SecretKeySpec generateKeyFromPassword(String password) {
         byte[] key = new byte[16];
@@ -123,10 +134,23 @@ public class CommonUtils {
         return new SecretKeySpec(key, "AES");
     }
 
+    /**
+     * Custom exception for cryptographic operations
+     */
+    public static class CryptoException extends Exception {
+        public CryptoException(String message) {
+            super(message);
+        }
+
+        public CryptoException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public static class EncryptionException extends Exception {
         public EncryptionException(String message, Throwable cause) {
             super(message, cause);
         }
     }
-    
+
 }

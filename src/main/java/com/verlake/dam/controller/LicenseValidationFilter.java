@@ -81,11 +81,10 @@ public class LicenseValidationFilter implements Filter {
     private boolean isAdminAccessibleEndpoint(String uri) {
         return uri.startsWith("/api/admin/license") ||           // License management endpoints
                uri.startsWith("/api/admin/users") ||             // User management (to manage admin users)
-               uri.equals("/api/admin/dashboard") ||             // Admin dashboard
-               uri.startsWith("/api/user/profile") ||            // User profile (for admin's own profile)
-               uri.startsWith("/api/auth/") ||                   // Authentication endpoints
-               uri.startsWith("/api/license/status") ||          // License status check
-               uri.equals("/api/admin/settings/get-current-audit-log-storage"); // Audit log storage settings
+               uri.startsWith("/api/admin/assets") ||            // Asset management endpoints
+               uri.startsWith("/api/admin/roles") ||             // Role management endpoints
+               uri.startsWith("/api/admin/settings") ||          // Settings management endpoints
+               uri.startsWith("/api/license/status");            // License status check
     }
 
     @Override

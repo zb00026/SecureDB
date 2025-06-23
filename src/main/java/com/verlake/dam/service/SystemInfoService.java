@@ -127,8 +127,8 @@ public class SystemInfoService {
         try {
             String interfaceName = networkInterface.getName().toLowerCase();
             return networkInterface.isLoopback() || 
-                   networkInterface.isVirtual() || 
-                   !networkInterface.isUp() ||
+                                            networkInterface.isVirtual() || 
+                                            !networkInterface.isUp() ||
                    isVirtualOrContainerInterface(interfaceName);
         } catch (Exception e) {
             return true; // Skip interfaces that cause exceptions
@@ -137,27 +137,27 @@ public class SystemInfoService {
     
     private boolean isVirtualOrContainerInterface(String interfaceName) {
         return interfaceName.startsWith("docker") || 
-               interfaceName.startsWith("veth") || 
-               interfaceName.startsWith("vmnet") || 
-               interfaceName.startsWith("vbox") ||
-               interfaceName.startsWith("br-") ||
-               interfaceName.contains("virtual");
+                                            interfaceName.startsWith("veth") || 
+                                            interfaceName.startsWith("vmnet") || 
+                                            interfaceName.startsWith("vbox") ||
+                                            interfaceName.startsWith("br-") ||
+                                            interfaceName.contains("virtual");
     }
     
     private String extractMacAddress(NetworkInterface networkInterface) {
         try {
-            byte[] mac = networkInterface.getHardwareAddress();
+                byte[] mac = networkInterface.getHardwareAddress();
             if (mac == null || mac.length != 6) {
                 return null;
             }
             
-            StringBuilder macAddress = new StringBuilder();
-            for (int i = 0; i < mac.length; i++) {
-                macAddress.append(String.format("%02X", mac[i]));
-                if (i < mac.length - 1) {
-                    macAddress.append(":");
-                }
-            }
+                    StringBuilder macAddress = new StringBuilder();
+                    for (int i = 0; i < mac.length; i++) {
+                        macAddress.append(String.format("%02X", mac[i]));
+                        if (i < mac.length - 1) {
+                            macAddress.append(":");
+                        }
+                    }
             return macAddress.toString();
         } catch (Exception e) {
             return null;
@@ -185,24 +185,24 @@ public class SystemInfoService {
     
     private boolean isWifiInterface(String interfaceName) {
         return interfaceName.contains("wifi") || 
-               interfaceName.startsWith("wl") || 
-               interfaceName.contains("wireless") ||
+                               interfaceName.startsWith("wl") || 
+                               interfaceName.contains("wireless") ||
                interfaceName.startsWith("wlan");
     }
     
     private List<String> buildSortedMacList(List<String> ethernetMacs, List<String> wifiMacs, List<String> otherMacs) {
-        // Sort each category for consistency
-        Collections.sort(ethernetMacs);
-        Collections.sort(wifiMacs);
-        Collections.sort(otherMacs);
-        
-        // Prioritize: Ethernet first, then WiFi, then others
-        List<String> allMacs = new ArrayList<>();
-        allMacs.addAll(ethernetMacs);
-        allMacs.addAll(wifiMacs);
-        allMacs.addAll(otherMacs);
-        
-        return allMacs;
+            // Sort each category for consistency
+            Collections.sort(ethernetMacs);
+            Collections.sort(wifiMacs);
+            Collections.sort(otherMacs);
+            
+            // Prioritize: Ethernet first, then WiFi, then others
+            List<String> allMacs = new ArrayList<>();
+            allMacs.addAll(ethernetMacs);
+            allMacs.addAll(wifiMacs);
+            allMacs.addAll(otherMacs);
+            
+            return allMacs;
     }
     
     /**

@@ -30,7 +30,9 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.sql.*;
+import java.util.Objects;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -563,8 +565,7 @@ public class DatabaseAccessService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateAccessRequestCredentialPassword(AssetCredential devCredential, String newPassword)
-            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
-            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+            throws CommonUtils.CryptoException {
         String userKey = keycloakService.getUserKey();
         if (!devCredential.getIsTemporaryPassword()) {
             String decPsd = databaseConnectionUtils.decryptCredentialPassword(devCredential);
@@ -635,8 +636,7 @@ public class DatabaseAccessService {
                 }
             }
 
-        } catch (SQLException | NoSuchPaddingException | NoSuchAlgorithmException | InvalidKeyException
-                | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException e) {
+        } catch (SQLException | CommonUtils.CryptoException e) {
             log.error("Error connecting to database", e);
             throw new DatabaseAccessException("Error connecting to database", e);
         }
@@ -696,8 +696,7 @@ public class DatabaseAccessService {
             User requestor,
             String existUsername,
             Map<String, String> newCredMapper)
-            throws SQLException, InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException,
-            IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+            throws SQLException, CommonUtils.CryptoException {
 
         String username = requestor.getEmail().split("@")[0];
         if (existUsername.isEmpty()) {
@@ -1120,7 +1119,345 @@ public class DatabaseAccessService {
         }
     }
 
+    /**
+     * CRITICAL SECURITY OPERATION: Lock out users in the asset database
+     * This method is coded defensively to prevent any security vulnerabilities
+     * 
+     * @param asset The asset containing database connection information
+     * @param adminCredential The admin credential to use for the operation
+     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrid users.
+     * @return Map containing operation results and statistics
+     * @throws DatabaseAccessException for any database operation errors
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Map<String, Object> lockoutAssetUsers(Asset asset, AssetCredential adminCredential, boolean lockAllUsers) {
+        log.error("=== CRITICAL SECURITY OPERATION: Database user lockout starting ===");
+        log.error("Asset: {} (ID: {}), Database: {}, Lock all users: {}", 
+                 asset.getName(), asset.getId(), asset.getDatabaseType(), lockAllUsers);
+        
+        validateLockoutInputs(asset, adminCredential);
+        
+        String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(adminCredential);
+        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential, decryptedPassword);
+        
+        Map<String, Object> result = new HashMap<>();
+        List<String> lockedUsers = new ArrayList<>();
+        List<String> failedUsers = new ArrayList<>();
+        List<String> skippedUsers = new ArrayList<>();
+        
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
+            List<String> usersToLock = getUsersToLock(connection, asset, lockAllUsers);
+            String currentAdminUser = adminCredential.getUsername();
+            
+            log.warn("Found {} users to potentially lock. Admin user '{}' will be protected.", 
+                    usersToLock.size(), currentAdminUser);
+            
+            for (String username : usersToLock) {
+                if (isProtectedUser(username, currentAdminUser, asset.getDatabaseType())) {
+                    skippedUsers.add(username + " (protected)");
+                    log.info("PROTECTED: Skipping admin/system user: {}", username);
+                    continue;
+                }
+                
+                if (lockDatabaseUser(connection, username, asset.getDatabaseType())) {
+                    lockedUsers.add(username);
+                    log.warn("LOCKED: Successfully locked user: {}", username);
+                } else {
+                    failedUsers.add(username);
+                    log.error("FAILED: Could not lock user: {}", username);
+                }
+            }
+            
+            result.put("success", true);
+            result.put("operation", "lockout");
+            result.put("assetId", asset.getId());
+            result.put("assetName", asset.getName());
+            result.put("databaseType", asset.getDatabaseType().toString());
+            result.put("lockAllUsers", lockAllUsers);
+            result.put("assetLocked", true);
+            result.put("totalUsers", usersToLock.size());
+            result.put("lockedUsers", lockedUsers);
+            result.put("failedUsers", failedUsers);
+            result.put("skippedUsers", skippedUsers);
+            result.put("lockedCount", lockedUsers.size());
+            result.put("failedCount", failedUsers.size());
+            result.put("skippedCount", skippedUsers.size());
+            
+            log.error("Lockout operation completed: {} locked, {} failed, {} skipped", 
+                     lockedUsers.size(), failedUsers.size(), skippedUsers.size());
+            
+            return result;
+            
+        } catch (SQLException e) {
+            log.error("CRITICAL ERROR during user lockout for asset ID: {}", asset.getId(), e);
+            throw new DatabaseAccessException("Failed to execute user lockout: " + e.getMessage(), e);
+        }
+    }
 
+    /**
+     * CRITICAL SECURITY OPERATION: Unlock users in the asset database
+     * This method is coded defensively to prevent any security vulnerabilities
+     * 
+     * @param asset The asset containing database connection information
+     * @param adminCredential The admin credential to use for the operation
+     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrid users.
+     * @return Map containing operation results and statistics
+     * @throws DatabaseAccessException for any database operation errors
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Map<String, Object> unlockAssetUsers(Asset asset, AssetCredential adminCredential, boolean unlockAllUsers) {
+        log.error("=== CRITICAL SECURITY OPERATION: Database user unlock starting ===");
+        log.error("Asset: {} (ID: {}), Database: {}, Unlock all users: {}", 
+                 asset.getName(), asset.getId(), asset.getDatabaseType(), unlockAllUsers);
+        
+        validateLockoutInputs(asset, adminCredential);
+        
+        String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(adminCredential);
+        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential, decryptedPassword);
+        
+        Map<String, Object> result = new HashMap<>();
+        List<String> unlockedUsers = new ArrayList<>();
+        List<String> failedUsers = new ArrayList<>();
+        List<String> skippedUsers = new ArrayList<>();
+        
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
+            List<String> usersToUnlock = getUsersToUnlock(connection, asset, unlockAllUsers);
+            String currentAdminUser = adminCredential.getUsername();
+            
+            log.warn("Found {} users to potentially unlock. Admin user '{}' noted.", 
+                    usersToUnlock.size(), currentAdminUser);
+            
+            for (String username : usersToUnlock) {
+                if (unlockDatabaseUser(connection, username, asset.getDatabaseType())) {
+                    unlockedUsers.add(username);
+                    log.warn("UNLOCKED: Successfully unlocked user: {}", username);
+                } else {
+                    failedUsers.add(username);
+                    log.error("FAILED: Could not unlock user: {}", username);
+                }
+            }
+            
+            result.put("success", true);
+            result.put("operation", "unlock");
+            result.put("assetId", asset.getId());
+            result.put("assetName", asset.getName());
+            result.put("databaseType", asset.getDatabaseType().toString());
+            result.put("unlockAllUsers", unlockAllUsers);
+            result.put("assetLocked", false);
+            result.put("totalUsers", usersToUnlock.size());
+            result.put("unlockedUsers", unlockedUsers);
+            result.put("failedUsers", failedUsers);
+            result.put("skippedUsers", skippedUsers);
+            result.put("unlockedCount", unlockedUsers.size());
+            result.put("failedCount", failedUsers.size());
+            result.put("skippedCount", skippedUsers.size());
+            
+            log.error("Unlock operation completed: {} unlocked, {} failed, {} skipped", 
+                     unlockedUsers.size(), failedUsers.size(), skippedUsers.size());
+            
+            return result;
+            
+        } catch (SQLException e) {
+            log.error("CRITICAL ERROR during user unlock for asset ID: {}", asset.getId(), e);
+            throw new DatabaseAccessException("Failed to execute user unlock: " + e.getMessage(), e);
+        }
+    }
 
+    /**
+     * Validates inputs for lockout/unlock operations
+     */
+    private void validateLockoutInputs(Asset asset, AssetCredential adminCredential) {
+        if (asset == null) {
+            throw new IllegalArgumentException("Asset cannot be null");
+        }
+        
+        if (adminCredential == null) {
+            throw new IllegalArgumentException("Admin credential cannot be null");
+        }
+        
+        if (!databaseConnectionUtils.hasValidPassword(adminCredential)) {
+            throw new SecurityException("Admin credential has no valid password");
+        }
+        
+        if (asset.getDatabaseType() == null) {
+            throw new IllegalArgumentException("Asset database type cannot be null");
+        }
+    }
 
+    /**
+     * Gets list of users to lock based on the lockAllUsers flag
+     */
+    private List<String> getUsersToLock(Connection connection, Asset asset, boolean lockAllUsers) throws SQLException {
+        if (lockAllUsers) {
+            return getAllDatabaseUsers(connection, asset.getDatabaseType());
+        } else {
+            return getHagridUsers(asset);
+        }
+    }
+
+    /**
+     * Gets list of users to unlock based on the unlockAllUsers flag
+     */
+    private List<String> getUsersToUnlock(Connection connection, Asset asset, boolean unlockAllUsers) throws SQLException {
+        if (unlockAllUsers) {
+            return getLockedDatabaseUsers(connection, asset.getDatabaseType());
+        } else {
+            return getLockedHagridUsers(connection, asset);
+        }
+    }
+
+    /**
+     * Gets all database users based on database type
+     */
+    private List<String> getAllDatabaseUsers(Connection connection, DatabaseType databaseType) throws SQLException {
+        String query = switch (databaseType) {
+            case MYSQL -> "SELECT User FROM mysql.user WHERE User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
+            case POSTGRESQL -> "SELECT usename FROM pg_user WHERE usename NOT LIKE 'pg_%' AND usename != 'postgres'";
+            case ORACLE -> "SELECT username FROM dba_users WHERE username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
+            case SQLSERVER -> "SELECT name FROM sys.database_principals WHERE type = 'S' AND name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys')";
+            default -> throw new DatabaseAccessException("Unsupported database type for user listing: " + databaseType, null);
+        };
+        
+        return executeUserQuery(connection, query);
+    }
+
+    /**
+     * Gets locked database users based on database type
+     */
+    private List<String> getLockedDatabaseUsers(Connection connection, DatabaseType databaseType) throws SQLException {
+        String query = switch (databaseType) {
+            case MYSQL -> "SELECT User FROM mysql.user WHERE account_locked = 'Y' AND User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
+            case POSTGRESQL -> "SELECT usename FROM pg_user WHERE NOT usecanlogin AND usename NOT LIKE 'pg_%' AND usename != 'postgres'";
+            case ORACLE -> "SELECT username FROM dba_users WHERE account_status = 'LOCKED' AND username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
+            case SQLSERVER -> "SELECT name FROM sys.database_principals p JOIN sys.sql_logins l ON p.sid = l.sid WHERE l.is_disabled = 1 AND p.type = 'S'";
+            default -> throw new DatabaseAccessException("Unsupported database type for locked user listing: " + databaseType, null);
+        };
+        
+        return executeUserQuery(connection, query);
+    }
+
+    /**
+     * Gets Hagrid users (users managed by our system)
+     */
+    private List<String> getHagridUsers(Asset asset) throws SQLException {
+        // Get users from our asset_credentials table for this asset
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(asset.getId());
+        return credentials.stream()
+                .map(AssetCredential::getUsername)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
+    /**
+     * Gets locked Hagrid users
+     */
+    private List<String> getLockedHagridUsers(Connection connection, Asset asset) throws SQLException {
+        List<String> hagridUsers = getHagridUsers(asset);
+        List<String> lockedUsers = getLockedDatabaseUsers(connection, asset.getDatabaseType());
+        
+        return hagridUsers.stream()
+                .filter(lockedUsers::contains)
+                .toList();
+    }
+
+    /**
+     * Executes a user query and returns the list of usernames
+     */
+    private List<String> executeUserQuery(Connection connection, String query) throws SQLException {
+        List<String> users = new ArrayList<>();
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+            
+            while (rs.next()) {
+                String username = rs.getString(1);
+                if (username != null && !username.trim().isEmpty()) {
+                    users.add(username.trim());
+                }
+            }
+        }
+        
+        return users;
+    }
+
+    /**
+     * Checks if a user should be protected from lockout operations
+     */
+    private boolean isProtectedUser(String username, String currentAdminUser, DatabaseType databaseType) {
+        if (username == null || username.trim().isEmpty()) {
+            return true;
+        }
+        
+        // Always protect the current admin user
+        if (username.equals(currentAdminUser)) {
+            return true;
+        }
+        
+        // Protect system users based on database type
+        return switch (databaseType) {
+            case MYSQL -> username.startsWith("mysql.") || 
+                         username.equals("root") || 
+                         username.equals("debian-sys-maint");
+            
+            case POSTGRESQL -> username.startsWith("pg_") || 
+                              username.equals("postgres") || 
+                              username.equals("postgresql");
+            
+            case ORACLE -> Set.of("SYS", "SYSTEM", "DBSNMP", "SYSMAN", "OUTLN", "ORACLE_OCM")
+                              .contains(username.toUpperCase());
+            
+            case SQLSERVER -> Set.of("sa", "dbo", "guest", "INFORMATION_SCHEMA", "sys", "NT AUTHORITY\\SYSTEM")
+                                 .contains(username);
+            
+            default -> false;
+        };
+    }
+
+    /**
+     * Locks a specific database user
+     */
+    private boolean lockDatabaseUser(Connection connection, String username, DatabaseType databaseType) {
+        String lockSql = switch (databaseType) {
+            case MYSQL -> "ALTER USER ?@'%' ACCOUNT LOCK";
+            case POSTGRESQL -> "ALTER USER ? NOLOGIN";
+            case ORACLE -> "ALTER USER ? ACCOUNT LOCK";
+            case SQLSERVER -> "ALTER LOGIN ? DISABLE";
+            default -> throw new DatabaseAccessException("Unsupported database type for user locking: " + databaseType, null);
+        };
+        
+        return executeUserLockUnlockOperation(connection, lockSql, username, "lock");
+    }
+
+    /**
+     * Unlocks a specific database user
+     */
+    private boolean unlockDatabaseUser(Connection connection, String username, DatabaseType databaseType) {
+        String unlockSql = switch (databaseType) {
+            case MYSQL -> "ALTER USER ?@'%' ACCOUNT UNLOCK";
+            case POSTGRESQL -> "ALTER USER ? LOGIN";
+            case ORACLE -> "ALTER USER ? ACCOUNT UNLOCK";
+            case SQLSERVER -> "ALTER LOGIN ? ENABLE";
+            default -> throw new DatabaseAccessException("Unsupported database type for user unlocking: " + databaseType, null);
+        };
+        
+        return executeUserLockUnlockOperation(connection, unlockSql, username, "unlock");
+    }
+
+    /**
+     * Executes the lock/unlock SQL operation for a user
+     */
+    private boolean executeUserLockUnlockOperation(Connection connection, String sql, String username, String operation) {
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            stmt.executeUpdate();
+            
+            log.debug("Successfully executed {} operation for user: {}", operation, username);
+            return true;
+            
+        } catch (SQLException e) {
+            log.error("Failed to {} user '{}': {}", operation, username, e.getMessage());
+            return false;
+        }
+    }
 }

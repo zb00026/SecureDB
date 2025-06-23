@@ -98,8 +98,7 @@ public class DatabaseConnectionUtils {
         try {
             log.debug("Decrypting password for credential ID: {}", credential.getId());
             return CommonUtils.decrypt(userKey, credential.getPassword());
-        } catch (BadPaddingException | IllegalBlockSizeException | InvalidKeyException | 
-                 NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
+        } catch (CommonUtils.CryptoException e) {
             log.warn("Failed to decrypt password for credential ID: {} - {}", 
                      credential.getId(), e.getClass().getSimpleName());
             throw new DatabaseAccessException("User has no access to asset", e);

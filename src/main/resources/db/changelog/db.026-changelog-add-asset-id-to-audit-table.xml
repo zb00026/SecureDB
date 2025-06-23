@@ -21,5 +21,39 @@
             <dropColumn tableName="audit_trails" columnName="asset_id"/>
         </rollback>
     </changeSet>
+
+    <changeSet id="add-is-locked-to-assets" author="verlake">
+        <addColumn tableName="assets">
+            <column name="is_locked" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <createIndex tableName="assets" indexName="idx_assets_is_locked">
+            <column name="is_locked"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="assets" indexName="idx_assets_is_locked"/>
+            <dropColumn tableName="assets" columnName="is_locked"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="add-lock-type-to-assets" author="verlake">
+        <addColumn tableName="assets">
+            <column name="lock_type" type="varchar(50)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <createIndex tableName="assets" indexName="idx_assets_lock_type">
+            <column name="lock_type"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="assets" indexName="idx_assets_lock_type"/>
+            <dropColumn tableName="assets" columnName="lock_type"/>
+        </rollback>
+    </changeSet>
     
 </databaseChangeLog> 

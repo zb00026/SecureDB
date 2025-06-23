@@ -3,6 +3,7 @@ package com.verlake.dam.entity.assets;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.enums.LockType;
 import com.verlake.dam.listener.AuditEntityListener;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
@@ -50,6 +51,14 @@ public class Asset {
 
     @Column(name = "is_deleted")
     private boolean deleted;
+
+    @Column(name = "is_locked")
+    @Builder.Default
+    private boolean locked = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lock_type")
+    private LockType lockType;
 
     public String getHostUrl() {
         StringBuilder url = new StringBuilder();

@@ -17,6 +17,7 @@ import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.CommonUtils.CryptoException;
 
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
@@ -293,8 +294,7 @@ public class AccessRequestService {
     }
 
     public AccessRequest setCredentialPassword(Long accessRequestId, AssetCredentialDTO credentialInfo)
-            throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
-            NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+            throws CryptoException {
         AccessRequest accessRequest = findById(accessRequestId);
         if (accessRequest == null) {
             throw new ResourceNotFoundException("No access request provided");

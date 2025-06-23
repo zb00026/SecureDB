@@ -12,6 +12,7 @@ import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.NotificationTaskRepository;
@@ -38,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
@@ -261,6 +261,8 @@ public class AssetService {
                 .hostAddress(asset.getHostAddress())
                 .portNumber(asset.getPortNumber())
                 .databaseName(asset.getDatabaseName())
+                .locked(asset.isLocked())
+                .lockType(asset.getLockType())
                 .owners(owners)
                 .accessRequest(requests.isEmpty() ? null : requests.get(0))
                 .approvers(approvers)
@@ -275,6 +277,8 @@ public class AssetService {
         List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
         dto.setAccessRequest(requests.isEmpty() ? null : requests.get(0));
         dto.setFetchTemplate(fetchAccess != null ? fetchAccess.getAccessTemplate() : null);
+        dto.setLocked(asset.isLocked());
+        dto.setLockType(asset.getLockType());
         return dto;
     }
 
@@ -447,5 +451,154 @@ public class AssetService {
         return credential.getUser() != null && 
                credential.getUser().getId().equals(currentUser.getId()) &&
                databaseConnectionUtils.hasValidPassword(credential);
+    }
+
+    /**
+     * Lock out users in the asset database
+     * This is a critical security operation - coded defensively
+     * 
+     * @param assetId The asset ID
+     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrid users.
+     * @return Map containing operation results
+     * @throws SecurityException if current user is not admin or asset owner
+     * @throws IllegalArgumentException if asset not found
+     */
+    @Transactional
+    public Map<String, Object> lockoutAssetUsers(Long assetId, boolean lockAllUsers) {
+        log.warn("=== CRITICAL SECURITY OPERATION: Asset lockout initiated ===");
+        log.warn("Asset ID: {}, Lock all users: {}, Admin: {}", 
+                assetId, lockAllUsers, CommonUtils.getEmailFromSession());
+        
+        // Defensive validation
+        if (assetId == null || assetId <= 0) {
+            throw new IllegalArgumentException("Invalid asset ID");
+        }
+        
+        Asset asset = validateAssetAndAccess(assetId, "lockout");
+        AssetCredential adminCredential = findAdminCredentialForAsset(asset);
+        
+        try {
+            Map<String, Object> result = databaseAccessService.lockoutAssetUsers(asset, adminCredential, lockAllUsers);
+            
+            // Update asset locked status and lock type
+            asset.setLocked(true);
+            asset.setLockType(lockAllUsers ? LockType.LOCK_ALL_DB_USERS : LockType.LOCK_HAGRID_ONLY);
+            assetRepository.save(asset);
+            
+            log.warn("Asset lockout completed successfully for asset: {} (ID: {})", 
+                    asset.getName(), assetId);
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("CRITICAL: Asset lockout failed for asset ID: {} - {}", assetId, e.getMessage(), e);
+            throw new DatabaseAccessException("Asset lockout failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Unlock users in the asset database
+     * This is a critical security operation - coded defensively
+     * 
+     * @param assetId The asset ID
+     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrid users.
+     * @return Map containing operation results
+     * @throws SecurityException if current user is not admin or asset owner
+     * @throws IllegalArgumentException if asset not found
+     */
+    @Transactional
+    public Map<String, Object> unlockAssetUsers(Long assetId, boolean unlockAllUsers) {
+        log.warn("=== CRITICAL SECURITY OPERATION: Asset unlock initiated ===");
+        log.warn("Asset ID: {}, Unlock all users: {}, Admin: {}", 
+                assetId, unlockAllUsers, CommonUtils.getEmailFromSession());
+        
+        // Defensive validation
+        if (assetId == null || assetId <= 0) {
+            throw new IllegalArgumentException("Invalid asset ID");
+        }
+        
+        Asset asset = validateAssetAndAccess(assetId, "unlock");
+        AssetCredential adminCredential = findAdminCredentialForAsset(asset);
+        
+        try {
+            Map<String, Object> result = databaseAccessService.unlockAssetUsers(asset, adminCredential, unlockAllUsers);
+            
+            // Update asset locked status and clear lock type
+            asset.setLocked(false);
+            asset.setLockType(null);
+            assetRepository.save(asset);
+            
+            log.warn("Asset unlock completed successfully for asset: {} (ID: {})", 
+                    asset.getName(), assetId);
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("CRITICAL: Asset unlock failed for asset ID: {} - {}", assetId, e.getMessage(), e);
+            throw new DatabaseAccessException("Asset unlock failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Validates asset exists and current user has admin access
+     * This is defensive validation for critical security operations
+     */
+    private Asset validateAssetAndAccess(Long assetId, String operation) {
+        Asset asset = assetRepository.findByIdAndDeletedFalse(assetId)
+                .orElseThrow(() -> new IllegalArgumentException("Asset not found with ID: " + assetId));
+        
+        User currentUser = userService.getCurrentUser();
+        
+        // Additional security check - ensure user has admin role or is asset owner
+        if (!hasAdminAccess(currentUser, asset)) {
+            String errorMsg = String.format("User %s does not have admin access for %s operation on asset ID: %s", 
+                                          currentUser.getEmail(), operation, assetId);
+            log.error("SECURITY VIOLATION: {}", errorMsg);
+            throw new SecurityException(errorMsg);
+        }
+        
+        return asset;
+    }
+
+    /**
+     * Checks if user has admin access (is admin or asset owner)
+     */
+    private boolean hasAdminAccess(User user, Asset asset) {
+        // Check if user is system admin
+        if (user.getRoles().stream().anyMatch(role -> role.getName().equals(Roles.ADMIN.getOriginalName()))) {
+            return true;
+        }
+        
+        // Check if user is asset owner
+        List<AssetCredential> ownerCredentials = assetCredentialsRepository
+                .findByAssetAndUserAccessType(asset, Roles.ASSET_OWNER.getOriginalName());
+        
+        return ownerCredentials.stream()
+                .anyMatch(cred -> cred.getUser() != null && 
+                                cred.getUser().getId().equals(user.getId()));
+    }
+
+    /**
+     * Finds admin credential for the asset (owner credential with admin privileges)
+     * This is used for critical database operations
+     */
+    private AssetCredential findAdminCredentialForAsset(Asset asset) {
+        User curUser = userService.getCurrentUser();
+        List<AssetCredential> ownerCredentials = assetCredentialsRepository
+                .findByAssetIdAndUserId(asset.getId(), curUser.getId());
+        
+        AssetCredential adminCredential = ownerCredentials.stream()
+                .filter(databaseConnectionUtils::hasValidPassword)
+                .findFirst()
+                .orElse(null);
+        
+        if (adminCredential == null) {
+            throw new SecurityException("No valid admin credential found for asset: " + asset.getName());
+        }
+        
+        log.debug("Using admin credential: {} for asset: {}", 
+                 adminCredential.getUsername(), asset.getName());
+        
+        return adminCredential;
     }
 }
