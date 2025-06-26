@@ -234,7 +234,7 @@ public class UserController {
     }
 
     @GetMapping("/download-sample-csv")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
     public ResponseEntity<String> downloadSampleCSV() {
         log.info(Constants.SUCCESS_GENERATING_CSV);
 
@@ -251,8 +251,8 @@ public class UserController {
     }
 
     @PostMapping(value = "/bulk-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('ADMIN')")
     @Transactional(rollbackFor = Exception.class)
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
     public ResponseEntity<Map<String, Object>> bulkUploadUsers(@RequestParam("file") MultipartFile file) {
 
         Map<String, Object> response = userCsvService.processBulkUserUploadWithResponse(file);
@@ -260,7 +260,7 @@ public class UserController {
         // Determine HTTP status based on success
         boolean success = (Boolean) response.get(Constants.RESPONSE_SUCCESS);
         if (success) {
-            return ResponseEntity.ok(response);
+            return buildJsonResponse(ResponseEntity.ok(), response);
         } else {
             // Check if it's a validation error (400) or server error (500)
             String message = (String) response.get(Constants.RESPONSE_MESSAGE);
@@ -268,11 +268,23 @@ public class UserController {
                     message.contains(Constants.ERROR_UPLOADED_FILE_EMPTY) ||
                     message.contains(Constants.ERROR_FILE_MUST_BE_CSV) ||
                     message.contains(Constants.ERROR_NO_VALID_USER_DATA)) {
-                return ResponseEntity.badRequest().body(response);
+                return buildJsonResponse(ResponseEntity.badRequest(), response);
             } else {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+                return buildJsonResponse(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR), response);
             }
         }
+    }
+
+    /**
+     * Helper method to build ResponseEntity with consistent JSON headers
+     */
+    private ResponseEntity<Map<String, Object>> buildJsonResponse(
+            ResponseEntity.BodyBuilder responseBuilder, 
+            Map<String, Object> body) {
+        return responseBuilder
+                .header("Content-Type", Constants.CONTENT_TYPE_JSON)
+                .header("Cache-Control", Constants.CACHE_CONTROL_NO_CACHE)
+                .body(body);
     }
 
 }

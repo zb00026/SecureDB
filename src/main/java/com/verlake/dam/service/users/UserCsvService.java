@@ -2,9 +2,12 @@ package com.verlake.dam.service.users;
 
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
+import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.exception.EmailSendingException;
@@ -22,6 +25,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 @Slf4j
@@ -30,6 +35,7 @@ public class UserCsvService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserService userService;
+    private final NotificationTaskRepository notificationTaskRepository;
 
     @Autowired(required = false)
     private KeycloakService keycloakService;
@@ -37,13 +43,17 @@ public class UserCsvService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Value("${auth.provider}")
     private String authProvider;
 
-    public UserCsvService(UserRepository userRepository, RoleRepository roleRepository, UserService userService) {
+    public UserCsvService(UserRepository userRepository, RoleRepository roleRepository, UserService userService, NotificationTaskRepository notificationTaskRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userService = userService;
+        this.notificationTaskRepository = notificationTaskRepository;
     }
 
     /**
@@ -221,7 +231,7 @@ public class UserCsvService {
      * Validates individual role name exists in database
      */
     private void validateIndividualRole(String roleName, String prefix, List<String> errors) {
-        if (!roleRepository.findByName(roleName).isPresent()) {
+        if (!roleName.equals(Constants.ROLE_NONE) && !roleRepository.findByName(roleName).isPresent()) {
             errors.add(prefix + String.format(Constants.ERROR_INVALID_ROLE_NAME, roleName));
         }
     }
@@ -256,6 +266,9 @@ public class UserCsvService {
                 String[] roleNameArray = userData.get(Constants.USER_FIELD_ROLE_NAME).split(",");
                 Set<Role> roles = new HashSet<>();
                 for (String name : roleNameArray) {
+                    if (name.equals(Constants.ROLE_NONE)) {
+                        continue;
+                    }
                     Role role = roleRepository.findByName(name.trim())
                         .orElseThrow(() -> new IllegalArgumentException("Role not found: " + name));
                     roles.add(role);
@@ -288,7 +301,8 @@ public class UserCsvService {
     }
     
     /**
-     * Sends bulk email invites to created users
+     * Creates notification tasks for bulk email invites to created users
+     * These will be processed by the NotificationJobConfig batch system
      */
     public void sendBulkEmailInvites(List<User> users) {
         // Parse authProvider safely - take first value if multiple are provided
@@ -298,12 +312,7 @@ public class UserCsvService {
         }
         AuthProvider userAuthProvider = AuthProvider.valueOf(authProviderValue);
         
-        String emailTmplFile = Constants.EMAIL_TEMPLATE_GOOGLE_INVITE;
-        if (userAuthProvider == AuthProvider.KEYCLOAK) {
-            emailTmplFile = Constants.EMAIL_TEMPLATE_KEYCLOAK_INVITE;
-        }
-        
-        List<String> emailErrors = new ArrayList<>();
+        List<String> taskCreationErrors = new ArrayList<>();
         
         for (User user : users) {
             try {
@@ -312,19 +321,46 @@ public class UserCsvService {
                 user.setInviteCode(inviteCode);
                 userRepository.save(user);
                 
-                emailService.sendInvitationEmail(user, emailTmplFile);
-                log.debug("Email invite sent to: {}", user.getEmail());
+                // Create notification task instead of sending email directly
+                createInvitationNotificationTask(user, userAuthProvider);
+                log.debug("Invitation notification task created for: {}", user.getEmail());
             } catch (Exception e) {
-                String errorMsg = "Failed to send email to " + user.getEmail() + ": " + e.getMessage();
-                emailErrors.add(errorMsg);
+                String errorMsg = "Failed to create notification task for " + user.getEmail() + ": " + e.getMessage();
+                taskCreationErrors.add(errorMsg);
                 log.error(errorMsg, e);
             }
         }
         
-        if (!emailErrors.isEmpty()) {
-            String combinedErrors = String.join("; ", emailErrors);
-            throw new EmailSendingException(HttpStatus.INTERNAL_SERVER_ERROR, "Email sending failed for some users: " + combinedErrors);
+        if (!taskCreationErrors.isEmpty()) {
+            String combinedErrors = String.join("; ", taskCreationErrors);
+            throw new EmailSendingException(HttpStatus.INTERNAL_SERVER_ERROR, "Notification task creation failed for some users: " + combinedErrors);
         }
+        
+        log.info("Created {} invitation notification tasks that will be processed by the batch job", users.size());
+    }
+
+    /**
+     * Creates a NotificationTask for invitation email
+     */
+    private void createInvitationNotificationTask(User user, AuthProvider userAuthProvider) throws Exception {
+        // Create notification data with auth provider information
+        ObjectNode notificationData = objectMapper.createObjectNode();
+        ObjectNode dataNode = objectMapper.createObjectNode();
+        dataNode.put("authProvider", userAuthProvider.toString());
+        dataNode.put("tempPassword", user.getPassword());
+        notificationData.set(Constants.ACCESS_OBJECT_ATTR_DATA, dataNode);
+        
+        // Create the notification task
+        NotificationTask task = new NotificationTask();
+        task.setReceiver(user);
+        task.setSender(null); // No specific sender for invitation emails
+        task.setAsset(null); // No asset associated with invitation emails
+        task.setEmailType(EmailType.INVITATION);
+        task.setNotificationMessage(objectMapper.writeValueAsString(notificationData));
+        task.setSent(false);
+        
+        // Save the notification task - it will be picked up by the batch job
+        notificationTaskRepository.save(task);
     }
 
     /**
@@ -375,6 +411,7 @@ public class UserCsvService {
         csvContent.append("Bob,Johnson,bob.johnson@example.com,\"" + Constants.ROLE_ASSET_OWNER + "\"\n");
         csvContent.append("Alice,Brown,alice.brown@example.com," + Constants.ROLE_APPROVER + "\n");
         csvContent.append("Charlie,Wilson,charlie.wilson@example.com," + Constants.ROLE_AUDITOR + "\n");
+        csvContent.append("David,Lee,david.lee@example.com," + Constants.ROLE_NONE + "\n");
         
         // Add comment lines explaining the format
         csvContent.append("# INSTRUCTIONS:\n");
@@ -389,6 +426,7 @@ public class UserCsvService {
         csvContent.append("# - " + Constants.ROLE_ASSET_OWNER + ": Manage and approve access to owned assets\n");
         csvContent.append("# - " + Constants.ROLE_APPROVER + ": Approve user access requests\n");
         csvContent.append("# - " + Constants.ROLE_AUDITOR + ": View audit logs and system activity\n");
+        csvContent.append("# - " + Constants.ROLE_NONE + ": No access to any system resources\n");
         csvContent.append("#\n");
         csvContent.append("# NOTES:\n");
         csvContent.append("# - Role names are case-sensitive\n");
@@ -445,11 +483,11 @@ public class UserCsvService {
             }
             
             // Create all users
-            createdUsers = createBulkUsers(userDataList);
+           createdUsers = createBulkUsers(userDataList);
             log.info("Successfully created {} users", createdUsers.size());
             
             // Send email invites to all created users
-            sendBulkEmailInvites(createdUsers);
+           sendBulkEmailInvites(createdUsers);
             log.info("Email invites sent to {} users", createdUsers.size());
             
             // Build success response

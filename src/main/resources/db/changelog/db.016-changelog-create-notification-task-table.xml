@@ -28,4 +28,14 @@
         </createTable>
     </changeSet>
 
+    <changeSet id="make_asset_id_nullable" author="admin">
+        <dropForeignKeyConstraint baseTableName="notification_task" constraintName="fk_notification_task_asset"/>
+        <dropNotNullConstraint tableName="notification_task" columnName="asset_id" columnDataType="BIGINT"/>
+        <addForeignKeyConstraint baseTableName="notification_task"
+                                 baseColumnNames="asset_id"
+                                 constraintName="fk_notification_task_asset"
+                                 referencedTableName="assets"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
 </databaseChangeLog>

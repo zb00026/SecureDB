@@ -93,4 +93,5 @@
             <column name="role_id" value="1"/>
         </insert>
     </changeSet>
+
 </databaseChangeLog>

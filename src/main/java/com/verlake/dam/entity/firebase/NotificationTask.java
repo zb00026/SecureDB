@@ -24,6 +24,7 @@ public class NotificationTask {
     private User sender;
 
     @ManyToOne
+    @JoinColumn(nullable = true)
     private Asset asset;
 
     @Column(columnDefinition = "TEXT")

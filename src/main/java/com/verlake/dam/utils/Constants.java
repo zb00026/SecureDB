@@ -135,6 +135,10 @@ public class Constants {
     public static final String PSSWD_DIGITS = "0123456789";
     public static final String PSSWD_SPECIALS = "!@#$%^&*()-_=+[]{}|;:'\",.<>/?";
     
+    // HTTP Header constants
+    public static final String CONTENT_TYPE_JSON = "application/json";
+    public static final String CACHE_CONTROL_NO_CACHE = "no-cache";
+    
     // CSV constants
     public static final String CSV_EXTENSION = ".csv";
     public static final String CSV_HEADER = "firstName,lastName,email,roleName";
@@ -149,6 +153,7 @@ public class Constants {
     public static final String ROLE_ASSET_OWNER = "Asset Owner";
     public static final String ROLE_APPROVER = "Approver";
     public static final String ROLE_AUDITOR = "Auditor";
+    public static final String ROLE_NONE = "None";
     
     // Response field names
     public static final String RESPONSE_SUCCESS = "success";

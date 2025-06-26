@@ -20,6 +20,8 @@ import com.verlake.dam.exception.NotificationProcessingException;
 import com.verlake.dam.exception.NotificationTimeoutException;
 import com.verlake.dam.exception.NotificationEmailException;
 import lombok.RequiredArgsConstructor;
+
+import org.keycloak.email.EmailException;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -149,30 +151,30 @@ public class NotificationJobConfig {
 
     private void processNotificationTasks(Iterable<? extends NotificationTask> tasks) {
         Map<Long, Exception> failedTasks = new HashMap<>();
-        
+
         for (NotificationTask task : tasks) {
             totalProcessed.incrementAndGet();
             try {
                 processNotificationTask(task);
                 successfullyProcessed.incrementAndGet();
             } catch (Exception e) {
-                String errorMessage = String.format("Failed to process notification task id=%d for recipient=%s", 
-                    task.getId(), task.getReceiver().getEmail());
+                String errorMessage = String.format("Failed to process notification task id=%d for recipient=%s",
+                        task.getId(), task.getReceiver().getEmail());
                 log.error(errorMessage, e);
                 failedTasks.put(task.getId(), e);
                 failedToProcess.incrementAndGet();
-                
+
                 if (e instanceof NotificationJobException notJobException) {
                     throw notJobException;
                 }
                 throw new NotificationProcessingException(errorMessage, task.getId(), task.getReceiver().getEmail(), e);
             }
         }
-        
+
         if (!failedTasks.isEmpty()) {
             log.warn("Failed to process {} notification tasks", failedTasks.size());
         }
-        
+
         // Log statistics periodically
         if (totalProcessed.get() % 100 == 0) {
             logProcessingStatistics();
@@ -180,18 +182,14 @@ public class NotificationJobConfig {
     }
 
     private void logProcessingStatistics() {
-        log.info("Notification processing statistics - Total: {}, Success: {}, Failed: {}", 
-            totalProcessed.get(), 
-            successfullyProcessed.get(), 
-            failedToProcess.get());
+        log.info("Notification processing statistics - Total: {}, Success: {}, Failed: {}",
+                totalProcessed.get(),
+                successfullyProcessed.get(),
+                failedToProcess.get());
     }
 
-    @Retryable(
-        maxAttempts = 3, 
-        backoff = @Backoff(delay = 1000),
-        include = { NotificationJobException.class },
-        exclude = { JsonParseException.class }
-    )
+    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 1000), include = {
+            NotificationJobException.class }, exclude = { JsonParseException.class })
     protected void processNotificationTask(NotificationTask task) throws Exception {
         // Send push notification with timeout
         try {
@@ -204,43 +202,42 @@ public class NotificationJobConfig {
             log.error("Failed to send push notification", e);
             // Continue with email sending even if push notification fails
         }
-        
+
         // Send email based on type
         sendEmailBasedOnType(task);
-        
+
         // Update task status
         task.setSent(true);
         notificationTaskRepository.saveAndFlush(task);
     }
 
-    private void sendPushNotificationWithTimeout(NotificationTask task) throws InterruptedException, JsonParseException,  FirebaseMessagingOperationException{
+    private void sendPushNotificationWithTimeout(NotificationTask task)
+            throws InterruptedException, JsonParseException, FirebaseMessagingOperationException {
         // Create a timeout wrapper around the firebase call
         boolean[] completed = new boolean[1];
         Exception[] exception = new Exception[1];
-        
+
         Thread notificationThread = new Thread(() -> {
             try {
                 firebaseMessagingService.sendNotification(
-                    NotificationMessage.fromJson(task.getNotificationMessage())
-                );
+                        NotificationMessage.fromJson(task.getNotificationMessage()));
                 completed[0] = true;
             } catch (Exception e) {
                 exception[0] = e;
             }
         });
-        
+
         notificationThread.start();
         notificationThread.join(firebaseTimeoutMs);
-        
+
         if (!completed[0]) {
             if (notificationThread.isAlive()) {
                 notificationThread.interrupt();
                 throw new NotificationTimeoutException(
-                    String.format("Firebase notification timed out after %d ms", firebaseTimeoutMs),
-                    firebaseTimeoutMs
-                );
+                        String.format("Firebase notification timed out after %d ms", firebaseTimeoutMs),
+                        firebaseTimeoutMs);
             }
-            
+
             if (exception[0] != null) {
                 if (exception[0] instanceof InterruptedException intException) {
                     Thread.currentThread().interrupt();
@@ -257,50 +254,57 @@ public class NotificationJobConfig {
     protected void sendEmailBasedOnType(NotificationTask task) throws Exception {
         // Map of handlers for different email types
         Map<EmailType, Consumer<NotificationTask>> emailHandlers = Map.of(
-            EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, this::sendDeveloperAssetRequestEmail,
-            EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY, this::sendDeveloperRelinquishAssetEmail,
-            EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY, this::sendAssetQueryChangeRequestEmail,
-            EmailType.ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY, notificationTask -> {
-                try {
-                    sendAssetQueryChangeRequestApprovalEmail(notificationTask);
-                } catch (Exception e) {
-                    throw new NotificationProcessingException(
-                        "Failed to send asset query change request approval email",
-                        notificationTask.getId(),
-                        notificationTask.getReceiver().getEmail(),
-                        e
-                    );
-                }
-            },
-            EmailType.APPROVAL_ASSET_ACCESS_REQUEST, notificationTask -> {
-                try {
-                    sendApprovalAssetAccessRequestEmail(notificationTask);
-                } catch (Exception e) {
-                    throw new NotificationProcessingException(
-                        "Failed to send approval email",
-                        notificationTask.getId(),
-                        notificationTask.getReceiver().getEmail(),
-                        e
-                    );
-                }
-            },
-            EmailType.DELETE_QUERY_ALERT, notificationTask -> {
-                try {
-                    sendDeleteQueryNotifyEmail(notificationTask);
-                } catch (Exception e) {
-                    throw new NotificationProcessingException(
-                            "Failed to send DELETE query notify email",
-                        notificationTask.getId(),
-                        notificationTask.getReceiver().getEmail(),
-                        e
-                    );
-                }
-            }
-        );
-        
+                EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, this::sendDeveloperAssetRequestEmail,
+                EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY, this::sendDeveloperRelinquishAssetEmail,
+                EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY, this::sendAssetQueryChangeRequestEmail,
+                EmailType.INVITATION, notificationTask -> {
+                    try {
+                        sendInvitationEmail(notificationTask);
+                    } catch (Exception e) {
+                        throw new NotificationProcessingException(
+                                "Failed to send invitation email",
+                                notificationTask.getId(),
+                                notificationTask.getReceiver().getEmail(),
+                                e);
+                    }
+                },
+                EmailType.ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY, notificationTask -> {
+                    try {
+                        sendAssetQueryChangeRequestApprovalEmail(notificationTask);
+                    } catch (Exception e) {
+                        throw new NotificationProcessingException(
+                                "Failed to send asset query change request approval email",
+                                notificationTask.getId(),
+                                notificationTask.getReceiver().getEmail(),
+                                e);
+                    }
+                },
+                EmailType.APPROVAL_ASSET_ACCESS_REQUEST, notificationTask -> {
+                    try {
+                        sendApprovalAssetAccessRequestEmail(notificationTask);
+                    } catch (Exception e) {
+                        throw new NotificationProcessingException(
+                                "Failed to send approval email",
+                                notificationTask.getId(),
+                                notificationTask.getReceiver().getEmail(),
+                                e);
+                    }
+                },
+                EmailType.DELETE_QUERY_ALERT, notificationTask -> {
+                    try {
+                        sendDeleteQueryNotifyEmail(notificationTask);
+                    } catch (Exception e) {
+                        throw new NotificationProcessingException(
+                                "Failed to send DELETE query notify email",
+                                notificationTask.getId(),
+                                notificationTask.getReceiver().getEmail(),
+                                e);
+                    }
+                });
+
         // Get handler for the email type
         Consumer<NotificationTask> handler = emailHandlers.get(task.getEmailType());
-        
+
         if (handler != null) {
             handler.accept(task);
         } else {
@@ -310,20 +314,18 @@ public class NotificationJobConfig {
 
     private void sendDeveloperAssetRequestEmail(NotificationTask task) {
         emailService.sendDeveloperAssetRequestEmail(
-            task.getReceiver(),
-            task.getSender(),
-            task.getAsset(),
-            "developer-asset-request"
-        );
+                task.getReceiver(),
+                task.getSender(),
+                task.getAsset(),
+                "developer-asset-request");
     }
 
     private void sendDeveloperRelinquishAssetEmail(NotificationTask task) {
         emailService.sendDeveloperRelinquishEmail(
-            task.getReceiver(),
-            task.getSender(),
-            task.getAsset(),
-            "developer-relinquish-asset"
-        );
+                task.getReceiver(),
+                task.getSender(),
+                task.getAsset(),
+                "developer-relinquish-asset");
     }
 
     private void sendAssetQueryChangeRequestEmail(NotificationTask task) {
@@ -334,111 +336,158 @@ public class NotificationJobConfig {
             if (dataNode == null) {
                 throw new JsonParseException(null, "Data node not found in asset query change request notification");
             }
-            String ticketReference = dataNode.has(Constants.EMAIL_VAR_TICKET_REFERENCE) ? dataNode.get(Constants.EMAIL_VAR_TICKET_REFERENCE).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-            String changeDescription = dataNode.has(Constants.EMAIL_VAR_CHANGE_DESCRIPTION) ? dataNode.get(Constants.EMAIL_VAR_CHANGE_DESCRIPTION).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-            String query = dataNode.has(Constants.EMAIL_VAR_QUERY) ? dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-            
+            String ticketReference = dataNode.has(Constants.EMAIL_VAR_TICKET_REFERENCE)
+                    ? dataNode.get(Constants.EMAIL_VAR_TICKET_REFERENCE).asText()
+                    : Constants.DEFAULT_UNKNOWN_VALUE;
+            String changeDescription = dataNode.has(Constants.EMAIL_VAR_CHANGE_DESCRIPTION)
+                    ? dataNode.get(Constants.EMAIL_VAR_CHANGE_DESCRIPTION).asText()
+                    : Constants.DEFAULT_UNKNOWN_VALUE;
+            String query = dataNode.has(Constants.EMAIL_VAR_QUERY) ? dataNode.get(Constants.EMAIL_VAR_QUERY).asText()
+                    : Constants.DEFAULT_UNKNOWN_VALUE;
+
             emailService.sendAssetQueryChangeRequestEmail(
-                task.getReceiver(),
-                task.getSender(),
-                task.getAsset(),
-                ticketReference,
-                changeDescription,
-                query,
-                "asset-query-change-request"
-            );
+                    task.getReceiver(),
+                    task.getSender(),
+                    task.getAsset(),
+                    ticketReference,
+                    changeDescription,
+                    query,
+                    "asset-query-change-request");
         } catch (Exception e) {
             log.error("Failed to parse notification data for asset query change request email", e);
             throw new NotificationEmailException(
-                "Failed to send asset query change request email", 
-                EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY.name(), 
-                task.getId(), 
-                e
-            );
+                    "Failed to send asset query change request email",
+                    EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY.name(),
+                    task.getId(),
+                    e);
         }
     }
 
     private void sendAssetQueryChangeRequestApprovalEmail(NotificationTask task) throws Exception {
         ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
         JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
-        
+
         if (dataNode == null) {
-            throw new JsonParseException(null, "Data node not found in asset query change request approval notification");
+            throw new JsonParseException(null,
+                    "Data node not found in asset query change request approval notification");
         }
-        
+
         // Create AccessQueryDTO from notification data
         AccessQueryDTO queryDTO = new AccessQueryDTO();
         queryDTO.setApprovalStatus(ApprovalStatus.valueOf(
-            dataNode.has(Constants.EMAIL_VAR_APPROVAL_STATUS) ? 
-            dataNode.get(Constants.EMAIL_VAR_APPROVAL_STATUS).asText() : "PENDING"));
-        queryDTO.setTicketReference(dataNode.has(Constants.EMAIL_VAR_TICKET_REFERENCE) ? 
-            dataNode.get(Constants.EMAIL_VAR_TICKET_REFERENCE).asText() : "");
-        queryDTO.setChangeDescription(dataNode.has(Constants.EMAIL_VAR_CHANGE_DESCRIPTION) ? 
-            dataNode.get(Constants.EMAIL_VAR_CHANGE_DESCRIPTION).asText() : "");
-        queryDTO.setQuery(dataNode.has(Constants.EMAIL_VAR_QUERY) ? 
-            dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : "");
-        queryDTO.setRejectReason(dataNode.has(Constants.EMAIL_VAR_REJECT_REASON) ? 
-            dataNode.get(Constants.EMAIL_VAR_REJECT_REASON).asText() : "");
-        
+                dataNode.has(Constants.EMAIL_VAR_APPROVAL_STATUS)
+                        ? dataNode.get(Constants.EMAIL_VAR_APPROVAL_STATUS).asText()
+                        : "PENDING"));
+        queryDTO.setTicketReference(dataNode.has(Constants.EMAIL_VAR_TICKET_REFERENCE)
+                ? dataNode.get(Constants.EMAIL_VAR_TICKET_REFERENCE).asText()
+                : "");
+        queryDTO.setChangeDescription(dataNode.has(Constants.EMAIL_VAR_CHANGE_DESCRIPTION)
+                ? dataNode.get(Constants.EMAIL_VAR_CHANGE_DESCRIPTION).asText()
+                : "");
+        queryDTO.setQuery(
+                dataNode.has(Constants.EMAIL_VAR_QUERY) ? dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : "");
+        queryDTO.setRejectReason(dataNode.has(Constants.EMAIL_VAR_REJECT_REASON)
+                ? dataNode.get(Constants.EMAIL_VAR_REJECT_REASON).asText()
+                : "");
+
         emailService.sendAssetQueryChangeRequestApprovalEmail(
-            task.getReceiver(),
-            task.getSender(),
-            task.getAsset(),
-            queryDTO,
-            "approval-asset-query-change-request"
-        );
+                task.getReceiver(),
+                task.getSender(),
+                task.getAsset(),
+                queryDTO,
+                "approval-asset-query-change-request");
     }
 
     private void sendApprovalAssetAccessRequestEmail(NotificationTask task) throws Exception {
         ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
-        
+
         String statusStr = getApprovalStatus(notificationNode);
         HashMap<String, String> credentials = extractCredentials(notificationNode);
-        
+
         emailService.sendApprovalAssetAccessRequestEmail(
-            task.getReceiver(),
-            task.getSender(),
-            task.getAsset(),
-            "approval-asset-access-request",
-            ApprovalStatus.valueOf(statusStr),
-            credentials
-        );
+                task.getReceiver(),
+                task.getSender(),
+                task.getAsset(),
+                "approval-asset-access-request",
+                ApprovalStatus.valueOf(statusStr),
+                credentials);
     }
 
     private void sendDeleteQueryNotifyEmail(NotificationTask task) throws Exception {
         ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
         JsonNode dataNode = notificationNode.get("data");
-        
+
         if (dataNode == null) {
             throw new JsonParseException(null, "Data node not found in DELETE query notification");
         }
 
         // Extract all the required fields for DELETE query alert
-        String executorName = dataNode.has(Constants.EMAIL_VAR_EXECUTOR_NAME) ? dataNode.get(Constants.EMAIL_VAR_EXECUTOR_NAME).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-        String executionTime = dataNode.has(Constants.EMAIL_VAR_EXECUTION_TIME) ? dataNode.get(Constants.EMAIL_VAR_EXECUTION_TIME).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-        String tableName = dataNode.has(Constants.EMAIL_VAR_TABLE_NAME) ? dataNode.get(Constants.EMAIL_VAR_TABLE_NAME).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-        String affectedRows = dataNode.has(Constants.EMAIL_VAR_AFFECTED_ROWS) ? dataNode.get(Constants.EMAIL_VAR_AFFECTED_ROWS).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String executorName = dataNode.has(Constants.EMAIL_VAR_EXECUTOR_NAME)
+                ? dataNode.get(Constants.EMAIL_VAR_EXECUTOR_NAME).asText()
+                : Constants.DEFAULT_UNKNOWN_VALUE;
+        String executionTime = dataNode.has(Constants.EMAIL_VAR_EXECUTION_TIME)
+                ? dataNode.get(Constants.EMAIL_VAR_EXECUTION_TIME).asText()
+                : Constants.DEFAULT_UNKNOWN_VALUE;
+        String tableName = dataNode.has(Constants.EMAIL_VAR_TABLE_NAME)
+                ? dataNode.get(Constants.EMAIL_VAR_TABLE_NAME).asText()
+                : Constants.DEFAULT_UNKNOWN_VALUE;
+        String affectedRows = dataNode.has(Constants.EMAIL_VAR_AFFECTED_ROWS)
+                ? dataNode.get(Constants.EMAIL_VAR_AFFECTED_ROWS).asText()
+                : Constants.DEFAULT_UNKNOWN_VALUE;
         String query = dataNode.has(Constants.EMAIL_VAR_QUERY) ? dataNode.get(Constants.EMAIL_VAR_QUERY).asText() : "";
-        String databaseType = dataNode.has(Constants.EMAIL_VAR_DATABASE_TYPE) ? dataNode.get(Constants.EMAIL_VAR_DATABASE_TYPE).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
-        String hostUrl = dataNode.has(Constants.EMAIL_VAR_HOST_URL) ? dataNode.get(Constants.EMAIL_VAR_HOST_URL).asText() : Constants.DEFAULT_UNKNOWN_VALUE;
+        String databaseType = dataNode.has(Constants.EMAIL_VAR_DATABASE_TYPE)
+                ? dataNode.get(Constants.EMAIL_VAR_DATABASE_TYPE).asText()
+                : Constants.DEFAULT_UNKNOWN_VALUE;
+        String hostUrl = dataNode.has(Constants.EMAIL_VAR_HOST_URL)
+                ? dataNode.get(Constants.EMAIL_VAR_HOST_URL).asText()
+                : Constants.DEFAULT_UNKNOWN_VALUE;
 
         // Create the DTO
         DeleteQueryAlertData alertData = DeleteQueryAlertData.builder()
-            .executorName(executorName)
-            .executionTime(executionTime)
-            .tableName(tableName)
-            .affectedRows(affectedRows)
-            .query(query)
-            .databaseType(databaseType)
-            .hostUrl(hostUrl)
-            .build();
+                .executorName(executorName)
+                .executionTime(executionTime)
+                .tableName(tableName)
+                .affectedRows(affectedRows)
+                .query(query)
+                .databaseType(databaseType)
+                .hostUrl(hostUrl)
+                .build();
 
         emailService.sendDeleteQueryAlertEmail(
-            task.getReceiver(),
-            task.getAsset(),
-            alertData,
-            "asset-delete-query-notify"
-        );
+                task.getReceiver(),
+                task.getAsset(),
+                alertData,
+                "asset-delete-query-notify");
+    }
+
+    private void sendInvitationEmail(NotificationTask task) throws Exception {
+        // Parse notification message to extract auth provider info
+        ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
+        JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
+
+        if (dataNode == null) {
+            throw new JsonParseException(null, "Data node not found in invitation notification");
+        }
+
+        // Extract auth provider from notification data
+        String authProvider = dataNode.has("authProvider") ? dataNode.get("authProvider").asText() : "GOOGLE";
+        String tempPassword = dataNode.has("tempPassword") ? dataNode.get("tempPassword").asText() : "";
+        if (tempPassword.isEmpty()) {
+            throw new EmailException("Password can not be empty");
+        }
+        // Determine email template based on auth provider
+        String emailTmplFile = Constants.EMAIL_TEMPLATE_GOOGLE_INVITE;
+        if ("KEYCLOAK".equalsIgnoreCase(authProvider)) {
+            emailTmplFile = Constants.EMAIL_TEMPLATE_KEYCLOAK_INVITE;
+        }
+        User user = task.getReceiver();
+        if (user != null) {
+            user.setPassword(tempPassword);
+        }
+
+
+        // Send invitation email
+        emailService.sendInvitationEmail(task.getReceiver(), emailTmplFile);
     }
 
     protected String getApprovalStatus(ObjectNode notificationNode) throws JsonParseException {
@@ -446,32 +495,32 @@ public class NotificationJobConfig {
         if (dataNode == null) {
             throw new JsonParseException(null, "Data node not found in notification");
         }
-        
+
         JsonNode statusNode = dataNode.get("approvalStatus");
         if (statusNode == null) {
             throw new JsonParseException(null, "Approval status not found in notification data");
         }
-        
+
         String statusStr = statusNode.asText();
         if (statusStr == null || statusStr.isEmpty()) {
             throw new JsonParseException(null, "Approval status is empty");
         }
-        
+
         return statusStr;
     }
 
     protected HashMap<String, String> extractCredentials(ObjectNode notificationNode) {
         HashMap<String, String> credentials = new HashMap<>();
-        
+
         JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
         if (dataNode == null) {
             return credentials;
         }
-        
+
         if (dataNode.has(Constants.EMAIL_VAR_DB_USERNAME) && dataNode.has(Constants.EMAIL_VAR_DB_PASSWORD)) {
             String dbUsername = dataNode.get(Constants.EMAIL_VAR_DB_USERNAME).asText();
             String dbPassword = dataNode.get(Constants.EMAIL_VAR_DB_PASSWORD).asText();
-            
+
             if (dbUsername != null && !dbUsername.isEmpty()) {
                 credentials.put(Constants.EMAIL_VAR_DB_USERNAME, dbUsername);
             }
@@ -479,7 +528,7 @@ public class NotificationJobConfig {
                 credentials.put(Constants.EMAIL_VAR_DB_PASSWORD, dbPassword);
             }
         }
-        
+
         return credentials;
     }
 
@@ -508,7 +557,7 @@ public class NotificationJobConfig {
                     .toJobParameters();
 
             jobLauncher.run(notificationJob(), params);
-            
+
             // Log statistics after each job run
             logProcessingStatistics();
         } catch (Exception e) {
