@@ -35,6 +35,8 @@ class DamApplicationTests {
 				() -> System.getenv("AWS_SECRET_ACCESS_KEY"));
 		registry.add("aws.region",
 				() -> System.getenv("HOST_REGION"));
+		registry.add("jwt.secret",
+				() -> System.getenv("JWT_SECRET"));
 	}
 
 	@Test

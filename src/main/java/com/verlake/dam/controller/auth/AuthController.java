@@ -4,19 +4,19 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
+import com.verlake.dam.entity.user.dto.ForgotPasswordRequestDTO;
+import com.verlake.dam.entity.user.dto.ResetPasswordRequestDTO;
+import com.verlake.dam.entity.user.dto.ResetPasswordValidationDTO;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.service.assets.AccessRequestService;
+import com.verlake.dam.service.auth.ForgotPasswordService;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.verlake.dam.enums.AuthProvider;
 
@@ -35,6 +35,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+
 import org.springframework.core.task.AsyncTaskExecutor;
 
 @RestController
@@ -62,6 +64,9 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private ForgotPasswordService forgotPasswordService;
 
     private final TokenServiceManager tokenServiceManager;
     @Autowired
@@ -119,6 +124,64 @@ public class AuthController {
         }
         userService.saveUser(curUser);
         return ResponseEntity.ok().body(userDto);
+    }
+
+    @PostMapping("/api/auth/forgotPassword")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@RequestBody ForgotPasswordRequestDTO request) {
+        log.info("Received forgot password request for email: {}", request.getEmail());
+        
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+        }
+        forgotPasswordService.initiateForgotPassword(request.getEmail().trim());
+        return CommonUtils.getSuccessResponse();
+    }
+
+    @PostMapping("/api/auth/validateResetToken")
+    public ResponseEntity<ResetPasswordValidationDTO> validateResetToken(@RequestBody ResetPasswordRequestDTO tokenDto) {
+        log.info("Validating reset token: {}", tokenDto.getToken());
+        
+        if (tokenDto.getToken() == null || tokenDto.getToken().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token is required");
+        }
+
+        try {
+            User user = forgotPasswordService.validateResetToken(tokenDto.getToken().trim());
+            
+            ResetPasswordValidationDTO response = new ResetPasswordValidationDTO();
+            response.setEmail(user.getEmail());
+            response.setFirstName(user.getFirstName());
+            response.setLastName(user.getLastName());
+            response.setFullName(user.getFirstName() + " " + user.getLastName());
+            
+            return ResponseEntity.ok().body(response);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error validating reset token: {}", tokenDto.getToken(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "An error occurred while validating the token. Please try again later.");
+        }
+    }
+
+    @PostMapping("/api/auth/updateFromForgotPassword")
+    public ResponseEntity<Map<String, Object>> updateFromForgotPassword(@RequestBody ResetPasswordRequestDTO request) {
+        log.info("Received password update request for token: {}", request.getToken());
+        
+        if (request.getToken() == null || request.getToken().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token is required");
+        }
+
+        try {
+            forgotPasswordService.updatePasswordFromToken(request.getToken().trim(), request.getPassword());
+            return CommonUtils.getSuccessResponse();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error updating password for token: {}", request.getToken(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "An error occurred while updating the password. Please try again later.");
+        }
     }
 
     private boolean isAssetOwner(User user) {

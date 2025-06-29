@@ -52,6 +52,12 @@ dependencies {
 	implementation 'org.springframework.security:spring-security-oauth2-jose:6.+'
 	implementation 'me.paulschwarz:spring-dotenv:4.+'
 	implementation 'io.github.cdimascio:dotenv-java:3.+'
+	
+	// JWT for password reset tokens
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.+'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.+'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.+'
+	
 	implementation group: 'com.javax0.license3j', name: 'license3j', version: '3.3.+'
 	implementation 'co.elastic.apm:apm-agent-api:1.+'
 	implementation 'co.elastic.apm:apm-agent-attach:1.+'

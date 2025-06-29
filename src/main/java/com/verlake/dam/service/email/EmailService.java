@@ -548,4 +548,37 @@ public class EmailService {
         }
     }
 
+    public void sendForgotPasswordEmail(User user, String resetLink, String emailTmplFile) {
+        log.info("Preparing to send forgot password email to user: {} ({})", user.getEmail(), user.getFirstName() + " " + user.getLastName());
+        log.debug("Using email template: {}", emailTmplFile);
+        
+        try {
+            // Prepare Thymeleaf context for email content
+            Context context = new Context();
+            context.setVariable(Constants.EMAIL_VAR_USER_NAME, user.getFirstName() + " " + user.getLastName());
+            context.setVariable("resetLink", resetLink);
+            
+            log.debug("Reset link: {}", resetLink);
+            
+            String emailSubject = "Password Reset Request";
+            ObjectMapper objectMapper = new ObjectMapper();
+            ObjectNode metaData = objectMapper.createObjectNode();
+            metaData.put(Constants.EMAIL_VAR_USER_NAME, user.getFirstName() + " " + user.getLastName());
+            metaData.put("resetLink", resetLink);
+
+            // Generate email content using Thymeleaf template
+            String emailContent = templateEngine.process(emailTmplFile, context);
+            createEmailEntity(user, EmailType.FORGOT_PASSWORD, emailSubject, metaData, emailContent);
+
+            // Send the email
+            sendEmail(user.getEmail(), emailSubject, emailContent);
+            log.info("✅ Forgot password email sent successfully to: {}", user.getEmail());
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to send forgot password email to {}: {}", user.getEmail(), e.getMessage(), e);
+            throw new EmailSendingException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    String.format("Failed to send forgot password email to %s", user.getEmail()), e);
+        }
+    }
+
 }

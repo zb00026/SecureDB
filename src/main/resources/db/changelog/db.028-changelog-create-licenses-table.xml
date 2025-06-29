@@ -44,5 +44,23 @@
             <column name="uploaded_by"/>
         </createIndex>
     </changeSet>
+    <changeSet id="Update-email_type-enum-for-forgot-password" author="system">
+        <sql>
+            ALTER TABLE emails MODIFY COLUMN email_type ENUM(
+                'INVITATION',
+                'RELINQUISH_ASSET_CREDENTIAL',
+                'ASSET_APPROVE_NOTIFY',
+                'DEVELOPER_ASSET_REQUEST_NOTIFY',
+                'DEVELOPER_RELINQUISH_ASSET_NOTIFY',
+                'APPROVAL_ASSET_ACCESS_REQUEST',
+                'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR',
+                'ASSET_QUERY_CHANGE_REQUEST_NOTIFY',
+                'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY',
+                'DELETE_QUERY_ALERT',
+                'FORGOT_PASSWORD',
+                'OTHER'
+            ) NOT NULL;
+        </sql>
+    </changeSet>
 
 </databaseChangeLog> 

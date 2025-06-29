@@ -198,6 +198,32 @@ public class Constants {
     
     // Email regex pattern
     public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@(.+)$";
+    
+    // JWT Password Reset constants
+    public static final String JWT_SUBJECT_PASSWORD_RESET = "password_reset";
+    public static final String JWT_CLAIM_TYPE = "type";
+    public static final String JWT_CLAIM_TYPE_PASSWORD_RESET = "password_reset";
+    public static final String JWT_CLAIM_EMAIL = "email";
+    public static final String JWT_CLAIM_USER_ID = "userId";
+    
+    // JWT Error messages
+    public static final String JWT_ERROR_INVALID_TOKEN = "Invalid or expired password reset token";
+    public static final String JWT_ERROR_INVALID_TOKEN_TYPE = "Invalid token type";
+    public static final String JWT_ERROR_TOKEN_EXPIRED = "Token has expired";
+    public static final String JWT_ERROR_GENERATION_FAILED = "Failed to generate password reset token";
+    public static final String JWT_ERROR_VALIDATION_FAILED = "Failed to validate password reset token";
+    
+    // Global Exception Handler constants
+    public static final String ERROR_DATABASE_CONSTRAINT_VIOLATED = "A database constraint was violated";
+    public static final String ERROR_UNEXPECTED_ERROR = "An unexpected error occurred";
+    public static final String ERROR_UNIQUE_CONSTRAINT_VIOLATED = "A unique constraint was violated. Check fields for duplicates.";
+    public static final String ERROR_CONSTRAINT_VIOLATION_PREFIX = "Constraint violation: ";
+    public static final String ERROR_JWT_TOKEN_ERROR = "JWT token error: {}";
+    public static final String ERROR_TYPE_JWT_TOKEN = "JWT_TOKEN_ERROR";
+    public static final String ERROR_FIELD_ERROR = "error";
+    public static final String ERROR_FIELD_DETAILS = "details";
+    public static final String ERROR_FIELD_STATUS = "status";
+    public static final String ERROR_FIELD_TYPE = "type";
 
     public static final String MYSQL_QUERY_SELECT = "SELECT";
     public static final String MYSQL_QUERY_SHOW = "SHOW";

@@ -300,6 +300,17 @@ public class NotificationJobConfig {
                                 notificationTask.getReceiver().getEmail(),
                                 e);
                     }
+                },
+                EmailType.FORGOT_PASSWORD, notificationTask -> {
+                    try {
+                        sendForgotPasswordEmail(notificationTask);
+                    } catch (Exception e) {
+                        throw new NotificationProcessingException(
+                                "Failed to send forgot password email",
+                                notificationTask.getId(),
+                                notificationTask.getReceiver().getEmail(),
+                                e);
+                    }
                 });
 
         // Get handler for the email type
@@ -488,6 +499,25 @@ public class NotificationJobConfig {
 
         // Send invitation email
         emailService.sendInvitationEmail(task.getReceiver(), emailTmplFile);
+    }
+
+    private void sendForgotPasswordEmail(NotificationTask task) throws Exception {
+        // Parse notification message to extract reset link
+        ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
+        JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
+
+        if (dataNode == null) {
+            throw new JsonParseException(null, "Data node not found in forgot password notification");
+        }
+
+        // Extract reset link from notification data
+        String resetLink = dataNode.has("resetLink") ? dataNode.get("resetLink").asText() : "";
+        if (resetLink.isEmpty()) {
+            throw new JsonParseException(null, "Reset link not found in forgot password notification data");
+        }
+
+        // Send forgot password email
+        emailService.sendForgotPasswordEmail(task.getReceiver(), resetLink, "forgot-password");
     }
 
     protected String getApprovalStatus(ObjectNode notificationNode) throws JsonParseException {

@@ -11,6 +11,7 @@ public enum EmailType {
     ASSET_QUERY_CHANGE_REQUEST_NOTIFY,
     ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY,
     DELETE_QUERY_ALERT, //Alert when DELETE queries are executed
+    FORGOT_PASSWORD, //Password reset email
     OTHER;
     public static EmailType fromString(String value) {
         return switch (value) {
@@ -18,12 +19,13 @@ public enum EmailType {
             case "RELINQUISH_ASSET_CREDENTIAL" -> RELINQUISH_ASSET_CREDENTIAL;
             case "ASSET_APPROVE_NOTIFY" -> ASSET_APPROVE_NOTIFY;
             case "DEVELOPER_ASSET_REQUEST_NOTIFY" -> DEVELOPER_ASSET_REQUEST_NOTIFY;
-            case "DEVELOPER_RELINQUISH_ASSET_NOTIFY" -> DEVELOPER_ASSET_REQUEST_NOTIFY;
+            case "DEVELOPER_RELINQUISH_ASSET_NOTIFY" -> DEVELOPER_RELINQUISH_ASSET_NOTIFY;
             case "APPROVAL_ASSET_ACCESS_REQUEST" -> APPROVAL_ASSET_ACCESS_REQUEST;
             case "ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR" -> ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR;
             case "ASSET_QUERY_CHANGE_REQUEST_NOTIFY" -> ASSET_QUERY_CHANGE_REQUEST_NOTIFY;
             case "ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY" -> ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY;
             case "DELETE_QUERY_ALERT" -> DELETE_QUERY_ALERT;
+            case "FORGOT_PASSWORD" -> FORGOT_PASSWORD;
             case "OTHER" -> OTHER;
             default -> throw new IllegalArgumentException("Unknown email type: " + value);
         };

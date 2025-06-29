@@ -19,6 +19,7 @@ env:
   MAIL_SENDER: test@dam.com
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
 jobs:
   backend_build:
@@ -164,6 +165,7 @@ jobs:
           echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
           echo "APM_SECRET_TOKEN=\"${{ secrets.APM_SECRET_TOKEN }}\"" >> .env
           echo "FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY" >> .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
           
           cp .env build/libs/
           cd build/libs/
