@@ -120,6 +120,11 @@ public class OwnerAssetController extends BaseAssetAccessController {
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
     }
 
+    @PostMapping("/{assetId}")
+    public ResponseEntity<Map<String, Object>> updateAsset(@PathVariable long assetId, @RequestBody AssetDTO assetDTO) {
+        assetService.updateAsset(assetId, assetDTO);
+        return CommonUtils.getSuccessResponse();
+    }
 
     @GetMapping("/new-credentials")
     public ResponseEntity<List<AssetCredential>> getNewAssignedCredentials() {

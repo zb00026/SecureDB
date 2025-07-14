@@ -2,13 +2,16 @@ package com.verlake.dam.controller.common;
 
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
+import com.verlake.dam.entity.dto.AuditTrailDTO;
 import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -23,7 +26,7 @@ public abstract class BaseAuditTrailController {
      */
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ASSET_OWNER', 'APPROVER', 'DEVELOPER')")
-    public ResponseEntity<Page<AuditTrail>> getAuditTrails(RoleBasedAuditTrailFilter filter) {
+    public ResponseEntity<Page<AuditTrailDTO>> getAuditTrails(RoleBasedAuditTrailFilter filter) {
         String roleName = getRoleName();
         log.info("{} requesting audit trails with filter: {}", roleName, filter);
         
@@ -32,8 +35,17 @@ public abstract class BaseAuditTrailController {
         
         Page<AuditTrail> auditTrails = roleBasedAuditTrailService.getAuditTrails(filter);
         
-        log.info("Returning {} audit trail records for {}", auditTrails.getTotalElements(), roleName.toLowerCase());
-        return ResponseEntity.ok(auditTrails);
+        // Convert entities to DTOs
+        Page<AuditTrailDTO> dtoPage = new PageImpl<>(
+            auditTrails.getContent().stream()
+                .map(AuditTrailDTO::fromEntity)
+                .collect(Collectors.toList()),
+            auditTrails.getPageable(),
+            auditTrails.getTotalElements()
+        );
+        
+        log.info("Returning {} audit trail records for {}", dtoPage.getTotalElements(), roleName.toLowerCase());
+        return ResponseEntity.ok(dtoPage);
     }
 
     /**

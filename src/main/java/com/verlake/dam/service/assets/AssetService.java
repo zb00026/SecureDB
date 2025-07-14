@@ -108,7 +108,7 @@ public class AssetService {
     public void updateAssetOwners(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
-        if (updateDTO.getMethod().equals(Constants.getMessage("asset.add.name"))) {
+        if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
             // Delete existing credentials for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
                 List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
@@ -162,7 +162,7 @@ public class AssetService {
     public void updateAssetApprovers(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
                 .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
-        if (updateDTO.getMethod().equals(Constants.getMessage("asset.add.name"))) {
+        if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
             // Delete existing asset approvers for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
                 assetApproversRepository.deleteByAssetIdAndUserId(asset.getId(), userId);

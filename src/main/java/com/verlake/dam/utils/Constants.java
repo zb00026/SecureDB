@@ -394,7 +394,8 @@ public class Constants {
     public static final String STATUS_NAME = "status";
     public static final String ERROR_MESSAGE_NAME = "error_message";
 
-    public static final String ASSET_ADD_NAME = "asset.add.name";
+    public static final String ASSET_ADD_NAME = "Add";
+    public static final String ASSET_REMOVE_NAME = "Remove";
 
     // License public key (cannot be externalized as it's a byte array)
     public static final byte[] LIC_PUBLIC_KEY = new byte[] {
