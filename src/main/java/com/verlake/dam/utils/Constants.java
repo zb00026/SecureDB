@@ -139,6 +139,25 @@ public class Constants {
     public static final String CSV_ATTACHMENT_HEADER = "attachment; filename=user_bulk_upload_sample.csv";
     public static final String CSV_COMMENT_PREFIX = "#";
 
+    // Asset CSV constants
+    public static final String ASSET_CSV_HEADER = "name,description,type,databaseType,hostAddress,portNumber,databaseName,ownerEmail";
+    public static final String ASSET_CSV_FILENAME = "asset_bulk_upload_sample.csv";
+    public static final String ASSET_CSV_ATTACHMENT_HEADER = "attachment; filename=asset_bulk_upload_sample.csv";
+    public static final String ASSET_CSV_EXPORT_FILENAME = "assets_export.csv";
+    public static final String ASSET_CSV_EXPORT_ATTACHMENT_HEADER = "attachment; filename=assets_export.csv";
+
+    // Asset field names
+    public static final String ASSET_FIELD_LINE_NUMBER = "lineNumber";
+    public static final String ASSET_FIELD_ID = "id";
+    public static final String ASSET_FIELD_NAME = "name";
+    public static final String ASSET_FIELD_DESCRIPTION = "description";
+    public static final String ASSET_FIELD_TYPE = "type";
+    public static final String ASSET_FIELD_DATABASE_TYPE = "databaseType";
+    public static final String ASSET_FIELD_HOST_ADDRESS = "hostAddress";
+    public static final String ASSET_FIELD_PORT_NUMBER = "portNumber";
+    public static final String ASSET_FIELD_DATABASE_NAME = "databaseName";
+    public static final String ASSET_FIELD_OWNER_EMAIL = "ownerEmail";
+
     // Response field names
     public static final String RESPONSE_SUCCESS = "success";
     public static final String RESPONSE_MESSAGE = "message";
@@ -147,6 +166,10 @@ public class Constants {
     public static final String RESPONSE_SUCCESSFUL_USERS = "successfulUsers";
     public static final String RESPONSE_FAILED_USERS = "failedUsers";
     public static final String RESPONSE_USERS = "users";
+    public static final String RESPONSE_TOTAL_ASSETS = "totalAssets";
+    public static final String RESPONSE_SUCCESSFUL_ASSETS = "successfulAssets";
+    public static final String RESPONSE_FAILED_ASSETS = "failedAssets";
+    public static final String RESPONSE_ASSETS = "assets";
     public static final String RESPONSE_ID = "id";
     public static final String RESPONSE_EMAIL = "email";
     public static final String RESPONSE_FIRST_NAME = "firstName";
@@ -249,6 +272,7 @@ public class Constants {
     // SQL error patterns
     public static final String SQL_ERROR_OBJECT_NOT_FOUND = "Cannot find the object";
     public static final String SQL_ERROR_DOES_NOT_EXIST = "does not exist";
+
 
     // Database query strings
     public static final String MYSQL_QUERY_SHOW_GRANTS = "SHOW GRANTS FOR CURRENT_USER";
@@ -369,10 +393,15 @@ public class Constants {
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_PASSWORD_UPDATE = "error.unsupported.db.type.user.password.update";
 
     // Additional constants
-    public static final String SUCCESS_CREATED_USERS_AND_SENT_INVITES = "success.created.users.and.sent.invites";
+    public static final String SUCCESS_CSV_GENERATED = "Sample CSV generated successfully";
+    public static final String SUCCESS_USERS_CREATED = "Successfully created {0} users and sent email invites";
+    public static final String SUCCESS_CREATED_USERS_AND_SENT_INVITES = "Successfully created {0} users and sent email invites";
+    public static final String SUCCESS_GENERATING_CSV = "Generating sample CSV for bulk user creation";
+    public static final String SUCCESS_CREATED_ASSETS = "Successfully created {0} assets";
+    public static final String SUCCESS_ASSETS_EXPORTED = "Successfully exported {0} assets";
     public static final String ERROR_BULK_UPLOAD_FAILED = "error.bulk.upload.failed";
     public static final String ERROR_CREATING_EMAIL_ENTITY = "error.creating.email.entity";
-    public static final String ERROR_FIELD_REQUIRED = "error.field.required";
+
     public static final String ROLE_NONE = "role.none";
     public static final String ROLE_DEVELOPER = "role.developer";
     public static final String ROLE_ADMIN = "role.admin";
@@ -380,13 +409,21 @@ public class Constants {
     public static final String ROLE_APPROVER = "role.approver";
     public static final String ROLE_AUDITOR = "role.auditor";
     public static final String ERROR_VALIDATION_ERRORS_FOUND = "error.validation.errors.found";
-    public static final String ERROR_UPLOADED_FILE_EMPTY = "error.uploaded.file.empty";
-    public static final String ERROR_FILE_MUST_BE_CSV = "error.file.must.be.csv";
-    public static final String ERROR_INVALID_EMAIL_FORMAT = "error.invalid.email.format";
-    public static final String ERROR_DUPLICATE_EMAIL_CSV = "error.duplicate.email.csv";
-    public static final String ERROR_EMAIL_ALREADY_EXISTS_SYSTEM = "error.email.already.exists.system";
-    public static final String ERROR_INVALID_ROLE_NAME = "error.invalid.role.name";
-    public static final String ERROR_NO_VALID_USER_DATA = "error.no.valid.user.data";
+    public static final String ERROR_UPLOADED_FILE_EMPTY = "Uploaded file is empty";
+    public static final String ERROR_FILE_MUST_BE_CSV = "File must be a CSV file";
+    public static final String ERROR_INVALID_EMAIL_FORMAT = "invalid email format: {0}";
+    public static final String ERROR_DUPLICATE_EMAIL_CSV = "duplicate email in CSV: {0}";
+    public static final String ERROR_EMAIL_ALREADY_EXISTS_SYSTEM = "email already exists in system: {0}";
+    public static final String ERROR_INVALID_ROLE_NAME = "invalid role name: '{0}'. Available roles: Admin, Developer, Asset Owner, Approver, Auditor";
+    public static final String ERROR_NO_VALID_USER_DATA = "No valid user data found in CSV file";
+    public static final String ERROR_NO_VALID_ASSET_DATA = "No valid asset data found in CSV file";
+    public static final String ERROR_DUPLICATE_ASSET_NAME_CSV = "duplicate asset name in CSV: {0}";
+    public static final String ERROR_ASSET_NAME_ALREADY_EXISTS_SYSTEM = "asset name already exists in system: {0}";
+    public static final String ERROR_INVALID_ASSET_TYPE = "invalid asset type: '{0}'. Available types: DATABASE";
+    public static final String ERROR_INVALID_DATABASE_TYPE = "invalid database type: '{0}'. Available types: MYSQL, POSTGRESQL, SQLSERVER, ORACLE";
+    public static final String ERROR_USER_NOT_ASSET_OWNER = "user '{0}' does not have ASSET_OWNER role";
+    public static final String ERROR_FIELD_REQUIRED = "{0} is required";
+
 
     // SQL constants
     public static final String ALTER_USER_IDENTIFIED_BY = "ALTER USER ? IDENTIFIED BY ?";

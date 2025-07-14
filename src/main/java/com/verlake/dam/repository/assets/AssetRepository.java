@@ -12,4 +12,5 @@ import java.util.Optional;
 public interface AssetRepository extends JpaRepository<Asset, Long> {
     List<Asset> findByDeletedFalse();
     Optional<Asset> findByIdAndDeletedFalse(Long id);
+    boolean existsByName(String name);
 } 

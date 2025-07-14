@@ -8,15 +8,24 @@ import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.assets.AssetCsvService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.I18nUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -28,13 +37,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class AssetController extends BaseAssetAccessController {
     private final UserService userService;
     private final EmailService emailService;
+    private final AssetCsvService assetCsvService;
     private static final Logger logger = LoggerFactory.getLogger(AssetController.class);
 
     @Autowired
-    public AssetController(AssetService assetService, UserService userService, EmailService emailService) {
+    public AssetController(AssetService assetService, UserService userService, EmailService emailService, AssetCsvService assetCsvService) {
         super(assetService);
         this.userService = userService;
         this.emailService = emailService;
+        this.assetCsvService = assetCsvService;
     }
 
     @GetMapping
@@ -139,6 +150,86 @@ public class AssetController extends BaseAssetAccessController {
 
         logger.info("Unlock completed successfully for asset ID: {} by admin: {}", id, currentAdminEmail);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Download sample CSV template for bulk asset upload
+     */
+    @GetMapping("/download-sample-csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
+    public ResponseEntity<String> downloadSampleCSV() {
+        logger.info("Generating sample CSV for bulk asset creation");
+
+        String csvContent = assetCsvService.generateSampleCsvContent();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, Constants.ASSET_CSV_ATTACHMENT_HEADER);
+        headers.add(HttpHeaders.CONTENT_TYPE, Constants.CSV_CONTENT_TYPE);
+
+        logger.info("Sample CSV generated successfully");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csvContent);
+    }
+
+    /**
+     * Export all assets to CSV
+     */
+    @GetMapping("/export-csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
+    public ResponseEntity<String> exportAssetsCSV() {
+        logger.info("Exporting assets to CSV");
+
+        String csvContent = assetCsvService.exportAssetsToCsv();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, Constants.ASSET_CSV_EXPORT_ATTACHMENT_HEADER);
+        headers.add(HttpHeaders.CONTENT_TYPE, Constants.CSV_CONTENT_TYPE);
+
+        logger.info("Assets exported successfully");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csvContent);
+    }
+
+    /**
+     * Bulk upload assets from CSV file
+     */
+    @PostMapping(value = "/bulk-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional(rollbackFor = Exception.class)
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Map<String, Object>> bulkUploadAssets(@RequestParam("file") MultipartFile file) {
+
+        Map<String, Object> response = assetCsvService.processBulkAssetUploadWithResponse(file);
+
+        // Determine HTTP status based on success
+        boolean success = (Boolean) response.get(Constants.RESPONSE_SUCCESS);
+        if (success) {
+            return buildJsonResponse(ResponseEntity.ok(), response);
+        } else {
+            // Check if it's a validation error (400) or server error (500)
+            String message = (String) response.get(Constants.RESPONSE_MESSAGE);
+            if (message.contains(Constants.getMessage(Constants.ERROR_VALIDATION_ERRORS_FOUND)) ||
+                message.contains(Constants.getMessage(Constants.ERROR_UPLOADED_FILE_EMPTY)) ||
+                message.contains(Constants.getMessage(Constants.ERROR_FILE_MUST_BE_CSV)) ||
+                message.contains(Constants.getMessage(Constants.ERROR_NO_VALID_ASSET_DATA))) {
+                return buildJsonResponse(ResponseEntity.badRequest(), response);
+            } else {
+                return buildJsonResponse(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR), response);
+            }
+        }
+    }
+
+    /**
+     * Helper method to build ResponseEntity with consistent JSON headers
+     */
+    private ResponseEntity<Map<String, Object>> buildJsonResponse(
+            ResponseEntity.BodyBuilder responseBuilder, 
+            Map<String, Object> body) {
+        return responseBuilder
+                .header("Content-Type", Constants.CONTENT_TYPE_JSON)
+                .header("Cache-Control", Constants.CACHE_CONTROL_NO_CACHE)
+                .body(body);
     }
 
     @Override

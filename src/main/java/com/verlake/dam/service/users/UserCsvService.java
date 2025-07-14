@@ -12,6 +12,7 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.exception.EmailSendingException;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.I18nUtils;
 import com.verlake.dam.utils.CommonUtils;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -448,11 +449,11 @@ public class UserCsvService {
         
         // Validate file
         if (file.isEmpty()) {
-            throw new IllegalArgumentException(Constants.ERROR_UPLOADED_FILE_EMPTY);
+            throw new IllegalArgumentException(Constants.getMessage(Constants.ERROR_UPLOADED_FILE_EMPTY));
         }
         
         if (!file.getOriginalFilename().toLowerCase().endsWith(Constants.CSV_EXTENSION)) {
-            throw new IllegalArgumentException(Constants.ERROR_FILE_MUST_BE_CSV);
+            throw new IllegalArgumentException(Constants.getMessage(Constants.ERROR_FILE_MUST_BE_CSV));
         }
         
         List<Map<String, String>> userDataList = new ArrayList<>();
@@ -465,7 +466,7 @@ public class UserCsvService {
             log.info("Parsed {} users from CSV file", userDataList.size());
             
             if (userDataList.isEmpty()) {
-                throw new IllegalArgumentException(Constants.ERROR_NO_VALID_USER_DATA);
+                throw new IllegalArgumentException(Constants.getMessage(Constants.ERROR_NO_VALID_USER_DATA));
             }
             
             // Validate all users first
@@ -475,7 +476,7 @@ public class UserCsvService {
                 log.error("Validation errors found: {}", errors);
                 Map<String, Object> response = new HashMap<>();
                 response.put(Constants.RESPONSE_SUCCESS, false);
-                response.put(Constants.RESPONSE_MESSAGE, Constants.ERROR_VALIDATION_ERRORS_FOUND);
+                response.put(Constants.RESPONSE_MESSAGE, Constants.getMessage(Constants.ERROR_VALIDATION_ERRORS_FOUND));
                 response.put(Constants.RESPONSE_ERRORS, errors);
                 response.put(Constants.RESPONSE_TOTAL_USERS, userDataList.size());
                 response.put(Constants.RESPONSE_FAILED_USERS, userDataList.size());
