@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,8 +23,8 @@ public class License {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "license_file", nullable = false, columnDefinition = "LONGBLOB")
-    @Lob
+    @Column(name = "license_file", nullable = false)
+    @Basic(fetch = FetchType.LAZY)
     private byte[] licenseFile;
     
     @Column(name = "filename", nullable = false)
@@ -35,7 +36,7 @@ public class License {
     @Column(name = "uploaded_by", nullable = false)
     private String uploadedBy;
     
-    @Column(name = "is_active", nullable = false)
+    @Column(name = "is_active", nullable = false, columnDefinition = "tinyint(1)")
     @Builder.Default
     private Boolean isActive = true;
     

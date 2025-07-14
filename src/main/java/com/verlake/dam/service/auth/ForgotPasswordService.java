@@ -101,7 +101,7 @@ public class ForgotPasswordService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (Exception e) {
             log.warn("Unexpected error validating JWT reset token: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, Constants.JWT_ERROR_INVALID_TOKEN);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, Constants.getMessage("jwt.error.invalid.token"));
         }
     }
 

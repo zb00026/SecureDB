@@ -266,35 +266,35 @@
         <!-- MSSQL Table Permissions -->
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="SELECT"/>
             <column name="access_template" value="GRANT SELECT ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="INSERT"/>
             <column name="access_template" value="GRANT INSERT ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="UPDATE"/>
             <column name="access_template" value="GRANT UPDATE ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="DELETE"/>
             <column name="access_template" value="GRANT DELETE ON [$SCHEMA].[$TABLE] TO [$USER];"/>
         </insert>
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="TABLE"/>
             <column name="templates" value="REFERENCES"/>
             <column name="access_template" value="GRANT REFERENCES ON [$SCHEMA].[$TABLE] TO [$USER];"/>
@@ -303,7 +303,7 @@
         <!-- MSSQL Stored Procedure Permissions -->
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="PROCEDURE"/>
             <column name="templates" value="EXECUTE"/>
             <column name="access_template" value="GRANT EXECUTE ON [$SCHEMA].[$PROCEDURE] TO [$USER];"/>
@@ -312,21 +312,21 @@
         <!-- MSSQL Special Access Levels -->
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="FULL ACCESS"/>
             <column name="access_template" value="ALTER ROLE [db_owner] ADD MEMBER [$USER];"/>
         </insert>
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="READ ACCESS"/>
             <column name="access_template" value="ALTER ROLE [db_datareader] ADD MEMBER [$USER];"/>
         </insert>
         <insert tableName="access_levels">
             <column name="asset_type" value="DATABASE"/>
-            <column name="database_type" value="MSSQL"/>
+            <column name="database_type" value="SQLSERVER"/>
             <column name="object" value="DATABASE"/>
             <column name="templates" value="WRITE ACCESS"/>
             <column name="access_template" value="ALTER ROLE [db_datawriter] ADD MEMBER [$USER];"/>

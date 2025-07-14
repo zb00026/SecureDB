@@ -25,10 +25,10 @@
             <column name="request_reason" type="text">
                 <constraints nullable="false"/>
             </column>
-            <column name="developer_approver_status" type="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')">
+            <column name="developer_approver_status" type="varchar(50)">
                 <constraints nullable="false"/>
             </column>
-            <column name="asset_approver_status" type="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')">
+            <column name="asset_approver_status" type="varchar(50)">
                 <constraints nullable="false"/>
             </column>
         </createTable>

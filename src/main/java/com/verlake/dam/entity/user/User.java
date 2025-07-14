@@ -52,10 +52,10 @@ public class User {
     @Column(name="invite_code")
     private String inviteCode;
 
-    @Column(name="is_active")
+    @Column(name="is_active", columnDefinition = "tinyint(1)")
     private Boolean isActive;
 
-    @Column(name = "is_initial_password")
+    @Column(name = "is_initial_password", columnDefinition = "tinyint(1)")
     private Boolean isInitialPassword;
 
     @Column(name = "approver_id")

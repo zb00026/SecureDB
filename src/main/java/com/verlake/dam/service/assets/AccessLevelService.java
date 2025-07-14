@@ -8,6 +8,8 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.repository.assets.AccessLevelRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
+import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,23 +44,23 @@ public class AccessLevelService {
         this.accessLevelObjectRepository = accessLevelObjectRepository;
     }
 
-    public List<String> getAvailableObjects(String assetType, String databaseType) {
+    public List<String> getAvailableObjects(AssetType assetType, DatabaseType databaseType) {
         return accessLevelRepository.findDistinctObjectsByAssetTypeAndDatabaseType(assetType, databaseType);
     }
 
-    public List<AccessLevel> getAccessLevels(String assetType, String databaseType) {
+    public List<AccessLevel> getAccessLevels(AssetType assetType, DatabaseType databaseType) {
         return accessLevelRepository.findByAssetTypeAndDatabaseType(assetType, databaseType);
     }
 
-    public List<String> getTemplateAccesses(String assetType, String databaseType) {
+    public List<String> getTemplateAccesses(AssetType assetType, DatabaseType databaseType) {
         return accessLevelRepository.findTemplatesByAssetTypeAndDatabaseType(assetType, databaseType);
     }
 
-    public List<AccessLevel> getObjectPermissions(String assetType, String databaseType, String object) {
+    public List<AccessLevel> getObjectPermissions(AssetType assetType, DatabaseType databaseType, String object) {
         return accessLevelRepository.findByAssetTypeAndDatabaseTypeAndObject(assetType, databaseType, object);
     }
 
-    public String getFetchAccessTemplate(String assetType, String databaseType) {
+    public String getFetchAccessTemplate(AssetType assetType, DatabaseType databaseType) {
         AccessLevel fetchAccess = accessLevelRepository.findFetchAccessTemplate(assetType, databaseType);
         return fetchAccess != null ? fetchAccess.getAccessTemplate() : null;
     }
@@ -73,7 +75,7 @@ public class AccessLevelService {
     }
 
     public ArrayNode getAssetObjectsWithData(Asset asset) {
-        List<AccessLevel> accessLevels = getAccessLevels(asset.getType().name(), asset.getDatabaseType().name());
+        List<AccessLevel> accessLevels = getAccessLevels(asset.getType(), asset.getDatabaseType());
         
         ObjectMapper objectMapper = new ObjectMapper();
         ArrayNode rootArray = objectMapper.createArrayNode();
@@ -99,6 +101,8 @@ public class AccessLevelService {
                 levelNode.put(Constants.ACCESS_LEVEL_ATTR_TEMPLATE, level.getTemplates());
                 levelNode.put("accessTemplate", level.getAccessTemplate());
                 levelNode.put("object", level.getObject());
+                levelNode.put("databaseType", level.getDatabaseType().toString());
+                levelNode.put("assetType", level.getAssetType().toString());
                 grantsNode.add(levelNode);
             });
             

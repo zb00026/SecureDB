@@ -70,7 +70,7 @@ public class UserController {
         User user = userService.findById(id);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, String.format(Constants.USER_NOT_FOUND, id));
+                    HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id));
         }
         return user;
     }
@@ -81,7 +81,7 @@ public class UserController {
         AuthProvider userAuthProvider = userDto.getAuthProvider();
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    String.format(Constants.USER_EMAIL_ALREADY_EXISTS, user.getEmail()));
+                    String.format(Constants.getMessage("user.email.already.exists"), user.getEmail()));
         }
 
         // Generate temporary password if not provided
@@ -113,7 +113,7 @@ public class UserController {
 
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    String.format(Constants.USER_EMAIL_ALREADY_EXISTS, user.getEmail()));
+                    String.format(Constants.getMessage("user.email.already.exists"), user.getEmail()));
         }
 
         // Check password complexity
@@ -157,7 +157,7 @@ public class UserController {
 
                         // Ensure all requested roles exist
                         if (roles.size() != roleIds.size()) {
-                            throw new ResponseStatusException(HttpStatus.NOT_FOUND, Constants.ROLES_NOT_FOUND);
+                            throw new ResponseStatusException(HttpStatus.NOT_FOUND, Constants.getMessage("roles.not.found"));
                         }
 
                         // Assign new roles to user
@@ -176,21 +176,24 @@ public class UserController {
                     return userRepository.save(user);
                 })
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, String.format(Constants.USER_NOT_FOUND, id)));
+                        HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id)));
     }
 
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<Map<String, Object>> deleteUser(@PathVariable Long id) {
         return userRepository.findById(id)
                 .map(user -> {
-                    userRepository.delete(user);
+                    // Call the service method to handle cascade deletion
+                    userService.deleteUserWithCascade(id);
+                    
                     Map<String, Object> response = new LinkedHashMap<>();
-                    response.put("status", Constants.STATUS_SUCCESS);
+                    response.put("status", Constants.getMessage("status.success"));
                     response.put("error_message", "");
                     return ResponseEntity.ok(response);
                 })
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        String.format(Constants.USER_NOT_FOUND_DOT, id)));
+                        String.format(Constants.getMessage("user.not.found.dot"), id)));
     }
 
     @PutMapping("/setApprover/{id}/{approverId}")
@@ -211,7 +214,7 @@ public class UserController {
         User user = userService.findById(id);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, String.format(Constants.USER_NOT_FOUND, id));
+                    HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id));
         }
         
         User activatedUser = userService.activateUser(user);
@@ -226,7 +229,7 @@ public class UserController {
         User user = userService.findById(id);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, String.format(Constants.USER_NOT_FOUND, id));
+                    HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id));
         }
         
         User deactivatedUser = userService.deactivateUser(user);
@@ -236,7 +239,7 @@ public class UserController {
     @GetMapping("/download-sample-csv")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
     public ResponseEntity<String> downloadSampleCSV() {
-        log.info(Constants.SUCCESS_GENERATING_CSV);
+        log.info(Constants.getMessage("success.generating.csv"));
 
         String csvContent = userCsvService.generateSampleCsvContent();
 
@@ -244,7 +247,7 @@ public class UserController {
         headers.add(HttpHeaders.CONTENT_DISPOSITION, Constants.CSV_ATTACHMENT_HEADER);
         headers.add(HttpHeaders.CONTENT_TYPE, Constants.CSV_CONTENT_TYPE);
 
-        log.info(Constants.SUCCESS_CSV_GENERATED);
+        log.info(Constants.getMessage("success.csv.generated"));
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(csvContent);
@@ -264,10 +267,10 @@ public class UserController {
         } else {
             // Check if it's a validation error (400) or server error (500)
             String message = (String) response.get(Constants.RESPONSE_MESSAGE);
-            if (message.contains(Constants.ERROR_VALIDATION_ERRORS_FOUND) ||
-                    message.contains(Constants.ERROR_UPLOADED_FILE_EMPTY) ||
-                    message.contains(Constants.ERROR_FILE_MUST_BE_CSV) ||
-                    message.contains(Constants.ERROR_NO_VALID_USER_DATA)) {
+            if (message.contains(Constants.getMessage("error.validation.errors.found")) ||
+                message.contains(Constants.getMessage("error.uploaded.file.empty")) ||
+                message.contains(Constants.getMessage("error.file.must.be.csv")) ||
+                message.contains(Constants.getMessage("error.no.valid.user.data"))) {
                 return buildJsonResponse(ResponseEntity.badRequest(), response);
             } else {
                 return buildJsonResponse(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR), response);

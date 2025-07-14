@@ -15,7 +15,8 @@ public class AssetObject {
     @JoinColumn(name = "credential_id", nullable = false)
     private AssetCredential assetCredential;
 
-    @Column(name = "objects_json", columnDefinition = "json")
+    @Column(name = "objects_json", columnDefinition = "LONGTEXT")
+    @Lob
     /**
      * JSON structure containing database objects and their access grants.
      * Format:

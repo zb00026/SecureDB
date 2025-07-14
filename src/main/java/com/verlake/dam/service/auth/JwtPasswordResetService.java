@@ -61,7 +61,7 @@ public class JwtPasswordResetService {
 
         } catch (Exception e) {
             log.error("Error generating password reset token for user: {}", email, e);
-            throw new JwtTokenException(Constants.JWT_ERROR_GENERATION_FAILED, e);
+            throw new JwtTokenException(Constants.getMessage("jwt.error.generation.failed"), e);
         }
     }
 
@@ -81,12 +81,12 @@ public class JwtPasswordResetService {
             // Validate token type
             String tokenType = claims.get(Constants.JWT_CLAIM_TYPE, String.class);
             if (!Constants.JWT_CLAIM_TYPE_PASSWORD_RESET.equals(tokenType)) {
-                throw new JwtException(Constants.JWT_ERROR_INVALID_TOKEN_TYPE);
+                throw new JwtException(Constants.getMessage("jwt.error.invalid.token.type"));
             }
 
             // Check if token is expired
             if (claims.getExpiration().before(new Date())) {
-                throw new JwtException(Constants.JWT_ERROR_TOKEN_EXPIRED);
+                throw new JwtException(Constants.getMessage("jwt.error.token.expired"));
             }
 
             Map<String, Object> result = new HashMap<>();
@@ -99,10 +99,10 @@ public class JwtPasswordResetService {
 
         } catch (JwtException e) {
             log.warn("Invalid password reset token: {}", e.getMessage());
-            throw new JwtTokenException(Constants.JWT_ERROR_INVALID_TOKEN);
+            throw new JwtTokenException(Constants.getMessage("jwt.error.invalid.token"));
         } catch (Exception e) {
             log.error("Error validating password reset token", e);
-            throw new JwtTokenException(Constants.JWT_ERROR_VALIDATION_FAILED, e);
+            throw new JwtTokenException(Constants.getMessage("jwt.error.validation.failed"), e);
         }
     }
 

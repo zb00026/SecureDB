@@ -7,6 +7,8 @@ import com.verlake.dam.listener.AuditEntityListener;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,12 +29,12 @@ public class AccessRequest {
     @Transient
     private AssetDTO assetDTO;
 
-
     @Column(name = "access_sql", columnDefinition = "text")
     private String accessSql;
 
     @ManyToOne
     @JoinColumn(name = "requestor_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User requestor;
 
     @Column(name = "request_time")
@@ -53,7 +55,7 @@ public class AccessRequest {
     private ApprovalStatus assetApproverStatus = ApprovalStatus.PENDING;
 
     // This is used to check if the password is a temporary password for developer request when approver approves the access request
-    @Column(name = "is_temp_password")
+    @Column(name = "is_temp_password", columnDefinition = "tinyint(1)")
     private Boolean isTempPassword;
 
     @OneToOne

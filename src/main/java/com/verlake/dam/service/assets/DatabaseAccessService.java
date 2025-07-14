@@ -93,7 +93,7 @@ public class DatabaseAccessService {
                 return fetchOracleObjects(credential, rootNode);
             default:
                 throw new DatabaseAccessException(
-                        "Database type not supported: " + credential.getAsset().getDatabaseType(), null);
+                        Constants.getMessage("error.database.type.not.supported") + credential.getAsset().getDatabaseType(), null);
         }
     }
 
@@ -148,13 +148,13 @@ public class DatabaseAccessService {
                 .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
 
         try (Statement stmt = connection.createStatement();
-                ResultSet grantRs = stmt.executeQuery("SHOW GRANTS FOR CURRENT_USER")) {
+                ResultSet grantRs = stmt.executeQuery(Constants.MYSQL_QUERY_SHOW_GRANTS)) {
             while (grantRs.next()) {
                 String grantStr = grantRs.getString(1);
                 categorizeGrant(grantStr, databaseGrants, tableGrants, viewGrants, procedureGrants);
             }
         } catch (SQLException e) {
-            log.error("Error fetching grants", e);
+            log.error(Constants.LOG_ERROR_FETCHING_GRANTS, e);
         }
     }
 
@@ -170,7 +170,7 @@ public class DatabaseAccessService {
 
         try (ResultSet catalogRs = connection.getMetaData().getCatalogs()) {
             while (catalogRs.next()) {
-                String dbName = catalogRs.getString("TABLE_CAT");
+                String dbName = catalogRs.getString(Constants.DB_COLUMN_TABLE_CAT);
 
                 // Skip system databases if needed
                 if (isSystemDatabase(dbName)) {
@@ -181,13 +181,13 @@ public class DatabaseAccessService {
                 fetchDatabaseObjects(connection, dbName, tableData, viewData, procedureData);
             }
         } catch (SQLException e) {
-            log.error("Error fetching databases", e);
+            log.error(Constants.LOG_ERROR_FETCHING_DATABASES, e);
         }
     }
 
     private boolean isSystemDatabase(String dbName) {
-        return dbName.equals("mysql") || dbName.equals("performance_schema") ||
-                dbName.equals("sys") || dbName.equals("information_schema");
+        return dbName.equals(Constants.MYSQL_SYSTEM_DB_MYSQL) || dbName.equals(Constants.MYSQL_SYSTEM_DB_PERFORMANCE_SCHEMA) ||
+                dbName.equals(Constants.MYSQL_SYSTEM_DB_SYS) || dbName.equals(Constants.MYSQL_SYSTEM_DB_INFORMATION_SCHEMA);
     }
 
     private void fetchDatabaseObjects(Connection connection, String dbName,
@@ -198,7 +198,7 @@ public class DatabaseAccessService {
             fetchViews(connection, dbName, viewData);
             fetchProcedures(connection, dbName, procedureData);
         } catch (Exception e) {
-            log.error("Error fetching objects for database: " + dbName, e);
+            log.error(Constants.LOG_ERROR_FETCHING_OBJECTS_FOR_DB + dbName, e);
         }
     }
 
@@ -215,7 +215,7 @@ public class DatabaseAccessService {
             stmt.setString(1, dbName);
             try (ResultSet tableRs = stmt.executeQuery()) {
                 while (tableRs.next()) {
-                    String tableName = tableRs.getString("TABLE_NAME");
+                    String tableName = tableRs.getString(Constants.INFORMATION_SCHEMA_TABLE_NAME);
                     tableData.add(dbName + "." + tableName);
                 }
             }
@@ -233,7 +233,7 @@ public class DatabaseAccessService {
                 }
             }
         } catch (Exception e) {
-            log.error("Error fetching views for database: " + dbName, e);
+            log.error(Constants.LOG_ERROR_FETCHING_VIEWS_FOR_DB + dbName, e);
         }
     }
 
@@ -243,12 +243,12 @@ public class DatabaseAccessService {
             stmt.setString(1, dbName);
             try (ResultSet procRs = stmt.executeQuery()) {
                 while (procRs.next()) {
-                    String procName = procRs.getString("ROUTINE_NAME");
+                    String procName = procRs.getString(Constants.DB_COLUMN_ROUTINE_NAME);
                     procedureData.add(dbName + "." + procName);
                 }
             }
         } catch (Exception e) {
-            log.error("Error fetching procedures for database: " + dbName, e);
+            log.error(Constants.LOG_ERROR_FETCHING_PROCEDURES_FOR_DB + dbName, e);
         }
     }
 
@@ -262,10 +262,10 @@ public class DatabaseAccessService {
                                 "WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_TYPE = 'BASE TABLE'")) {
             while (infoSchemaRs.next()) {
                 String tableName = infoSchemaRs.getString(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-                tableData.add("information_schema." + tableName);
+                tableData.add(Constants.INFORMATION_SCHEMA_PREFIX + tableName);
             }
         } catch (Exception e) {
-            log.error("Error fetching information_schema tables", e);
+            log.error(Constants.LOG_ERROR_FETCHING_INFO_SCHEMA, e);
         }
     }
 
@@ -284,8 +284,9 @@ public class DatabaseAccessService {
     private void handleGlobalGrant(String grantStr, ObjectNode grantNode,
             ArrayNode databaseGrants, ArrayNode tableGrants,
             ArrayNode viewGrants, ArrayNode procedureGrants) {
-        grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
-        grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, grantStr);
+        // Convert MySQL grant to template format
+        String templateGrant = convertMySQLGrantToTemplate(grantStr);
+        grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, templateGrant);
         databaseGrants.add(grantNode);
 
         if (grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW)
@@ -305,15 +306,13 @@ public class DatabaseAccessService {
 
     private void addViewGrantFromGlobal(ArrayNode viewGrants) {
         ObjectNode viewGrantNode = objectMapper.createObjectNode();
-        viewGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
-        viewGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "VIEW privileges from global grant");
+        viewGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT CREATE VIEW ON $DATABASE.* TO $USER");
         viewGrants.add(viewGrantNode);
     }
 
     private void addProcedureGrantFromGlobal(ArrayNode procedureGrants) {
         ObjectNode procGrantNode = objectMapper.createObjectNode();
-        procGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
-        procGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "PROCEDURE privileges from global grant");
+        procGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT CREATE ROUTINE ON $DATABASE.* TO $USER");
         procedureGrants.add(procGrantNode);
     }
 
@@ -325,17 +324,16 @@ public class DatabaseAccessService {
 
     private void addTableGrantFromGlobal(ArrayNode tableGrants) {
         ObjectNode tableGrantNode = objectMapper.createObjectNode();
-        tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, Constants.ACCESS_LEVEL_TEMPLATE_FULL);
-        tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "TABLE privileges from global grant");
+        tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT SELECT, INSERT, UPDATE, DELETE ON $DATABASE.* TO $USER");
         tableGrants.add(tableGrantNode);
     }
 
     private void handleSpecificGrant(String grantStr, ObjectNode grantNode,
             ArrayNode tableGrants, ArrayNode viewGrants,
             ArrayNode procedureGrants) {
-        String privilege = extractPrivilege(grantStr);
-        grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, privilege);
-        grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, grantStr);
+        // Convert MySQL grant to template format
+        String templateGrant = convertMySQLGrantToTemplate(grantStr);
+        grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, templateGrant);
 
         if (isViewGrant(grantStr)) {
             viewGrants.add(grantNode);
@@ -346,103 +344,155 @@ public class DatabaseAccessService {
         }
     }
 
+    private String convertMySQLGrantToTemplate(String grantStr) {
+        // Convert MySQL GRANT statement to use placeholders
+        // Examples:
+        // "GRANT SELECT ON `database`.`table` TO 'user'@'host'" -> "GRANT SELECT ON $DATABASE.table TO $USER"
+        // "GRANT ALL PRIVILEGES ON *.* TO 'user'@'host'" -> "GRANT ALL PRIVILEGES ON *.* TO $USER"
+        
+        String template = grantStr;
+        
+        // Replace username with $USER placeholder
+        // Pattern: TO 'username'@'host' or TO `username`@`host`
+        // Use safer regex without nested quantifiers to prevent ReDoS
+        template = template.replaceAll("TO\\s+['`\"]([^'`\"@]+)['`\"]@['`\"]([^'`\"]+)['`\"]", "TO $USER");
+        
+        // Replace database name with $DATABASE placeholder
+        // Pattern: ON `database`.`table` or ON database.table
+        // Use safer regex without nested quantifiers to prevent ReDoS
+        template = template.replaceAll("ON\\s+['`\"]([^'`\".]+)['`\"]\\.", "ON $DATABASE.");
+        template = template.replaceAll("ON\\s+([^.\\s]+)\\.", "ON $DATABASE.");
+        
+        // For global grants (ON *.*)
+        template = template.replaceAll("ON\\s+\\*\\.\\*", "ON $DATABASE.*");
+        
+        return template;
+    }
+
     private boolean isViewGrant(String grantStr) {
         return grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW)
                 || grantStr.contains(Constants.ACCESS_LEVEL_TEMPLATE_FULL);
     }
 
     private boolean isProcedureGrant(String grantStr) {
-        return grantStr.contains("ROUTINE") || grantStr.contains("PROCEDURE");
+        return grantStr.contains(Constants.SQL_KEYWORD_ROUTINE) || grantStr.contains(Constants.SQL_KEYWORD_PROCEDURE);
     }
 
-    private String extractPrivilege(String grantStr) {
-        // Remove GRANT prefix
-        String privilege = grantStr.replaceFirst("GRANT\\s+", "");
-
-        // Extract the privilege part before ON
-        int onIndex = privilege.indexOf(" ON ");
-        if (onIndex != -1) {
-            privilege = privilege.substring(0, onIndex).trim();
-        }
-
-        // Handle multiple privileges
-        if (privilege.contains(",")) {
-            return Constants.ACCESS_LEVEL_TEMPLATE_FULL;
-        }
-
-        // Handle specific privileges
-        switch (privilege.toUpperCase()) {
-            case "ALL PRIVILEGES":
-                return Constants.ACCESS_LEVEL_TEMPLATE_FULL;
-            case Constants.MYSQL_QUERY_SELECT:
-                return "READ ACCESS";
-            case Constants.MYSQL_QUERY_EXECUTE:
-                return "EXECUTE";
-            case Constants.ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE:
-                return Constants.ACCESS_LEVEL_TEMPLATE_CREATE_ROUTINE;
-            case Constants.ACCESS_LEVEL_TEMPLATE_ALTER_ROUTINE:
-                return Constants.ACCESS_LEVEL_TEMPLATE_ALTER_ROUTINE;
-            case Constants.ACCESS_LEVEL_TEMPLATE_FULL:
-                return Constants.ACCESS_LEVEL_TEMPLATE_FULL;
-            case Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW:
-                return Constants.ACCESS_LEVEL_TEMPLATE_CREATE_VIEW;
-            default:
-                return privilege.trim();
-        }
-    }
-
-    private JdbcTemplate createJdbcTemplate(AssetCredential credential, String driverClassName, String urlPrefix) {
+        private JdbcTemplate createJdbcTemplate(AssetCredential credential, String driverClassName, String urlPrefix) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName(driverClassName);
-        dataSource.setUrl(urlPrefix + credential.getAsset().getHostUrl());
+        
+        String jdbcUrl = urlPrefix + credential.getAsset().getHostUrl();
+        // Add SSL parameters for MSSQL
+        if (urlPrefix.equals(Constants.JDBC_SQLSERVER_URL)) {
+            jdbcUrl += Constants.JDBC_SQLSERVER_SSL_PARAMS;
+        }
+        
+        dataSource.setUrl(jdbcUrl);
         dataSource.setUsername(credential.getUsername());
         dataSource.setPassword(credential.getPassword());
         return new JdbcTemplate(dataSource);
     }
 
-    private void initializeAccessObjectNodes(ObjectNode rootNode, ArrayNode... nodes) {
-        if (nodes == null || nodes.length < 4) {
-            throw new IllegalArgumentException("The nodes array must contain at least 4 elements");
-        }
-
-        nodes[0] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_DATABASE);
-        nodes[1] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_TABLE);
-        nodes[2] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_VIEW);
-        nodes[3] = rootNode.putArray(Constants.ASSET_ACCESS_OBJECT_PROCEDURE);
-    }
-
     private String fetchPostgreSQLObjects(AssetCredential credential, ObjectNode rootNode) {
         JdbcTemplate jdbcTemplate = createJdbcTemplate(
                 credential,
-                "org.postgresql.Driver",
+                Constants.DRIVER_POSTGRESQL,
                 "jdbc:postgresql://");
 
-        // Initialize nodes
-        ArrayNode[] nodes = new ArrayNode[4];
-        initializeAccessObjectNodes(rootNode, nodes);
-        ArrayNode databaseNode = nodes[0];
-        ArrayNode tableNode = nodes[1];
+        // Initialize categories with proper structure
+        initializeCategories(rootNode);
+
+        // Get grants and data arrays
+        ArrayNode databaseGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode tableGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+
+        ArrayNode databaseData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode viewData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode procedureData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
 
         // Query for role privileges
         List<Map<String, Object>> privileges = jdbcTemplate.queryForList(
                 "SELECT * FROM information_schema.role_table_grants WHERE grantee = current_user");
 
         for (Map<String, Object> privilege : privileges) {
-            String grantType = (String) privilege.get("privilege_type");
+            String grantType = (String) privilege.get(Constants.POSTGRES_PRIVILEGE_TYPE_COLUMN);
             String tableName = (String) privilege.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-            String schemaName = (String) privilege.get("table_schema");
-
+            
             ObjectNode grantNode = objectMapper.createObjectNode();
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, grantType);
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
-                    String.format("GRANT %s ON %s.%s TO %s",
-                            grantType, schemaName, tableName, credential.getUsername()));
+                    String.format("GRANT %s %s.%s TO $USER",
+                            grantType, Constants.SQL_TEMPLATE_ON_SCHEMA, tableName));
 
-            if (tableName.startsWith("pg_")) {
-                databaseNode.add(grantNode);
+            if (tableName.startsWith(Constants.POSTGRES_SYSTEM_PREFIX)) {
+                databaseGrants.add(grantNode);
             } else {
-                tableNode.add(grantNode);
+                tableGrants.add(grantNode);
             }
+        }
+
+        // Add database-level grants for PostgreSQL
+        ObjectNode connectGrant = objectMapper.createObjectNode();
+        connectGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT CONNECT ON DATABASE $DATABASE TO $USER");
+        databaseGrants.add(connectGrant);
+
+        ObjectNode tempGrant = objectMapper.createObjectNode();
+        tempGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT TEMP ON DATABASE $DATABASE TO $USER");
+        databaseGrants.add(tempGrant);
+
+        ObjectNode createGrant = objectMapper.createObjectNode();
+        createGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT CREATE ON DATABASE $DATABASE TO $USER");
+        databaseGrants.add(createGrant);
+
+        // Add schema-level grants
+        ObjectNode schemaUsageGrant = objectMapper.createObjectNode();
+        schemaUsageGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT USAGE ON SCHEMA $SCHEMA TO $USER");
+        databaseGrants.add(schemaUsageGrant);
+
+        ObjectNode schemaCreateGrant = objectMapper.createObjectNode();
+        schemaCreateGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT CREATE ON SCHEMA $SCHEMA TO $USER");
+        databaseGrants.add(schemaCreateGrant);
+
+        // Fetch schema/database names
+        List<Map<String, Object>> schemas = jdbcTemplate.queryForList(
+                "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')");
+        for (Map<String, Object> schema : schemas) {
+            String schemaName = (String) schema.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            databaseData.add(schemaName);
+            }
+
+        // Fetch tables
+        List<Map<String, Object>> tables = jdbcTemplate.queryForList(
+                "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')");
+        for (Map<String, Object> table : tables) {
+            String schemaName = (String) table.get(Constants.DB_COLUMN_TABLE_SCHEMA);
+            String tableName = (String) table.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            tableData.add(schemaName + "." + tableName);
+        }
+
+        // Fetch views
+        List<Map<String, Object>> views = jdbcTemplate.queryForList(
+                "SELECT table_schema, table_name FROM information_schema.views WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')");
+        for (Map<String, Object> view : views) {
+            String schemaName = (String) view.get(Constants.DB_COLUMN_TABLE_SCHEMA);
+            String viewName = (String) view.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            viewData.add(schemaName + "." + viewName);
+        }
+
+        // Fetch procedures/functions
+        List<Map<String, Object>> routines = jdbcTemplate.queryForList(
+                "SELECT routine_schema, routine_name FROM information_schema.routines WHERE routine_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')");
+        for (Map<String, Object> routine : routines) {
+            String schemaName = (String) routine.get("routine_schema");
+            String routineName = (String) routine.get("routine_name");
+            procedureData.add(schemaName + "." + routineName);
         }
 
         return rootNode.toString();
@@ -451,50 +501,140 @@ public class DatabaseAccessService {
     private String fetchSQLServerObjects(AssetCredential credential, ObjectNode rootNode) {
         JdbcTemplate jdbcTemplate = createJdbcTemplate(
                 credential,
-                "com.microsoft.sqlserver.jdbc.SQLServerDriver",
-                "jdbc:sqlserver://");
+                Constants.DRIVER_SQLSERVER,
+                Constants.JDBC_SQLSERVER_URL);
 
-        ArrayNode[] nodes = new ArrayNode[4];
-        initializeAccessObjectNodes(rootNode, nodes);
-        ArrayNode databaseNode = nodes[0];
-        ArrayNode tableNode = nodes[1];
-        ArrayNode viewNode = nodes[2];
-        ArrayNode procedureNode = nodes[3];
+        // Initialize categories with proper structure
+        initializeCategories(rootNode);
 
-        // Query for database permissions
-        List<Map<String, Object>> permissions = jdbcTemplate.queryForList(
-                "SELECT pr.principal_id, pr.name, pe.permission_name, pe.state_desc, " +
-                        "ob.type_desc, SCHEMA_NAME(ob.schema_id) as schema_name, ob.name as object_name " +
-                        "FROM sys.database_permissions pe " +
-                        "JOIN sys.database_principals pr ON pe.grantee_principal_id = pr.principal_id " +
-                        "JOIN sys.objects ob ON pe.major_id = ob.object_id " +
-                        "WHERE pr.name = CURRENT_USER");
+        // Get grants and data arrays
+        ArrayNode databaseGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode tableGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode viewGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode procedureGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
 
-        for (Map<String, Object> permission : permissions) {
-            String objectType = (String) permission.get("type_desc");
-            String permissionName = (String) permission.get("permission_name");
-            String schemaName = (String) permission.get("schema_name");
-            String objectName = (String) permission.get("object_name");
+        ArrayNode databaseData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode viewData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode procedureData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
 
-            ObjectNode grantNode = objectMapper.createObjectNode();
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, permissionName);
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
-                    String.format("GRANT %s ON [%s].[%s] TO [%s]",
-                            permissionName, schemaName, objectName, credential.getUsername()));
+        // Instead of querying existing permissions, we'll create templates based on available objects
+        // This approach works regardless of the user's permission to view system tables
+        
+        // For tables - create permission templates for each table
+        List<Map<String, Object>> tables = jdbcTemplate.queryForList(
+                "SELECT SCHEMA_NAME(schema_id) as schema_name, name as table_name FROM sys.tables");
+        
+        for (Map<String, Object> table : tables) {
+            String schemaName = (String) table.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            String tableName = (String) table.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            
+            // Add SELECT permission template
+            ObjectNode selectGrant = objectMapper.createObjectNode();
+            selectGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT SELECT ON [%s].[%s] TO [$USER]", schemaName, tableName));
+            tableGrants.add(selectGrant);
+            
+            // Add INSERT permission template
+            ObjectNode insertGrant = objectMapper.createObjectNode();
+            insertGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT INSERT ON [%s].[%s] TO [$USER]", schemaName, tableName));
+            tableGrants.add(insertGrant);
+            
+            // Add UPDATE permission template
+            ObjectNode updateGrant = objectMapper.createObjectNode();
+            updateGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT UPDATE ON [%s].[%s] TO [$USER]", schemaName, tableName));
+            tableGrants.add(updateGrant);
+            
+            // Add DELETE permission template
+            ObjectNode deleteGrant = objectMapper.createObjectNode();
+            deleteGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT DELETE ON [%s].[%s] TO [$USER]", schemaName, tableName));
+            tableGrants.add(deleteGrant);
+        }
+        
+        // For views - create permission templates for each view
+        List<Map<String, Object>> views = jdbcTemplate.queryForList(
+                "SELECT SCHEMA_NAME(schema_id) as schema_name, name as view_name FROM sys.views");
+        
+        for (Map<String, Object> view : views) {
+            String schemaName = (String) view.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            String viewName = (String) view.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            
+            ObjectNode selectGrant = objectMapper.createObjectNode();
+            selectGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT SELECT ON [%s].[%s] TO [$USER]", schemaName, viewName));
+            viewGrants.add(selectGrant);
+        }
+        
+        // For procedures - create permission templates for each procedure
+        List<Map<String, Object>> procedures = jdbcTemplate.queryForList(
+                "SELECT SCHEMA_NAME(schema_id) as schema_name, name as procedure_name FROM sys.procedures");
+        
+        for (Map<String, Object> procedure : procedures) {
+            String schemaName = (String) procedure.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            String procedureName = (String) procedure.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            
+            ObjectNode executeGrant = objectMapper.createObjectNode();
+            executeGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                    String.format("GRANT EXECUTE ON [%s].[%s] TO [$USER]", schemaName, procedureName));
+            procedureGrants.add(executeGrant);
+        }
 
-            switch (objectType) {
-                case "USER_TABLE":
-                    tableNode.add(grantNode);
-                    break;
-                case "VIEW":
-                    viewNode.add(grantNode);
-                    break;
-                case "SQL_STORED_PROCEDURE":
-                    procedureNode.add(grantNode);
-                    break;
-                default:
-                    databaseNode.add(grantNode);
-            }
+        // Add database-level role memberships (matching the predefined templates in the database)
+        ObjectNode fullAccessRole = objectMapper.createObjectNode();
+        fullAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "ALTER ROLE [db_owner] ADD MEMBER [$USER]");
+        databaseGrants.add(fullAccessRole);
+
+        ObjectNode readAccessRole = objectMapper.createObjectNode();
+        readAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "ALTER ROLE [db_datareader] ADD MEMBER [$USER]");
+        databaseGrants.add(readAccessRole);
+
+        ObjectNode writeAccessRole = objectMapper.createObjectNode();
+        writeAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "ALTER ROLE [db_datawriter] ADD MEMBER [$USER]");
+        databaseGrants.add(writeAccessRole);
+
+        // Fetch user-defined schemas (excluding system schemas)
+        List<Map<String, Object>> schemas = jdbcTemplate.queryForList(
+                "SELECT name FROM sys.schemas WHERE name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys', " +
+                "'db_owner', 'db_accessadmin', 'db_securityadmin', 'db_ddladmin', 'db_backupoperator', " +
+                "'db_datareader', 'db_datawriter', 'db_denydatareader', 'db_denydatawriter')");
+        
+        // Always include 'dbo' as it's the default schema users work with
+        databaseData.add(Constants.SQLSERVER_SCHEMA_DBO);
+        
+        // Add any custom schemas
+        for (Map<String, Object> schema : schemas) {
+            String schemaName = (String) schema.get("name");
+            databaseData.add(schemaName);
+        }
+
+        // Populate data arrays with object names (for UI display)
+        for (Map<String, Object> table : tables) {
+            String schemaName = (String) table.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            String tableName = (String) table.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            tableData.add(schemaName + "." + tableName);
+        }
+
+        for (Map<String, Object> view : views) {
+            String schemaName = (String) view.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            String viewName = (String) view.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            viewData.add(schemaName + "." + viewName);
+        }
+
+        for (Map<String, Object> procedure : procedures) {
+            String schemaName = (String) procedure.get(Constants.DB_COLUMN_SCHEMA_NAME);
+            String procedureName = (String) procedure.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            procedureData.add(schemaName + "." + procedureName);
         }
 
         return rootNode.toString();
@@ -503,15 +643,30 @@ public class DatabaseAccessService {
     private String fetchOracleObjects(AssetCredential credential, ObjectNode rootNode) {
         JdbcTemplate jdbcTemplate = createJdbcTemplate(
                 credential,
-                "oracle.jdbc.OracleDriver",
-                "jdbc:oracle:thin:@");
+                Constants.DRIVER_ORACLE,
+                Constants.JDBC_ORACLE_THIN_PREFIX);
 
-        ArrayNode[] nodes = new ArrayNode[4];
-        initializeAccessObjectNodes(rootNode, nodes);
-        ArrayNode databaseNode = nodes[0];
-        ArrayNode tableNode = nodes[1];
-        ArrayNode viewNode = nodes[2];
-        ArrayNode procedureNode = nodes[3];
+        // Initialize categories with proper structure
+        initializeCategories(rootNode);
+
+        // Get grants and data arrays
+        ArrayNode databaseGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode tableGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode viewGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode procedureGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+
+        ArrayNode databaseData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode viewData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_VIEW)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode procedureData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
 
         // Query for system privileges
         List<Map<String, Object>> sysPrivs = jdbcTemplate.queryForList(
@@ -523,41 +678,79 @@ public class DatabaseAccessService {
 
         // Handle system privileges
         for (Map<String, Object> priv : sysPrivs) {
-            String privilege = (String) priv.get("PRIVILEGE");
+            String privilege = (String) priv.get(Constants.DB_COLUMN_PRIVILEGE);
 
             ObjectNode grantNode = objectMapper.createObjectNode();
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, privilege);
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
-                    String.format("GRANT %s TO %s", privilege, credential.getUsername()));
-            databaseNode.add(grantNode);
+                    String.format("GRANT %s TO $USER", privilege));
+            databaseGrants.add(grantNode);
         }
 
         // Handle object privileges
         for (Map<String, Object> priv : objPrivs) {
-            String objectType = (String) priv.get("TYPE");
-            String privilege = (String) priv.get("PRIVILEGE");
-            String owner = (String) priv.get("OWNER");
+            String objectType = (String) priv.get(Constants.DB_COLUMN_TYPE);
+            String privilege = (String) priv.get(Constants.DB_COLUMN_PRIVILEGE);
             String objectName = (String) priv.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
 
             ObjectNode grantNode = objectMapper.createObjectNode();
-            grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, privilege);
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
-                    String.format("GRANT %s ON %s.%s TO %s",
-                            privilege, owner, objectName, credential.getUsername()));
+                    String.format("GRANT %s %s.%s TO $USER",
+                            privilege, Constants.SQL_TEMPLATE_ON_SCHEMA, objectName));
 
-            switch (objectType) {
-                case "TABLE":
-                    tableNode.add(grantNode);
-                    break;
-                case "VIEW":
-                    viewNode.add(grantNode);
-                    break;
-                case "PROCEDURE":
-                    procedureNode.add(grantNode);
-                    break;
-                default:
-                    databaseNode.add(grantNode);
+            if (objectType.equals(Constants.SQL_KEYWORD_TABLE)) {
+                tableGrants.add(grantNode);
+            } else if (objectType.equals(Constants.SQL_KEYWORD_VIEW)) {
+                viewGrants.add(grantNode);
+            } else if (objectType.equals(Constants.SQL_KEYWORD_PROCEDURE)) {
+                procedureGrants.add(grantNode);
+            } else {
+                // Default to table grants for unknown object types
+                tableGrants.add(grantNode);
             }
+        }
+
+        // Add database-level grants for Oracle
+        ObjectNode connectGrant = objectMapper.createObjectNode();
+        connectGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT CONNECT TO $USER");
+        databaseGrants.add(connectGrant);
+
+        ObjectNode resourceGrant = objectMapper.createObjectNode();
+        resourceGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT RESOURCE TO $USER");
+        databaseGrants.add(resourceGrant);
+
+        // Fetch tablespaces (databases in Oracle)
+        List<Map<String, Object>> tablespaces = jdbcTemplate.queryForList(
+                "SELECT TABLESPACE_NAME FROM USER_TABLESPACES");
+        for (Map<String, Object> tablespace : tablespaces) {
+            String tablespaceName = (String) tablespace.get(Constants.DB_COLUMN_TABLESPACE_NAME);
+            databaseData.add(tablespaceName);
+        }
+
+        // Fetch tables
+        List<Map<String, Object>> tables = jdbcTemplate.queryForList(
+                "SELECT TABLE_NAME, OWNER FROM USER_TABLES");
+        for (Map<String, Object> table : tables) {
+            String tableName = (String) table.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            String owner = (String) table.get(Constants.DB_COLUMN_OWNER);
+            tableData.add(owner + "." + tableName);
+        }
+
+        // Fetch views
+        List<Map<String, Object>> views = jdbcTemplate.queryForList(
+                "SELECT VIEW_NAME, OWNER FROM USER_VIEWS");
+        for (Map<String, Object> view : views) {
+            String viewName = (String) view.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            String owner = (String) view.get(Constants.DB_COLUMN_OWNER);
+            viewData.add(owner + "." + viewName);
+        }
+
+        // Fetch procedures
+        List<Map<String, Object>> procedures = jdbcTemplate.queryForList(
+                "SELECT OBJECT_NAME, OWNER FROM USER_OBJECTS WHERE OBJECT_TYPE = 'PROCEDURE'");
+        for (Map<String, Object> procedure : procedures) {
+            String procedureName = (String) procedure.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
+            String owner = (String) procedure.get(Constants.DB_COLUMN_OWNER);
+            procedureData.add(owner + "." + procedureName);
         }
 
         return rootNode.toString();
@@ -578,34 +771,52 @@ public class DatabaseAccessService {
             switch (devCredential.getAsset().getDatabaseType()) {
                 case MYSQL:
                     alterUserSql = "ALTER USER ?@'%' IDENTIFIED BY ?";
+                    statement = connection.prepareStatement(alterUserSql);
+                    statement.setString(1, devCredential.getUsername());
+                    statement.setString(2, newPassword);
+                    statement.execute();
                     break;
 
                 case POSTGRESQL:
-                    alterUserSql = "ALTER USER ? WITH PASSWORD ?";
+                    // PostgreSQL doesn't support parameter binding for usernames in DDL
+                    String username = devCredential.getUsername().replace("\"", "\"\"");
+                    String password = newPassword.replace("'", "''");
+                    alterUserSql = String.format("ALTER USER \"%s\" WITH PASSWORD '%s'", username, password);
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.execute(alterUserSql);
+                    }
                     break;
 
                 case ORACLE:
-                    alterUserSql = "ALTER USER ? IDENTIFIED BY ?";
+                    alterUserSql = Constants.ALTER_USER_IDENTIFIED_BY;
+                    statement = connection.prepareStatement(alterUserSql);
+                    statement.setString(1, devCredential.getUsername());
+                    statement.setString(2, newPassword);
+                    statement.execute();
                     break;
 
                 case SQLSERVER:
-                    alterUserSql = "ALTER LOGIN ? WITH PASSWORD = ?";
+                    // SQL Server doesn't support parameter binding for usernames in DDL
+                    String sqlServerUsername = devCredential.getUsername().replace("[", "[[]").replace("]", "]]");
+                    String sqlServerPassword = newPassword.replace("'", "''");
+                    
+                    String alterLoginSql = String.format("ALTER LOGIN [%s] WITH PASSWORD = '%s' OLD_PASSWORD = '%s'", 
+                        sqlServerUsername, sqlServerPassword, devCredential.getPassword());
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.executeUpdate(alterLoginSql);
+                        log.info("Updated SQL Server login password: {}", devCredential.getUsername());
+                    }
                     break;
 
                 default:
                     throw new DatabaseAccessException(
-                            "Unsupported database type: " + devCredential.getAsset().getDatabaseType(), null);
+                            Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + devCredential.getAsset().getDatabaseType(), null);
             }
-            statement = connection.prepareStatement(alterUserSql);
-            statement.setString(1, devCredential.getUsername());
-            statement.setString(2, newPassword);
-
-            statement.execute();
             devCredential.setPassword(CommonUtils.encrypt(userKey, newPassword));
             devCredential.setIsTemporaryPassword(false);
             assetCredentialsRepository.save(devCredential);
         } catch (SQLException e) {
-            log.error("Error updating password", e);
+            log.error(Constants.getMessage("log.error.updating.password"), e);
             throw new DatabaseAccessException(e.getMessage(), e);
         }
     }
@@ -619,27 +830,68 @@ public class DatabaseAccessService {
             String username = getCredentialForAccess(connection, credential, requestor, existUsername, newCredMapper);
 
             // Execute access SQL if provided
-            if (accessRequest != null && accessRequest.getAccessSql() != null) {
-                // Split SQL statements by semicolon and execute each one
-                String[] sqlStatements = accessRequest.getAccessSql()
-                        .replace("$USER", username)
-                        .split(";");
-
-                for (String sql : sqlStatements) {
-                    sql = sql.trim();
-                    if (!sql.isEmpty()) {
-                        try (Statement stmt = connection.createStatement()) {
-                            log.info("Executing SQL: {}", sql);
-                            stmt.execute(sql);
-                        }
-                    }
-                }
+            if (shouldExecuteAccessSql(accessRequest)) {
+                executeAccessSqlStatements(connection, accessRequest, credential, username);
             }
 
         } catch (SQLException | CommonUtils.CryptoException e) {
-            log.error("Error connecting to database", e);
-            throw new DatabaseAccessException("Error connecting to database", e);
+            log.error(Constants.getMessage("error.connecting.to.database"), e);
+            throw new DatabaseAccessException(Constants.getMessage("error.connecting.to.database"), e);
         }
+    }
+    
+    private boolean shouldExecuteAccessSql(AccessRequest accessRequest) {
+        return accessRequest != null && accessRequest.getAccessSql() != null;
+    }
+    
+    private void executeAccessSqlStatements(Connection connection, AccessRequest accessRequest, 
+            AssetCredential credential, String username) throws SQLException {
+        String[] sqlStatements = prepareSqlStatements(accessRequest, credential, username);
+        
+        for (String sql : sqlStatements) {
+            sql = sql.trim();
+            if (!sql.isEmpty()) {
+                executeSingleStatement(connection, sql);
+            }
+        }
+    }
+    
+    private String[] prepareSqlStatements(AccessRequest accessRequest, AssetCredential credential, String username) {
+        // Get the appropriate schema name based on database type
+        String schemaName = getDefaultSchemaName(credential.getAsset().getDatabaseType(), credential.getAsset().getDatabaseName());
+        
+        // Split SQL statements by semicolon and execute each one
+        return accessRequest.getAccessSql()
+                .replace("$USER", username)
+                .replace("$DATABASE", credential.getAsset().getDatabaseName())
+                .replace("$SCHEMA", schemaName)
+                .split(";");
+    }
+    
+    private void executeSingleStatement(Connection connection, String sql) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            log.info("Executing SQL: {}", sql);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            handleSqlExecutionError(sql, e);
+        }
+    }
+    
+    private void handleSqlExecutionError(String sql, SQLException e) throws SQLException {
+        if (isObjectNotFoundError(e)) {
+            log.error("SQL execution failed - object not found. SQL: {}, Error: {}", sql, e.getMessage());
+            throw new DatabaseAccessException(
+                String.format("Failed to execute SQL: %s. The referenced object may not exist in the database. " +
+                            "Please verify that all tables, views, and other database objects referenced in the access request exist.", sql), e);
+        } else {
+            log.error("SQL execution failed. SQL: {}, Error: {}", sql, e.getMessage());
+            throw e;
+        }
+    }
+    
+    private boolean isObjectNotFoundError(SQLException e) {
+        return e.getMessage().contains(Constants.SQL_ERROR_OBJECT_NOT_FOUND) || 
+               e.getMessage().contains(Constants.SQL_ERROR_DOES_NOT_EXIST);
     }
 
     private String getCheckUserSql(DatabaseType databaseType) {
@@ -651,9 +903,9 @@ public class DatabaseAccessService {
             case ORACLE:
                 return "SELECT * FROM dba_users WHERE username = ?";
             case SQLSERVER:
-                return "SELECT * FROM sys.database_principals WHERE name = ?";
+                return "SELECT * FROM sys.database_principals WHERE name = ? AND type = 'S'";
             default:
-                throw new DatabaseAccessException("Unsupported database type: " + databaseType, null);
+                throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
         }
     }
 
@@ -668,7 +920,22 @@ public class DatabaseAccessService {
             case SQLSERVER:
                 return "CREATE LOGIN ? WITH PASSWORD = ?";
             default:
-                throw new DatabaseAccessException("Unsupported database type: " + databaseType, null);
+                throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
+        }
+    }
+
+    private String getDefaultSchemaName(DatabaseType databaseType, String databaseName) {
+        switch (databaseType) {
+            case MYSQL:
+                return databaseName; // MySQL uses database name as schema
+            case POSTGRESQL:
+                return Constants.POSTGRES_SCHEMA_PUBLIC;
+            case ORACLE:
+                return Constants.ORACLE_SCHEMA_USERS; // Oracle default tablespace/schema
+            case SQLSERVER:
+                return Constants.SQLSERVER_SCHEMA_DBO; // SQL Server default schema is 'dbo'
+            default:
+                return Constants.POSTGRES_SCHEMA_PUBLIC; // Default fallback
         }
     }
 
@@ -687,7 +954,7 @@ public class DatabaseAccessService {
             int index = secureRandom.nextInt(chars.length());
             password.append(chars.charAt(index));
         }
-        return "temp" + password.toString();
+        return Constants.TEMP_PSD_PREFIX + password.toString();
     }
 
     private String getCredentialForAccess(
@@ -713,11 +980,20 @@ public class DatabaseAccessService {
                 String password = generateRandomPassword();
 
                 // Create user
-                String createUserSql = getCreateUserSql(credential.getAsset().getDatabaseType());
-                PreparedStatement createUserStmt = connection.prepareStatement(createUserSql);
-                createUserStmt.setString(1, username);
-                createUserStmt.setString(2, password);
-                createUserStmt.executeUpdate();
+                if (credential.getAsset().getDatabaseType() == DatabaseType.POSTGRESQL) {
+                    // PostgreSQL doesn't support parameter binding for usernames in DDL
+                    String createUserSql = String.format("CREATE USER \"%s\" WITH PASSWORD '%s'", 
+                        username.replace("\"", "\"\""), password.replace("'", "''"));
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.executeUpdate(createUserSql);
+                    }
+                } else {
+                    String createUserSql = getCreateUserSql(credential.getAsset().getDatabaseType());
+                    PreparedStatement createUserStmt = connection.prepareStatement(createUserSql);
+                    createUserStmt.setString(1, username);
+                    createUserStmt.setString(2, password);
+                    createUserStmt.executeUpdate();
+                }
 
                 // Store user credentials in asset_credentials table
                 AssetCredential userCredential = new AssetCredential();
@@ -728,7 +1004,7 @@ public class DatabaseAccessService {
                 userCredential.setUser(requestor);
                 userCredential.setIsTemporaryPassword(true);
                 assetCredentialsRepository.saveAndFlush(userCredential);
-                newCredMapper.put("credentialID", userCredential.getId().toString());
+                newCredMapper.put(Constants.CREDENTIAL_ID_KEY, userCredential.getId().toString());
                 newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
                 newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
             }
@@ -763,23 +1039,23 @@ public class DatabaseAccessService {
                     break;
 
                 case POSTGRESQL:
+                    // PostgreSQL doesn't support parameter binding for usernames in DDL
+                    String username = credential.getUsername().replace("\"", "\"\"");
+                    
                     // Revoke all privileges from all tables
-                    revokeUserSql = "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ?";
-                    statement = connection.prepareStatement(revokeUserSql);
-                    statement.setString(1, credential.getUsername());
-                    statement.execute();
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.execute(String.format("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, username));
+                    }
 
                     // Revoke all privileges from all sequences
-                    revokeUserSql = "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ?";
-                    statement = connection.prepareStatement(revokeUserSql);
-                    statement.setString(1, credential.getUsername());
-                    statement.execute();
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.execute(String.format("REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, username));
+                    }
 
                     // Drop the user
-                    revokeUserSql = "DROP USER IF EXISTS ?";
-                    statement = connection.prepareStatement(revokeUserSql);
-                    statement.setString(1, credential.getUsername());
-                    statement.execute();
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.execute(String.format("DROP USER IF EXISTS \"%s\"", username));
+                    }
                     break;
 
                 case ORACLE:
@@ -797,28 +1073,57 @@ public class DatabaseAccessService {
                     break;
 
                 case SQLSERVER:
-                    // Disable the login
-                    revokeUserSql = "ALTER LOGIN ? DISABLE";
-                    statement = connection.prepareStatement(revokeUserSql);
-                    statement.setString(1, credential.getUsername());
-                    statement.execute();
-
-                    // Drop the login
-                    revokeUserSql = "DROP LOGIN ?";
-                    statement = connection.prepareStatement(revokeUserSql);
-                    statement.setString(1, credential.getUsername());
-                    statement.execute();
+                    // SQL Server doesn't support parameter binding for usernames in DDL
+                    String sqlServerUsername = credential.getUsername().replace("[", "[[]").replace("]", "]]");
+                    
+                    // First drop the database user
+                    dropSqlServerUser(connection, sqlServerUsername, credential.getUsername());
+                    
+                    // Then drop the login
+                    dropSqlServerLogin(connection, sqlServerUsername, credential.getUsername());
                     break;
 
                 default:
                     throw new DatabaseAccessException(
-                            "Unsupported database type: " + credential.getAsset().getDatabaseType(), null);
+                            Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + credential.getAsset().getDatabaseType(), null);
             }
 
             log.info("Successfully revoked access and dropped user: {}", credential.getUsername());
         } catch (SQLException e) {
-            log.error("Error revoking access for user: " + credential.getUsername(), e);
-            throw new DatabaseAccessException("Error revoking database access", e);
+            log.error(Constants.getMessage("log.error.revoking.access.for.user") + credential.getUsername(), e);
+            throw new DatabaseAccessException(Constants.getMessage("error.revoking.database.access"), e);
+        }
+    }
+
+    /**
+     * Drops a SQL Server database user.
+     * 
+     * @param connection the database connection
+     * @param sqlServerUsername the escaped SQL Server username
+     * @param originalUsername the original username for logging
+     */
+    private void dropSqlServerUser(Connection connection, String sqlServerUsername, String originalUsername) {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(String.format("DROP USER IF EXISTS [%s]", sqlServerUsername));
+            log.info("Dropped SQL Server user: {}", originalUsername);
+        } catch (SQLException e) {
+            log.warn("Failed to drop SQL Server user {}: {}", originalUsername, e.getMessage());
+        }
+    }
+
+    /**
+     * Drops a SQL Server login.
+     * 
+     * @param connection the database connection
+     * @param sqlServerUsername the escaped SQL Server username
+     * @param originalUsername the original username for logging
+     */
+    private void dropSqlServerLogin(Connection connection, String sqlServerUsername, String originalUsername) {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(String.format("DROP LOGIN [%s]", sqlServerUsername));
+            log.info("Dropped SQL Server login: {}", originalUsername);
+        } catch (SQLException e) {
+            log.warn("Failed to drop SQL Server login {}: {}", originalUsername, e.getMessage());
         }
     }
 
@@ -861,8 +1166,8 @@ public class DatabaseAccessService {
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
         
         if (credential.getIsTemporaryPassword()) {
-            log.error("Can not run query with temporary password: {}", query);
-            throw new DatabaseAccessException("Can not run query with temporary password: " + query, null);
+            log.error(Constants.getMessage("error.temp.password.query") + query);
+            throw new DatabaseAccessException(Constants.getMessage("error.temp.password.query") + query, null);
         }
 
         return databaseConnectionUtils.decryptCredentialPassword(credential);
@@ -873,12 +1178,12 @@ public class DatabaseAccessService {
             return query;
         }
         
-        String modifiedQuery = "START TRANSACTION; " + query;
+        String modifiedQuery = Constants.SQL_TRANSACTION_START + "; " + query;
         if (isDryRun) {
-            modifiedQuery += query.trim().endsWith(";") ? " ROLLBACK;" : "; ROLLBACK;";
+            modifiedQuery += query.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_ROLLBACK_SUFFIX : "; " + Constants.SQL_TRANSACTION_ROLLBACK;
             log.debug("Dry run query: {}", modifiedQuery);
         } else {
-            modifiedQuery += query.trim().endsWith(";") ? " COMMIT;" : "; COMMIT;";
+            modifiedQuery += query.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_COMMIT_SUFFIX : "; " + Constants.SQL_TRANSACTION_COMMIT;
             log.debug("Execution query: {}", modifiedQuery);
         }
         return modifiedQuery;
@@ -933,10 +1238,10 @@ public class DatabaseAccessService {
     }
 
     private boolean isTransactionControl(String upperQuery) {
-        return upperQuery.startsWith("START TRANSACTION") || 
-               upperQuery.startsWith("COMMIT") || 
-               upperQuery.startsWith("ROLLBACK") ||
-               upperQuery.startsWith("BEGIN");
+        return upperQuery.startsWith(Constants.SQL_TRANSACTION_START) || 
+               upperQuery.startsWith(Constants.SQL_TRANSACTION_COMMIT) || 
+               upperQuery.startsWith(Constants.SQL_TRANSACTION_ROLLBACK) ||
+               upperQuery.startsWith(Constants.SQL_TRANSACTION_BEGIN);
     }
 
     private Map<String, Object> processQueryExecution(PreparedStatement statement, String query, QueryType queryType) 
@@ -950,7 +1255,7 @@ public class DatabaseAccessService {
             case DML:
                 return executeDmlQuery(statement, query);
             default:
-                throw new IllegalArgumentException("Unknown query type: " + queryType);
+                throw new IllegalArgumentException(Constants.getMessage("error.unknown.query.type") + queryType);
         }
     }
 
@@ -966,16 +1271,16 @@ public class DatabaseAccessService {
 
     private Map<String, Object> executeTransactionControl(PreparedStatement statement, String query) throws SQLException {
         statement.executeUpdate();
-        List<String> headers = List.of("Status");
-        List<Map<String, Object>> data = List.of(Map.of("Status", query.toUpperCase() + " executed successfully"));
+        List<String> headers = List.of(Constants.QUERY_RESULT_STATUS_HEADER);
+        List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_STATUS_HEADER, query.toUpperCase() + Constants.QUERY_RESULT_EXECUTED_SUCCESSFULLY));
         
         return createQueryResult(query, headers, data);
     }
 
     private Map<String, Object> executeDmlQuery(PreparedStatement statement, String query) throws SQLException {
         int affectedRows = statement.executeUpdate();
-        List<String> headers = List.of("Affected Rows");
-        List<Map<String, Object>> data = List.of(Map.of("Affected Rows", affectedRows));
+        List<String> headers = List.of(Constants.QUERY_RESULT_AFFECTED_ROWS_HEADER);
+        List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_AFFECTED_ROWS_HEADER, affectedRows));
         
         return createQueryResult(query, headers, data);
     }
@@ -1019,12 +1324,12 @@ public class DatabaseAccessService {
     private Map<String, Object> handleQueryError(String query, SQLException e, boolean isChangeRequest) {
         Map<String, Object> errorResult = new HashMap<>();
         errorResult.put("query", query);
-        errorResult.put("headers", List.of("Error"));
-        errorResult.put("data", List.of(Map.of("Error", e.getMessage())));
+        errorResult.put("headers", List.of(Constants.QUERY_RESULT_ERROR_HEADER));
+        errorResult.put("data", List.of(Map.of(Constants.QUERY_RESULT_ERROR_HEADER, e.getMessage())));
         errorResult.put("hasError", true);
         
         if (!isChangeRequest) {
-            throw new DatabaseAccessException("Error executing query: " + e.getMessage(), e);
+            throw new DatabaseAccessException(Constants.getMessage("error.executing.query") + e.getMessage(), e);
         }
         
         return errorResult;
@@ -1082,16 +1387,16 @@ public class DatabaseAccessService {
      */
     private void validateInputs(Asset asset, AssetCredential adminCredential) {
         if (asset == null) {
-            throw new DatabaseAccessException("Asset cannot be null", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.asset.cannot.be.null"), null);
         }
         
         if (adminCredential == null) {
-            throw new DatabaseAccessException("Admin credential cannot be null", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
         }
         
         if (!databaseConnectionUtils.hasValidPassword(adminCredential)) {
             log.warn("Credential ID: {} has no password", adminCredential.getId());
-            throw new DatabaseAccessException("User has no access to asset", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.user.no.access.to.asset"), null);
         }
     }
 
@@ -1108,14 +1413,14 @@ public class DatabaseAccessService {
                 case SQLSERVER -> new SQLServerUserAccessFetcher();
                 case ORACLE -> new OracleUserAccessFetcher();
                 default -> throw new DatabaseAccessException(
-                        "Unsupported database type: " + asset.getDatabaseType(), null);
+                        Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + asset.getDatabaseType(), null);
             };
             
             return fetcher.fetchUserAccess(connection, asset.getDatabaseName());
         } catch (SQLException e) {
             log.error("Database connection or query error for asset ID: {} - {}", 
                      asset.getId(), e.getMessage());
-            throw new DatabaseAccessException("Failed to connect to database or execute query", e);
+            throw new DatabaseAccessException(Constants.getMessage("error.failed.to.connect.to.database"), e);
         }
     }
 
@@ -1190,7 +1495,7 @@ public class DatabaseAccessService {
             
         } catch (SQLException e) {
             log.error("CRITICAL ERROR during user lockout for asset ID: {}", asset.getId(), e);
-            throw new DatabaseAccessException("Failed to execute user lockout: " + e.getMessage(), e);
+            throw new DatabaseAccessException(Constants.getMessage("error.failed.user.lockout") + e.getMessage(), e);
         }
     }
 
@@ -1259,7 +1564,7 @@ public class DatabaseAccessService {
             
         } catch (SQLException e) {
             log.error("CRITICAL ERROR during user unlock for asset ID: {}", asset.getId(), e);
-            throw new DatabaseAccessException("Failed to execute user unlock: " + e.getMessage(), e);
+            throw new DatabaseAccessException(Constants.getMessage("error.failed.user.unlock") + e.getMessage(), e);
         }
     }
 
@@ -1268,19 +1573,19 @@ public class DatabaseAccessService {
      */
     private void validateLockoutInputs(Asset asset, AssetCredential adminCredential) {
         if (asset == null) {
-            throw new IllegalArgumentException("Asset cannot be null");
+            throw new IllegalArgumentException(Constants.getMessage("error.asset.cannot.be.null"));
         }
         
         if (adminCredential == null) {
-            throw new IllegalArgumentException("Admin credential cannot be null");
+            throw new IllegalArgumentException(Constants.getMessage("error.admin.credential.cannot.be.null"));
         }
         
         if (!databaseConnectionUtils.hasValidPassword(adminCredential)) {
-            throw new SecurityException("Admin credential has no valid password");
+            throw new SecurityException(Constants.getMessage("error.admin.credential.no.password"));
         }
         
         if (asset.getDatabaseType() == null) {
-            throw new IllegalArgumentException("Asset database type cannot be null");
+            throw new IllegalArgumentException(Constants.getMessage("error.asset.database.type.null"));
         }
     }
 
@@ -1315,7 +1620,7 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "SELECT usename FROM pg_user WHERE usename NOT LIKE 'pg_%' AND usename != 'postgres'";
             case ORACLE -> "SELECT username FROM dba_users WHERE username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
             case SQLSERVER -> "SELECT name FROM sys.database_principals WHERE type = 'S' AND name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys')";
-            default -> throw new DatabaseAccessException("Unsupported database type for user listing: " + databaseType, null);
+            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.user.listing") + databaseType, null);
         };
         
         return executeUserQuery(connection, query);
@@ -1330,7 +1635,7 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "SELECT usename FROM pg_user WHERE NOT usecanlogin AND usename NOT LIKE 'pg_%' AND usename != 'postgres'";
             case ORACLE -> "SELECT username FROM dba_users WHERE account_status = 'LOCKED' AND username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
             case SQLSERVER -> "SELECT name FROM sys.database_principals p JOIN sys.sql_logins l ON p.sid = l.sid WHERE l.is_disabled = 1 AND p.type = 'S'";
-            default -> throw new DatabaseAccessException("Unsupported database type for locked user listing: " + databaseType, null);
+            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.locked.user.listing") + databaseType, null);
         };
         
         return executeUserQuery(connection, query);
@@ -1423,7 +1728,7 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "ALTER USER ? NOLOGIN";
             case ORACLE -> "ALTER USER ? ACCOUNT LOCK";
             case SQLSERVER -> "ALTER LOGIN ? DISABLE";
-            default -> throw new DatabaseAccessException("Unsupported database type for user locking: " + databaseType, null);
+            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.user.locking") + databaseType, null);
         };
         
         return executeUserLockUnlockOperation(connection, lockSql, username, "lock");
@@ -1438,7 +1743,7 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "ALTER USER ? LOGIN";
             case ORACLE -> "ALTER USER ? ACCOUNT UNLOCK";
             case SQLSERVER -> "ALTER LOGIN ? ENABLE";
-            default -> throw new DatabaseAccessException("Unsupported database type for user unlocking: " + databaseType, null);
+            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.user.unlocking") + databaseType, null);
         };
         
         return executeUserLockUnlockOperation(connection, unlockSql, username, "unlock");
@@ -1448,9 +1753,31 @@ public class DatabaseAccessService {
      * Executes the lock/unlock SQL operation for a user
      */
     private boolean executeUserLockUnlockOperation(Connection connection, String sql, String username, String operation) {
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            stmt.executeUpdate();
+        try {
+            // For PostgreSQL and SQL Server, we need to use string formatting instead of parameter binding
+            if (sql.contains("ALTER USER ?")) {
+                // PostgreSQL
+                String escapedUsername = username.replace("\"", "\"\"");
+                sql = sql.replace("ALTER USER ?", "ALTER USER \"" + escapedUsername + "\"");
+                
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.executeUpdate(sql);
+                }
+            } else if (sql.contains("ALTER LOGIN ?")) {
+                // SQL Server
+                String escapedUsername = username.replace("[", "[[]").replace("]", "]]");
+                sql = sql.replace("ALTER LOGIN ?", "ALTER LOGIN [" + escapedUsername + "]");
+                
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.executeUpdate(sql);
+                }
+            } else {
+                // MySQL and Oracle
+                try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                    stmt.setString(1, username);
+                    stmt.executeUpdate();
+                }
+            }
             
             log.debug("Successfully executed {} operation for user: {}", operation, username);
             return true;
@@ -1460,4 +1787,5 @@ public class DatabaseAccessService {
             return false;
         }
     }
+
 }

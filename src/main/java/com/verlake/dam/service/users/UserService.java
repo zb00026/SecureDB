@@ -7,6 +7,7 @@ import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class UserService {
     private final UserRepository userRepository;
+    
 
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -295,6 +297,38 @@ public class UserService {
         }
         
         return user;
+    }
+
+    /**
+     * Deletes a user using database CASCADE DELETE constraints
+     * The database automatically handles deletion of related records
+     * @param userId The ID of the user to delete
+     */
+    @Transactional
+    public void deleteUserWithCascade(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                        String.format(Constants.getMessage("user.not.found"), userId)));
+        
+        log.info(Constants.LOG_USER_CASCADE_DELETE_START, userId, user.getEmail());
+        
+        try {
+            // Database CASCADE DELETE handles the rest automatically:
+            // - NotificationTask (receiver_id, sender_id)
+            // - AccessRequest (requestor_id)
+            // - AssetCredential (user_id)
+            // - AssetApprover (user_id)
+            // - AccessLevelObject (requestor_id)
+            // - AssetQueryChangeRequest (requestor_id)
+            userRepository.delete(user);
+            
+            log.info(Constants.LOG_USER_CASCADE_DELETE_SUCCESS, userId, user.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Error during cascade deletion of user ID: {} ({})", userId, user.getEmail(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    Constants.getMessage("error.user.cascade.delete.failed") + ": " + e.getMessage(), e);
+        }
     }
 
 }

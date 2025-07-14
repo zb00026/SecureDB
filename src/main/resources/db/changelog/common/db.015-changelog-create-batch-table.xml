@@ -5,7 +5,7 @@
     xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.4.xsd">
 
-    <changeSet id="create_batch_job_instance" author="system">
+    <changeSet id="create_batch_job_instance" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_JOB_INSTANCE">
             <column name="JOB_INSTANCE_ID" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -25,7 +25,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="create_batch_job_seq" author="system">
+    <changeSet id="create_batch_job_seq" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_JOB_SEQ">
             <column name="ID" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -41,7 +41,7 @@
         </insert>
     </changeSet>
 
-    <changeSet id="create_batch_job_execution" author="system">
+    <changeSet id="create_batch_job_execution" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_JOB_EXECUTION">
             <column name="JOB_EXECUTION_ID" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -61,7 +61,7 @@
         </createTable>
     </changeSet>
 
-    <changeSet id="create_batch_job_execution_params" author="system">
+    <changeSet id="create_batch_job_execution_params" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_JOB_EXECUTION_PARAMS">
             <column name="JOB_EXECUTION_ID" type="bigint">
                 <constraints nullable="false" foreignKeyName="JOB_EXEC_PARAMS_FK" references="BATCH_JOB_EXECUTION(JOB_EXECUTION_ID)"/>
@@ -84,7 +84,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="create_batch_job_execution_context" author="system">
+    <changeSet id="create_batch_job_execution_context" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_JOB_EXECUTION_CONTEXT">
             <column name="JOB_EXECUTION_ID" type="bigint">
                 <constraints primaryKey="true" nullable="false" foreignKeyName="JOB_EXEC_CTX_FK" references="BATCH_JOB_EXECUTION(JOB_EXECUTION_ID)"/>
@@ -96,7 +96,7 @@
         </createTable>
     </changeSet>
 
-    <changeSet id="create_batch_step_execution" author="system">
+    <changeSet id="create_batch_step_execution" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_STEP_EXECUTION">
             <column name="STEP_EXECUTION_ID" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -126,7 +126,7 @@
         </createTable>
     </changeSet>
 
-    <changeSet id="create_batch_step_execution_seq" author="system">
+    <changeSet id="create_batch_step_execution_seq" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_STEP_EXECUTION_SEQ">
             <column name="ID" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -142,7 +142,7 @@
         </insert>
     </changeSet>
 
-    <changeSet id="create_batch_step_execution_context" author="system">
+    <changeSet id="create_batch_step_execution_context" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_STEP_EXECUTION_CONTEXT">
             <column name="STEP_EXECUTION_ID" type="bigint">
                 <constraints primaryKey="true" nullable="false" foreignKeyName="STEP_EXEC_CTX_FK" references="BATCH_STEP_EXECUTION(STEP_EXECUTION_ID)"/>
@@ -154,7 +154,7 @@
         </createTable>
     </changeSet>
 
-    <changeSet id="create_batch_job_execution_seq" author="system">
+    <changeSet id="create_batch_job_execution_seq" author="system" dbms="mysql,mssql">
         <createTable tableName="BATCH_JOB_EXECUTION_SEQ">
             <column name="ID" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>

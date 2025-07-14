@@ -14,7 +14,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="instance_id" type="varchar(255)"/>
-            <column name="user" type="varchar(255)">
+            <column name="user_email" type="varchar(255)">
                 <constraints nullable="false"/>
             </column>
             <column name="action" type="varchar(255)">

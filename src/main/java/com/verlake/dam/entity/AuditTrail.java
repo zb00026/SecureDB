@@ -25,7 +25,7 @@ public class AuditTrail {
     @Column(name = "instance_id")
     private String instanceId;
 
-    @Column(nullable = false)
+    @Column(name = "user_email", nullable = false)
     private String user;
 
     @Column(nullable = false)
@@ -40,7 +40,7 @@ public class AuditTrail {
     @Column(name = "action_metadata", columnDefinition = "TEXT")
     private String actionMetadata;
 
-    @Column(name = "synced")
+    @Column(name = "synced", columnDefinition = "tinyint(1)")
     private boolean synced;
 
     @Column(name = "ip_address")

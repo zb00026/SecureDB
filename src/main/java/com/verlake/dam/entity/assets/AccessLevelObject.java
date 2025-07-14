@@ -3,6 +3,8 @@ package com.verlake.dam.entity.assets;
 import com.verlake.dam.entity.user.User;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(name = "access_level_objects")
@@ -21,6 +23,7 @@ public class AccessLevelObject {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requestor_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User requestor;
 
     @ManyToOne(fetch = FetchType.LAZY)

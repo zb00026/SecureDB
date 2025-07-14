@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import com.verlake.dam.enums.EmailType;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Data
@@ -18,13 +20,17 @@ public class NotificationTask {
     private Long id;
 
     @ManyToOne
+    @JoinColumn(name = "receiver_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User receiver;
 
     @ManyToOne
+    @JoinColumn(name = "sender_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User sender;
 
     @ManyToOne
-    @JoinColumn(nullable = true)
+    @JoinColumn(name = "asset_id", nullable = true)
     private Asset asset;
 
     @Column(columnDefinition = "TEXT")
@@ -34,6 +40,6 @@ public class NotificationTask {
     @Column(nullable = false)
     private EmailType emailType;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "tinyint(1)")
     private boolean isSent = false;
 }

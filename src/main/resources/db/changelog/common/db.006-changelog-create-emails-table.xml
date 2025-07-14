@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- Email invitation table with ENUM -->
+    <changeSet id="create-emails-table" author="admin" dbms="mysql">
+        <createTable tableName="emails">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="email_to" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email_type" type="ENUM('INVITATION', 'OTHER')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="subject" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="metadata" type="json">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sent_at" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

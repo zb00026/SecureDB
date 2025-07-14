@@ -40,7 +40,8 @@ public class SecurityConfiguration {
                         .requestMatchers("/public/**", "/api/auth/**", "/api/firebase/notifications/**",
                                 "/api/license/status", "/api/auth/validateResetToken").permitAll()
                         .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
-                        .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name())
+                        .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), 
+                                        Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name())
                         .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())
                         .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.APPROVER.name())
                         .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())

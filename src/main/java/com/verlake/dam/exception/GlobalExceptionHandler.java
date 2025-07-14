@@ -21,8 +21,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
         Map<String, String> errorResponse = new HashMap<>();
-        log.error(Constants.ERROR_DATABASE_CONSTRAINT_VIOLATED, ex);
-        errorResponse.put(Constants.ERROR_FIELD_ERROR, Constants.ERROR_DATABASE_CONSTRAINT_VIOLATED);
+        log.error(Constants.getMessage("error.database.constraint.violated"), ex);
+        errorResponse.put(Constants.ERROR_FIELD_ERROR, Constants.getMessage("error.database.constraint.violated"));
         errorResponse.put(Constants.ERROR_FIELD_DETAILS, extractConstraintMessage(ex.getMessage())); // Extract meaningful message
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse); // Return 409 Conflict
     }
@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(JwtTokenException.class)
     public ResponseEntity<Map<String, String>> handleJwtTokenException(JwtTokenException ex, WebRequest request) {
         Map<String, String> errorResponse = new HashMap<>();
-        log.error(Constants.ERROR_JWT_TOKEN_ERROR, ex.getMessage(), ex);
+        log.error(Constants.getMessage("jwt.error.validation.failed"), ex.getMessage(), ex);
         errorResponse.put(Constants.ERROR_FIELD_ERROR, ex.getMessage());
         errorResponse.put(Constants.ERROR_FIELD_TYPE, Constants.ERROR_TYPE_JWT_TOKEN);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
@@ -51,8 +51,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex, WebRequest request) {
         Map<String, String> errorResponse = new HashMap<>();
-        log.error(Constants.ERROR_UNEXPECTED_ERROR, ex);
-        errorResponse.put(Constants.ERROR_FIELD_ERROR, Constants.ERROR_UNEXPECTED_ERROR);
+        log.error(Constants.getMessage("error.unexpected.error"), ex);
+        errorResponse.put(Constants.ERROR_FIELD_ERROR, Constants.getMessage("error.unexpected.error"));
         errorResponse.put(Constants.ERROR_FIELD_DETAILS, ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
@@ -60,8 +60,8 @@ public class GlobalExceptionHandler {
     // Utility method to extract meaningful error messages
     private String extractConstraintMessage(String fullMessage) {
         if (fullMessage != null && fullMessage.contains("Unique index or primary key violation")) {
-            return Constants.ERROR_UNIQUE_CONSTRAINT_VIOLATED;
+            return Constants.getMessage("error.unique.constraint.violated");
         }
-        return Constants.ERROR_CONSTRAINT_VIOLATION_PREFIX + fullMessage;
+        return Constants.getMessage("error.constraint.violation.prefix") + fullMessage;
     }
 }

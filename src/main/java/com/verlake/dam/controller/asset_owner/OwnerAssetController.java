@@ -26,6 +26,8 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
+
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +48,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import static com.verlake.dam.utils.Constants.AUTH_PROVIDER_KEYCLOAK;
+import static com.verlake.dam.utils.Constants.getTechnicalProperty;
 
 @RestController
 @RequestMapping("/api/asset_owner/assets")
@@ -244,28 +246,29 @@ public class OwnerAssetController extends BaseAssetAccessController {
         String username = credentialInfo.getUsername();
         String password = credentialInfo.getPassword();
 
-        String jdbcUrlPrefix;
+        String jdbcUrl;
         switch (asset.getDatabaseType()) {
             case MYSQL:
-                jdbcUrlPrefix = "jdbc:mysql://";
+                jdbcUrl = "jdbc:mysql://" + host;
                 break;
             case POSTGRESQL:
-                jdbcUrlPrefix = "jdbc:postgresql://";
+                jdbcUrl = "jdbc:postgresql://" + host;
                 break;
             case ORACLE:
-                jdbcUrlPrefix = "jdbc:oracle:thin:@";
+                jdbcUrl = "jdbc:oracle:thin:@" + host;
                 break;
             case SQLSERVER:
-                jdbcUrlPrefix = "jdbc:sqlserver://";
+                // Add SSL parameters for MSSQL to match application configuration
+                jdbcUrl = "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
                 break;
             default:
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported database type");
         }
 
         // Validate the database connection
-        try (Connection connection = DriverManager.getConnection(jdbcUrlPrefix + host, username, password)) {
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, username, password)) {
             if (connection != null) {
-                if (authProvider.contains(AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
+                if (authProvider.contains(Constants.AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
                     existingCredential.setUsername(username);
                     existingCredential.setPassword(password);
                     databaseAccessService.updateAssetObjects(existingCredential);

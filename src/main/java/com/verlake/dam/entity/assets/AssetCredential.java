@@ -6,6 +6,8 @@ import com.verlake.dam.listener.AuditEntityListener;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.verlake.dam.enums.Roles;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -33,6 +35,7 @@ public class AssetCredential {
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
     private String username;
@@ -43,10 +46,10 @@ public class AssetCredential {
     private String userAccessType;
 
     @Builder.Default
-    @Column(name = "is_deleted")
+    @Column(name = "is_deleted", columnDefinition = "tinyint(1)")
     private Boolean isDeleted = false;
 
     @Builder.Default
-    @Column(name = "is_temporary_password")
+    @Column(name = "is_temporary_password", columnDefinition = "tinyint(1)")
     private Boolean isTemporaryPassword = false;
 } 

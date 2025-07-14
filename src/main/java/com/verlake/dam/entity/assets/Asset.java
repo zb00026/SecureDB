@@ -49,10 +49,10 @@ public class Asset {
     @Column(name = "database_name")
     private String databaseName;
 
-    @Column(name = "is_deleted")
+    @Column(name = "is_deleted", columnDefinition = "tinyint(1)")
     private boolean deleted;
 
-    @Column(name = "is_locked")
+    @Column(name = "is_locked", columnDefinition = "tinyint(1)")
     @Builder.Default
     private boolean locked = false;
 
@@ -61,20 +61,34 @@ public class Asset {
     private LockType lockType;
 
     public String getHostUrl() {
-        StringBuilder url = new StringBuilder();
+        if (!isValidHostAddress()) {
+            return "";
+        }
         
-        if (hostAddress != null && !hostAddress.isEmpty()) {
-            url.append(hostAddress);
-            
-            if (portNumber != null && !portNumber.isEmpty()) {
-                url.append(":").append(portNumber);
-            }
-            
-            if (databaseName != null && !databaseName.isEmpty()) {
+        StringBuilder url = new StringBuilder(hostAddress);
+        appendPortIfPresent(url);
+        appendDatabaseIfPresent(url);
+        
+        return url.toString();
+    }
+    
+    private boolean isValidHostAddress() {
+        return hostAddress != null && !hostAddress.isEmpty();
+    }
+    
+    private void appendPortIfPresent(StringBuilder url) {
+        if (portNumber != null && !portNumber.isEmpty()) {
+            url.append(":").append(portNumber);
+        }
+    }
+    
+    private void appendDatabaseIfPresent(StringBuilder url) {
+        if (databaseName != null && !databaseName.isEmpty()) {
+            if (databaseType == DatabaseType.SQLSERVER) {
+                url.append(";databaseName=").append(databaseName);
+            } else {
                 url.append("/").append(databaseName);
             }
         }
-        
-        return url.toString();
     }
 } 

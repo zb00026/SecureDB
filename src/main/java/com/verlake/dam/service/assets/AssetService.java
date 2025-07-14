@@ -107,8 +107,8 @@ public class AssetService {
     @Transactional
     public void updateAssetOwners(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
-        if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+        if (updateDTO.getMethod().equals(Constants.getMessage("asset.add.name"))) {
             // Delete existing credentials for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
                 List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
@@ -133,7 +133,7 @@ public class AssetService {
                         .build();
                 credentialsRepository.save(credentials);
             }
-        } else if (updateDTO.getMethod().equals(Constants.ASSET_REMOVE_NAME)) {
+        } else if (updateDTO.getMethod().equals(Constants.getMessage("asset.remove.name"))) {
             // Delete credentials for provided user IDs
             updateDTO.getUserIds().forEach(userId -> {
                 List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
@@ -161,8 +161,8 @@ public class AssetService {
     @Transactional
     public void updateAssetApprovers(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
-        if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+        if (updateDTO.getMethod().equals(Constants.getMessage("asset.add.name"))) {
             // Delete existing asset approvers for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
                 assetApproversRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
@@ -182,7 +182,7 @@ public class AssetService {
                         .build();
                 assetApproversRepository.save(approver);
             }
-        } else if (updateDTO.getMethod().equals(Constants.ASSET_REMOVE_NAME)) {
+        } else if (updateDTO.getMethod().equals(Constants.getMessage("asset.remove.name"))) {
             // Delete Approvers for provided user IDs
             updateDTO.getUserIds().forEach(userId -> {
                 assetApproversRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
@@ -195,7 +195,7 @@ public class AssetService {
     @Transactional
     public void deleteAsset(Long id) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
 
         // Soft delete the asset
         asset.setDeleted(true);
@@ -208,12 +208,12 @@ public class AssetService {
 
     public Asset findById(Long id) {
         return assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
     }
 
     public AssetDTO findDTOById(Long id) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
         return convertToDTO(asset);
     }
 
@@ -271,8 +271,8 @@ public class AssetService {
 
     private AssetDTO convertToDTOWithFetchAccessTemplate(Asset asset) {
         AssetDTO dto = convertToDTO(asset);
-        AccessLevel fetchAccess = accessLevelRepository.findFetchAccessTemplate(asset.getType().name(),
-                asset.getDatabaseType().name());
+        AccessLevel fetchAccess = accessLevelRepository.findFetchAccessTemplate(asset.getType(),
+                asset.getDatabaseType());
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
         List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
         dto.setAccessRequest(requests.isEmpty() ? null : requests.get(0));
@@ -285,7 +285,7 @@ public class AssetService {
     @Transactional
     public void updateAsset(Long id, AssetDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.ASSET_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
 
         asset.setName(updateDTO.getName());
         asset.setDescription(updateDTO.getDescription());

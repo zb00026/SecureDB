@@ -42,16 +42,16 @@ public class DatabaseConnectionUtils {
      */
     public String buildJdbcUrl(Asset asset) {
         if (asset == null) {
-            throw new DatabaseAccessException("Asset cannot be null", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.asset.cannot.be.null"), null);
         }
         
         return switch (asset.getDatabaseType()) {
             case MYSQL -> Constants.JDBC_MYSQL_URL + asset.getHostUrl();
             case POSTGRESQL -> Constants.JDBC_POSTGRESQL_URL + asset.getHostUrl();
             case ORACLE -> Constants.JDBC_ORACLE_URL + asset.getHostUrl();
-            case SQLSERVER -> Constants.JDBC_SQLSERVER_URL + asset.getHostUrl();
+            case SQLSERVER -> Constants.JDBC_SQLSERVER_URL + asset.getHostUrl() + Constants.JDBC_SQLSERVER_SSL_PARAMS;
             default -> throw new DatabaseAccessException(
-                    "Unsupported database type: " + asset.getDatabaseType(), null);
+                    Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + asset.getDatabaseType(), null);
         };
     }
     
@@ -65,11 +65,11 @@ public class DatabaseConnectionUtils {
      */
     public Connection getConnectionFromAssetCredential(AssetCredential credential) throws SQLException {
         if (credential == null) {
-            throw new DatabaseAccessException("Credential cannot be null", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
         }
         
         if (credential.getAsset() == null) {
-            throw new DatabaseAccessException("Asset in credential cannot be null", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.asset.cannot.be.null"), null);
         }
         
         String jdbcUrl = buildJdbcUrl(credential.getAsset());
@@ -85,12 +85,12 @@ public class DatabaseConnectionUtils {
      */
     public String decryptCredentialPassword(AssetCredential credential) {
         if (credential == null) {
-            throw new DatabaseAccessException("Credential cannot be null", null);
+            throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
         }
         
         if (credential.getPassword() == null || credential.getPassword().trim().isEmpty()) {
             log.warn("Credential ID: {} has no password", credential.getId());
-            throw new DatabaseAccessException("User has no access to asset", null);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), null);
         }
         
         String userKey = keycloakService.getUserKey();
@@ -101,11 +101,11 @@ public class DatabaseConnectionUtils {
         } catch (CommonUtils.CryptoException e) {
             log.warn("Failed to decrypt password for credential ID: {} - {}", 
                      credential.getId(), e.getClass().getSimpleName());
-            throw new DatabaseAccessException("User has no access to asset", e);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
         } catch (Exception e) {
             log.error("Unexpected error during password decryption for credential ID: {}", 
                       credential.getId(), e);
-            throw new DatabaseAccessException("User has no access to asset", e);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
         }
     }
     

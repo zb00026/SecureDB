@@ -2,6 +2,8 @@ package com.verlake.dam.entity.assets;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -20,6 +22,7 @@ public class AssetQueryChangeRequest {
     
     @ManyToOne
     @JoinColumn(name = "requestor_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User requestor;
     
     @Column(name = "ticket_reference")

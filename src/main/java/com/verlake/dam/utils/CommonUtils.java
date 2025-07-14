@@ -41,8 +41,8 @@ public class CommonUtils {
 
     public static ResponseEntity<Map<String, Object>> getSuccessResponse() {
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put(Constants.STATUS_NAME, Constants.STATUS_SUCCESS);
-        response.put(Constants.ERROR_MSG_NAME, "");
+        response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
+        response.put(Constants.ERROR_MESSAGE_NAME, "");
         return ResponseEntity.ok(response);
     }
 

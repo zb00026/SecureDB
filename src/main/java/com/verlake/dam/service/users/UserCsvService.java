@@ -85,17 +85,18 @@ public class UserCsvService {
                     log.debug("CSV headers: {}", Arrays.toString(headers));
                 } else {
                     // Process data line
-                if (values.length != headers.length) {
+                if (values.length < 4) {
                     throw new IllegalArgumentException(
-                        String.format("Line %d has %d columns but expected %d", 
-                        lineNumber, values.length, headers.length));
+                        String.format("Line %d has %d columns but expected 4", 
+                        lineNumber, values.length));
                 }
                 
                 Map<String, String> userData = new HashMap<>();
-                for (int i = 0; i < headers.length; i++) {
-                    userData.put(headers[i].trim(), values[i].trim());
-                }
                 userData.put(Constants.USER_FIELD_LINE_NUMBER, String.valueOf(lineNumber));
+                userData.put(Constants.USER_FIELD_FIRST_NAME, values[0].trim());
+                userData.put(Constants.USER_FIELD_LAST_NAME, values[1].trim());
+                userData.put(Constants.USER_FIELD_EMAIL, values[2].trim().toLowerCase());
+                userData.put(Constants.USER_FIELD_ROLE_NAME, values[3].trim());
                 userDataList.add(userData);
                 }
             }
@@ -317,7 +318,7 @@ public class UserCsvService {
         for (User user : users) {
             try {
                 // Generate and store invite code for each user
-                String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
+                String inviteCode = CommonUtils.generateInviteCode(Constants.getTechnicalPropertyAsInt(Constants.INVITE_CODE_LENGTH));
                 user.setInviteCode(inviteCode);
                 userRepository.save(user);
                 
@@ -415,10 +416,10 @@ public class UserCsvService {
         
         // Add comment lines explaining the format
         csvContent.append("# INSTRUCTIONS:\n");
-        csvContent.append("# - firstName: Required, user's first name\n");
-        csvContent.append("# - lastName: Required, user's last name\n");
-        csvContent.append("# - email: Required, must be unique and valid email format\n");
-        csvContent.append("# - roleName: Required, comma-separated role names (e.g., \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\")\n");
+        csvContent.append("# - " + Constants.USER_FIELD_FIRST_NAME + ": Required, user's first name\n");
+        csvContent.append("# - " + Constants.USER_FIELD_LAST_NAME + ": Required, user's last name\n");
+        csvContent.append("# - " + Constants.USER_FIELD_EMAIL + ": Required, must be unique and valid email format\n");
+        csvContent.append("# - " + Constants.USER_FIELD_ROLE_NAME + ": Required, comma-separated role names (e.g., \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\")\n");
         csvContent.append("#\n");
         csvContent.append("# AVAILABLE ROLES:\n");
         csvContent.append("# - " + Constants.ROLE_ADMIN + ": Full system administration access\n");

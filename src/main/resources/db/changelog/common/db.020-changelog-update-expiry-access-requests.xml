@@ -17,13 +17,6 @@
                 <constraints nullable="true"/>
             </column>
         </addColumn>
-
-        <!-- Update existing records to have expiry_date based on request_time + expiry_hours -->
-        <sql>
-            UPDATE access_requests 
-            SET expiry_date = DATE_ADD(request_time, INTERVAL expiry_hours HOUR)
-            WHERE expiry_date IS NULL;
-        </sql>
     </changeSet>
 
     <changeSet id="add-is-deleted-to-asset-credentials" author="admin">

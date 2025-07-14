@@ -8,6 +8,7 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.exception.EmailEntityCreationException;
 import com.verlake.dam.exception.EmailSendingException;
 import com.verlake.dam.repository.EmailRepository;
 import com.verlake.dam.repository.UserRepository;
@@ -119,19 +120,38 @@ public class EmailService {
             String emailSubject,
             ObjectNode metaData,
             String htmlContent) {
-        // Create Email entity and store in the database
-        Email email = new Email();
-        email.setEmailTo(user.getEmail());
-        email.setEmailType(emailType); // Use the enum for email type
-        email.setSubject(emailSubject);
-        email.setMetadata(metaData);
-        email.setSentAt(LocalDateTime.now());
-        emailRepository.save(email); // Save email record in the database
-
-        metaData.put("mailContent", htmlContent);
-        email.setMetadata(metaData);
-        emailRepository.save(email);
-        return email;
+        try {
+            // Create Email entity and store in the database
+            Email email = new Email();
+            email.setEmailTo(user.getEmail());
+            email.setEmailType(emailType); 
+            email.setSubject(emailSubject);
+            email.setSentAt(LocalDateTime.now());
+            
+            // Ensure metadata is properly formatted and contains HTML content
+            ObjectMapper objectMapper = new ObjectMapper();
+            if (metaData == null) {
+                metaData = objectMapper.createObjectNode();
+            }
+            metaData.put("mailContent", htmlContent);
+            
+            // Convert ObjectNode to JSON string before setting to Email entity
+            String metadataString = objectMapper.writeValueAsString(metaData);
+            email.setMetadata(metadataString);
+            
+            // Save the email entity
+            emailRepository.save(email);
+            
+            log.debug("Email entity created and saved successfully with metadata as string");
+            return email;
+            
+        } catch (Exception e) {
+            log.error("Error creating email entity: {}", e.getMessage(), e);
+            throw new EmailEntityCreationException(Constants.getMessage("error.creating.email.entity") + ": " + e.getMessage(), 
+                    emailType != null ? emailType.name() : null, 
+                    user != null ? user.getEmail() : null, 
+                    e);
+        }
     }
 
     private void sendEmail(String emailAddress, String emailSubject, String htmlContent) throws MessagingException {
@@ -186,7 +206,7 @@ public class EmailService {
             context.setVariable(Constants.EMAIL_VAR_TEMP_PASSWORD, user.getPassword());
 
             // Generate email content using Thymeleaf template
-            String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
+            String inviteCode = CommonUtils.generateInviteCode(Constants.getTechnicalPropertyAsInt(Constants.INVITE_CODE_LENGTH));
             String redirectLink = hostDomainUri + "?inviteCode=" + inviteCode;
             context.setVariable(Constants.EMAIL_VAR_REDIRECT_LINK, redirectLink);
             
@@ -273,8 +293,7 @@ public class EmailService {
         metaData.put(Constants.EMAIL_VAR_ASSET_CREDENTIAL_ID, assetCredential.getId());
 
         String htmlContent = templateEngine.process(emailTmplFile, context);
-        metaData.put("mailContent", htmlContent);
-        createEmailEntity(admin, EmailType.RELINQUISH_ASSET_CREDENTIAL, emailSubject, metaData, emailTmplFile);
+        createEmailEntity(admin, EmailType.RELINQUISH_ASSET_CREDENTIAL, emailSubject, metaData, htmlContent);
 
         try {
             sendEmail(admin.getEmail(), emailSubject, htmlContent);
@@ -290,14 +309,14 @@ public class EmailService {
         context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         context.setVariable(Constants.EMAIL_VAR_APPROVER_NAME, approver.getFirstName() + " " + approver.getLastName());
         context.setVariable(Constants.EMAIL_VAR_METHOD,
-                method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
+                method.equals(Constants.getMessage(Constants.ASSET_ADD_NAME)) ? "added to" : "removed from");
 
         String emailSubject = "Asset Approve Notification";
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         metaData.put(Constants.EMAIL_VAR_APPROVER_NAME, approver.getFirstName() + " " + approver.getLastName());
-        metaData.put(Constants.EMAIL_VAR_METHOD, method.equals(Constants.ASSET_ADD_NAME) ? "added to" : "removed from");
+        metaData.put(Constants.EMAIL_VAR_METHOD, method.equals(Constants.getMessage(Constants.ASSET_ADD_NAME)) ? "added to" : "removed from");
 
         String emailContent = templateEngine.process(emailTmplFile, context);
         createEmailEntity(approver, EmailType.ASSET_APPROVE_NOTIFY, emailSubject, metaData, emailContent);

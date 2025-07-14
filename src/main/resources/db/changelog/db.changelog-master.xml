@@ -5,33 +5,31 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
 
-    <include file="db/changelog/db.000-changelog-create-user-table.xml"/>
-    <include file="db/changelog/db.001-changelog-create-roles-table.xml"/>
-    <include file="db/changelog/db.002-changelog-email-invitation.xml"/>
-    <include file="db/changelog/db.003-changelog-create-s3-settings-table.xml"/>
-    <include file="db/changelog/db.004-changelog-create-audit-trails-table.xml"/>
-    <include file="db/changelog/db.005-changelog-create-assets-table.xml"/>
-    <include file="db/changelog/db.006-changelog-update-email-type.xml"/>
-    <include file="db/changelog/db.007-changelog-create-asset-approvers-table.xml"/>
-    <include file="db/changelog/db.008-changelog-add-approver-id-column.xml"/>
-    <include file="db/changelog/db.009-changelog-seed-db-access-level.xml"/>
-    <include file="db/changelog/db.010-changelog-create-access-requests.xml"/>
-    <include file="db/changelog/db.011-changelog-update-asset-type-to-enums.xml"/>
-    <include file="db/changelog/db.012-changelog-create-asset-db-objects-table.xml"/>
-    <include file="db/changelog/db.013-changelog-create-access-level-objects-table.xml"/>
-    <include file="db/changelog/db.014-changelog-update-email-type.xml"/>
-    <include file="db/changelog/db.015-changelog-create-batch-table.xml"/>
-    <include file="db/changelog/db.016-changelog-create-notification-task-table.xml"/>
-    <include file="db/changelog/db.017-changelog-add-credential-user-type.xml"/>
-    <include file="db/changelog/db.018-changelog-update-email-type.xml"/>
-    <include file="db/changelog/db.019-changelog-add-is-temp-password.xml"/>
-    <include file="db/changelog/db.020-changelog-update-expiry-access-requests.xml"/>
-    <include file="db/changelog/db.021-changelog-add-fields-to-assets-table.xml"/>
-    <include file="db/changelog/db.022-changelog-add-initial-password-to-users-table.xml"/>
-    <include file="db/changelog/db.023-changelog-update-email-type.xml"/>
-    <include file="db/changelog/db.024-changelog-create-asset-query-change-requests-table.xml"/>
-    <include file="db/changelog/db.025-changelog-add-reject-reason-access-request.xml"/>
-    <include file="db/changelog/db.026-changelog-add-asset-id-to-audit-table.xml"/>
-    <include file="db/changelog/db.027-changelog-fix-database-charset-utf8mb4.xml"/>
-    <include file="db/changelog/db.028-changelog-create-licenses-table.xml"/>
+    <!-- Include common changelogs that work across all databases FIRST -->
+    <include file="db/changelog/common/db.000-changelog-create-user-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.001-changelog-create-roles-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.003-changelog-create-s3-settings-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.004-changelog-create-audit-trails-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.005-changelog-create-assets-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.006-changelog-create-emails-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.007-changelog-create-asset-approvers-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.008-changelog-add-approver-id-column.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.009-changelog-seed-db-access-level.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.010-changelog-create-access-requests.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.012-changelog-create-asset-db-objects-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.013-changelog-create-access-level-objects-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.015-changelog-create-batch-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.016-changelog-create-notification-task-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.019-changelog-add-is-temp-password.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.020-changelog-update-expiry-access-requests.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.021-changelog-add-fields-to-assets-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.022-changelog-add-initial-password-to-users-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.024-changelog-create-asset-query-change-requests-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.025-changelog-add-reject-reason-access-request.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.026-changelog-add-asset-id-to-audit-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.028-changelog-create-licenses-table.xml" relativeToChangelogFile="false"/>
+    
+    <!-- Include database-specific changelogs AFTER common changelogs -->
+    <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
+    
 </databaseChangeLog>

@@ -223,7 +223,9 @@ public class AuthController {
                 String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
                 cred.setPassword(decryptedPassword);
             }
-            databaseAccessService.updateAssetObjects(cred);
+            if (cred.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
+                databaseAccessService.updateAssetObjects(cred);
+            }
             processExpiredDeveloperCredential(cred);
         } catch (Exception e) {
             handleCredentialProcessingError(cred, e);

@@ -1,0 +1,463 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- MySQL-specific changelogs that use ENUM types -->
+    
+
+    <!-- Update email types with ENUM -->
+    <changeSet id="mysql-update-email-type-1" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY')"/>
+    </changeSet>
+
+    <changeSet id="mysql-update-email-type-2" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY')"/>
+    </changeSet>
+
+    <changeSet id="mysql-update-email-type-3" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST')"/>
+    </changeSet>
+
+    <changeSet id="mysql-update-email-type-4" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR')"/>
+    </changeSet>
+
+    <changeSet id="mysql-update-email-type-5" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'DEVELOPER_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY')"/>
+    </changeSet>
+
+    <changeSet id="mysql-update-email-type-6" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'DEVELOPER_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY', 'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY')"/>
+    </changeSet>
+
+    <changeSet id="mysql-update-email-type-7" author="admin" dbms="mysql">
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'DEVELOPER_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY', 'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY', 'FORGOT_PASSWORD')"/>
+    </changeSet>
+
+    <!-- Update existing tables created in common changelogs to use ENUM -->
+    <changeSet id="mysql-update-asset-type-enums" author="admin" dbms="mysql">
+        <modifyDataType tableName="assets" columnName="type" newDataType="ENUM('DATABASE')"/>
+        <modifyDataType tableName="assets" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER')"/>
+        <modifyDataType tableName="access_levels" columnName="asset_type" newDataType="ENUM('DATABASE')"/>
+        <modifyDataType tableName="access_levels" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER')"/>
+    </changeSet>
+
+    <!-- Access request status enums -->
+    <changeSet id="mysql-update-access-requests-enums" author="admin" dbms="mysql">
+        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
+        <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
+    </changeSet>
+
+    <!-- Asset query change requests enums -->
+    <changeSet id="mysql-update-asset-query-change-requests-enums" author="admin" dbms="mysql">
+        <modifyDataType tableName="asset_query_change_requests" columnName="approval_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
+    </changeSet>
+
+    <!-- Other MySQL-specific changes -->
+    <changeSet id="mysql-credential-user-type" author="admin" dbms="mysql">
+        <addColumn tableName="asset_credentials">
+            <column name="user_access_type" type="varchar(50)" defaultValue="Asset Owner">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        
+        <sql>
+            ALTER TABLE asset_credentials 
+            MODIFY COLUMN user_access_type varchar(50) 
+            COMMENT 'Type of user access: Admin, Developer, Asset Owner, Approver, Auditor, User';
+        </sql>
+    </changeSet>
+
+    <changeSet id="mysql-notification-task-email-type" author="admin" dbms="mysql">
+        <addColumn tableName="notification_task">
+            <column name="email_type" type="varchar(50)" defaultValue="OTHER">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        
+        <sql>
+            ALTER TABLE notification_task 
+            MODIFY COLUMN email_type varchar(50) 
+            COMMENT 'Type of email notification: INVITATION, RELINQUISH_ASSET_CREDENTIAL, ASSET_APPROVE_NOTIFY, DEVELOPER_ASSET_REQUEST_NOTIFY, OTHER';
+        </sql>
+    </changeSet>
+
+    <changeSet id="mysql-notification-task-is-sent" author="admin" dbms="mysql">
+        <addColumn tableName="notification_task">
+            <column name="is_sent" type="boolean" defaultValue="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        
+        <sql>
+            ALTER TABLE notification_task 
+            MODIFY COLUMN is_sent boolean 
+            COMMENT 'Flag to indicate if the notification has been sent';
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific expiry date update -->
+    <changeSet id="mysql-update-expiry-dates" author="admin" dbms="mysql">
+        <sql>
+            UPDATE access_requests 
+            SET expiry_date = DATE_ADD(request_time, INTERVAL expiry_hours HOUR)
+            WHERE expiry_date IS NULL;
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific user table modifications -->
+    <changeSet id="mysql-users-first-last-name" author="admin" dbms="mysql">
+        <!-- Add first_name and last_name columns as nullable first -->
+        <addColumn tableName="users">
+            <column name="first_name" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="last_name" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Update existing rows with default values -->
+        <update tableName="users">
+            <column name="first_name" value="User"/>
+            <column name="last_name" value=""/>
+            <where>first_name IS NULL</where>
+        </update>
+        
+        <!-- Now make first_name NOT NULL -->
+        <sql>
+            ALTER TABLE users MODIFY COLUMN first_name VARCHAR(255) NOT NULL;
+        </sql>
+        
+        <!-- Drop the name column -->
+        <dropColumn tableName="users" columnName="name"/>
+    </changeSet>
+
+    <changeSet id="mysql-users-email-invitation" author="admin" dbms="mysql">
+        <!-- Add is_active and invite_email_id columns -->
+        <addColumn tableName="users">
+            <column name="is_active" type="boolean"/>
+        </addColumn>
+        <addColumn tableName="users">
+            <column name="invite_email_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Add foreign key constraint -->
+        <addForeignKeyConstraint baseTableName="users"
+                                 baseColumnNames="invite_email_id"
+                                 constraintName="fk_user_invite_email"
+                                 referencedTableName="emails"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="mysql-users-update-admin" author="admin" dbms="mysql">
+        <!-- Update admin user with default values -->
+        <update tableName="users">
+            <column name="is_active" value="1"/>
+            <column name="first_name" value="Admin"/>
+            <column name="last_name" value="Admin"/>
+            <where>id = 1</where>
+        </update>
+    </changeSet>
+
+    <changeSet id="mysql-users-invite-code" author="admin" dbms="mysql">
+        <!-- Add invite_code column -->
+        <addColumn tableName="users">
+            <column name="invite_code" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- MySQL-specific charset modifications -->
+    <changeSet id="mysql-charset-modifications" author="admin" dbms="mysql">
+        <sql>
+            ALTER DATABASE CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+        </sql>
+        
+        <sql>
+            ALTER TABLE users CONVERT TO CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+            ALTER TABLE users 
+            MODIFY COLUMN email VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+            MODIFY COLUMN first_name VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+            MODIFY COLUMN last_name VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+        </sql>
+        
+        <sql>
+            ALTER TABLE roles CONVERT TO CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+            ALTER TABLE roles 
+            MODIFY COLUMN name VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+        </sql>
+        
+        <sql>
+            ALTER TABLE emails CONVERT TO CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+            ALTER TABLE emails 
+            MODIFY COLUMN email_to VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+            MODIFY COLUMN subject TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+        </sql>
+        
+        <sql>
+            ALTER TABLE assets CONVERT TO CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+            ALTER TABLE assets 
+            MODIFY COLUMN name VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+            MODIFY COLUMN description TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+            MODIFY COLUMN host_address VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+        </sql>
+        
+        <sql>
+            ALTER TABLE access_requests CONVERT TO CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+            ALTER TABLE access_requests 
+            MODIFY COLUMN access_sql TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci,
+            MODIFY COLUMN request_reason TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific license table modifications -->
+    <changeSet id="mysql-license-table-modifications" author="admin" dbms="mysql">
+        <sql>
+            ALTER TABLE licenses MODIFY COLUMN license_file LONGBLOB;
+            ALTER TABLE licenses MODIFY COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific license file column modification -->
+    <changeSet id="mysql-license-file-column" author="admin" dbms="mysql">
+        <sql>
+            -- Check if column exists and drop it if it does
+            SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                                WHERE TABLE_SCHEMA = DATABASE() 
+                                AND TABLE_NAME = 'licenses' 
+                                AND COLUMN_NAME = 'license_file');
+            
+            SET @sql = IF(@column_exists > 0, 'ALTER TABLE licenses DROP COLUMN license_file', 'SELECT "Column does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            -- Add the column with proper LONGBLOB type
+            ALTER TABLE licenses ADD COLUMN license_file LONGBLOB;
+            
+            -- Make it NOT NULL after adding
+            ALTER TABLE licenses MODIFY COLUMN license_file LONGBLOB NOT NULL;
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific notification task sender_id column rename -->
+    <changeSet id="mysql-notification-task-sender-rename" author="admin" dbms="mysql">
+        <sql>
+            -- Disable foreign key checks
+            SET FOREIGN_KEY_CHECKS = 0;
+            
+            -- Check if foreign key constraint exists and drop it
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'notification_task' 
+                                    AND CONSTRAINT_NAME = 'fk_notification_task_requestor');
+            
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE notification_task DROP FOREIGN KEY fk_notification_task_requestor', 
+                         'SELECT "Foreign key does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            -- Rename requestor_id to sender_id in notification_task table
+            ALTER TABLE notification_task CHANGE COLUMN requestor_id sender_id BIGINT;
+            
+            -- Add the new foreign key constraint
+            ALTER TABLE notification_task 
+            ADD CONSTRAINT fk_notification_task_sender 
+            FOREIGN KEY (sender_id) REFERENCES users(id);
+            
+            -- Re-enable foreign key checks
+            SET FOREIGN_KEY_CHECKS = 1;
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific: Convert emails metadata column from json to text -->
+    <changeSet id="mysql-emails-metadata-to-text" author="admin" dbms="mysql">
+        <sql>
+            -- Convert metadata column from json to text type
+            ALTER TABLE emails MODIFY COLUMN metadata TEXT;
+        </sql>
+    </changeSet>
+
+    <!-- MySQL-specific: Convert asset_objects.objects_json to LONGTEXT for large JSON data -->
+    <changeSet id="mysql-asset-objects-json-type" author="admin" dbms="mysql">
+        <sql>
+            -- Convert objects_json column to LONGTEXT in MySQL to handle large JSON data
+            ALTER TABLE asset_objects MODIFY COLUMN objects_json LONGTEXT NOT NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="029-add-cascade-delete-constraints" author="system">
+        <comment>Add CASCADE DELETE constraints for User foreign key relationships</comment>
+
+        <sql>
+            -- Disable foreign key checks
+            SET FOREIGN_KEY_CHECKS = 0;
+            
+            -- Drop existing foreign key constraints if they exist
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'notification_task' 
+                                    AND CONSTRAINT_NAME = 'fk_notification_task_receiver');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE notification_task DROP FOREIGN KEY fk_notification_task_receiver', 
+                         'SELECT "fk_notification_task_receiver does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'notification_task' 
+                                    AND CONSTRAINT_NAME = 'fk_notification_task_sender');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE notification_task DROP FOREIGN KEY fk_notification_task_sender', 
+                         'SELECT "fk_notification_task_sender does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'access_requests' 
+                                    AND CONSTRAINT_NAME = 'fk_access_requests_user');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE access_requests DROP FOREIGN KEY fk_access_requests_user', 
+                         'SELECT "fk_access_requests_user does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'asset_credentials' 
+                                    AND CONSTRAINT_NAME = 'fk_asset_credentials_user');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE asset_credentials DROP FOREIGN KEY fk_asset_credentials_user', 
+                         'SELECT "fk_asset_credentials_user does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'asset_approvers' 
+                                    AND CONSTRAINT_NAME = 'fk_asset_approvers_user');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE asset_approvers DROP FOREIGN KEY fk_asset_approvers_user', 
+                         'SELECT "fk_asset_approvers_user does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'access_level_objects' 
+                                    AND CONSTRAINT_NAME = 'fk_access_level_objects_requestor');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE access_level_objects DROP FOREIGN KEY fk_access_level_objects_requestor', 
+                         'SELECT "fk_access_level_objects_requestor does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'asset_query_change_requests' 
+                                    AND CONSTRAINT_NAME = 'fk_asset_query_change_requests_requestor');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE asset_query_change_requests DROP FOREIGN KEY fk_asset_query_change_requests_requestor', 
+                         'SELECT "fk_asset_query_change_requests_requestor does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            -- Re-enable foreign key checks
+            SET FOREIGN_KEY_CHECKS = 1;
+        </sql>
+
+        <!-- Add new foreign key constraints with CASCADE DELETE -->
+        <addForeignKeyConstraint baseTableName="notification_task"
+                                 baseColumnNames="receiver_id"
+                                 constraintName="fk_notification_task_receiver"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="notification_task"
+                                 baseColumnNames="sender_id"
+                                 constraintName="fk_notification_task_sender"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="access_requests"
+                                 baseColumnNames="requestor_id"
+                                 constraintName="fk_access_requests_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="asset_credentials"
+                                 baseColumnNames="user_id"
+                                 constraintName="fk_asset_credentials_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="asset_approvers"
+                                 baseColumnNames="user_id"
+                                 constraintName="fk_asset_approvers_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="access_level_objects"
+                                 baseColumnNames="requestor_id"
+                                 constraintName="fk_access_level_objects_requestor"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="asset_query_change_requests"
+                                 baseColumnNames="requestor_id"
+                                 constraintName="fk_asset_query_change_requests_requestor"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <!-- Handle approver_id in users table with SET NULL instead of CASCADE -->
+        <sql>
+            SET FOREIGN_KEY_CHECKS = 0;
+            
+            SET @constraint_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                                    WHERE TABLE_SCHEMA = DATABASE() 
+                                    AND TABLE_NAME = 'users' 
+                                    AND CONSTRAINT_NAME = 'fk_users_approver');
+            SET @sql = IF(@constraint_exists > 0, 
+                         'ALTER TABLE users DROP FOREIGN KEY fk_users_approver', 
+                         'SELECT "fk_users_approver does not exist" AS result');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            
+            SET FOREIGN_KEY_CHECKS = 1;
+        </sql>
+        
+        <addForeignKeyConstraint baseTableName="users"
+                                 baseColumnNames="approver_id"
+                                 constraintName="fk_users_approver"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="SET NULL"/>
+    </changeSet>
+
+</databaseChangeLog> 

@@ -210,7 +210,7 @@ public class AccessRequestController extends BaseAssetAccessController {
     public ResponseEntity<Map<String, Object>> runAssetQuery(@RequestBody AccessQueryDTO queryDto) {
         try {
             Map<String, Object> response = new LinkedHashMap<>();
-            response.put(Constants.STATUS_NAME, Constants.STATUS_SUCCESS);
+            response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
             response.put("results", assetQueryChangeRequestService.runQueryFromDeveloper(queryDto));
             
             return ResponseEntity.ok(response);

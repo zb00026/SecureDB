@@ -1,6 +1,8 @@
 package com.verlake.dam.repository.assets;
 
 import com.verlake.dam.entity.assets.AccessLevel;
+import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.DatabaseType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,35 +13,35 @@ import java.util.List;
 @Repository
 public interface AccessLevelRepository extends JpaRepository<AccessLevel, Long> {
     
-    List<AccessLevel> findByAssetTypeAndDatabaseType(String assetType, String databaseType);
+    List<AccessLevel> findByAssetTypeAndDatabaseType(AssetType assetType, DatabaseType databaseType);
     
     @Query("SELECT DISTINCT a.object FROM AccessLevel a WHERE a.assetType = :assetType AND a.databaseType = :databaseType AND a.object IS NOT NULL")
     List<String> findDistinctObjectsByAssetTypeAndDatabaseType(
-        @Param("assetType") String assetType, 
-        @Param("databaseType") String databaseType
+        @Param("assetType") AssetType assetType, 
+        @Param("databaseType") DatabaseType databaseType
     );
     
     @Query("SELECT a.templates FROM AccessLevel a WHERE a.assetType = :assetType AND a.databaseType = :databaseType AND a.templates IS NOT NULL")
     List<String> findTemplatesByAssetTypeAndDatabaseType(
-        @Param("assetType") String assetType, 
-        @Param("databaseType") String databaseType
+        @Param("assetType") AssetType assetType, 
+        @Param("databaseType") DatabaseType databaseType
     );
     
     List<AccessLevel> findByAssetTypeAndDatabaseTypeAndObject(
-        String assetType, 
-        String databaseType,
+        AssetType assetType, 
+        DatabaseType databaseType,
         String object
     );
     
     AccessLevel findByAssetTypeAndDatabaseTypeAndTemplates(
-        String assetType, 
-        String databaseType,
+        AssetType assetType, 
+        DatabaseType databaseType,
         String templates
     );
 
     @Query("SELECT a FROM AccessLevel a WHERE a.assetType = :assetType AND a.databaseType = :databaseType AND a.templates = 'FETCH ACCESS'")
     AccessLevel findFetchAccessTemplate(
-        @Param("assetType") String assetType, 
-        @Param("databaseType") String databaseType
+        @Param("assetType") AssetType assetType, 
+        @Param("databaseType") DatabaseType databaseType
     );
 } 

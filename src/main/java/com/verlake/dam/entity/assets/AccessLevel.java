@@ -6,9 +6,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 
 import lombok.Data;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.DatabaseType;
 
 @Entity
 @Table(name = "access_levels")
@@ -19,11 +23,13 @@ public class AccessLevel {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "asset_type", nullable = false)
-    private String assetType;
+    private AssetType assetType;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "database_type", nullable = false)
-    private String databaseType;
+    private DatabaseType databaseType;
 
     @Column(name = "object", nullable = false)
     private String object;

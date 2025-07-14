@@ -7,6 +7,7 @@ import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.DatabaseAccessException;
@@ -87,39 +88,83 @@ public class AccessRequestService {
 
     private String generateSql(List<AccessLevelObject> accessLevelObjects) {
         if (accessLevelObjects == null || accessLevelObjects.isEmpty()) {
-            throw new ResourceNotFoundException("No access level objects provided");
+            throw new ResourceNotFoundException(Constants.getMessage("error.no.access.level.objects"));
         }
 
         StringBuilder sqlBuilder = new StringBuilder();
+        
+        // Get database type from the first access level object
+        DatabaseType databaseType = accessLevelObjects.get(0).getAccessLevel().getDatabaseType();
 
         accessLevelObjects.forEach(obj -> {
             AccessLevel level = obj.getAccessLevel();
             String template = level.getAccessTemplate();
-            String dbName = "";
             String tableName = "";
-            if (obj.getAccessLevel().getObject().equals(Constants.ASSET_ACCESS_OBJECT_DATABASE)) {
-                dbName = obj.getObjectName();
+            
+            if (!obj.getAccessLevel().getObject().equals(Constants.ASSET_ACCESS_OBJECT_DATABASE)) {
+                // For table objects like "schema.table" or "database.table"
+                String[] parts = obj.getObjectName().split(Constants.DB_SPLIT_PATTERN);
+                if (parts.length >= 2) {
+                    tableName = parts[1];
             } else {
-                dbName = obj.getObjectName().split("\\.")[0];
-                tableName = obj.getObjectName().split("\\.")[1];
+                    tableName = obj.getObjectName();
+                }
             }
-            // Replace placeholders in template
-            String sql = template
-                    .replace("$DB", dbName)
+            
+            // Apply database-specific placeholder fixes
+            String sql = applyDatabaseSpecificFixes(template, databaseType);
+            
+            // Replace placeholders - convert old $DB to new $DATABASE for consistency
+            sql = sql.replace("$DB", "$DATABASE")  // Convert to standardized placeholder
                     .replace("$TABLE", tableName)
                     .replace("$OBJECT", obj.getObjectName());
 
-            sqlBuilder.append(sql).append(sql.endsWith(";") ? "\n" : ";\n");
+            sqlBuilder.append(sql).append(sql.endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_NEWLINE_SEPARATOR : Constants.SQL_SEMICOLON_NEWLINE);
         });
 
         return sqlBuilder.toString();
+    }
+
+    private String applyDatabaseSpecificFixes(String template, DatabaseType databaseType) {
+        switch (databaseType) {
+            case POSTGRESQL:
+                return template
+                    // Fix PostgreSQL-specific hardcoded values
+                    .replace(Constants.SQL_PLACEHOLDER_DATABASE_PUBLIC, "DATABASE $DATABASE")
+                    .replace(Constants.SQL_PLACEHOLDER_SCHEMA_PUBLIC, "SCHEMA $SCHEMA")
+                    .replace("ON public.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
+                    .replace(Constants.SQL_PLACEHOLDER_IN_SCHEMA_PUBLIC, "IN SCHEMA $SCHEMA");
+                    
+            case SQLSERVER:
+                return template
+                    // Fix SQL Server-specific hardcoded values
+                    .replace(Constants.SQL_PLACEHOLDER_ON_DBO_BRACKET, "ON [$SCHEMA].")
+                    .replace("ON dbo.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
+                    .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
+                    
+            case MYSQL:
+                return template
+                    // MySQL typically uses database.table format
+                    // Most MySQL templates should already be correct, but handle common cases
+                    .replace("@'%'", "@'%'"); // Keep MySQL user@host format as-is
+                    
+            case ORACLE:
+                return template
+                    // Oracle typically uses schema.object format
+                    // Most Oracle templates should already be correct
+                    .replace(Constants.SQL_PLACEHOLDER_ON_USERS, Constants.SQL_TEMPLATE_ON_SCHEMA + "."); // Fix common Oracle default tablespace/schema
+                    
+            default:
+                // No database-specific fixes for unknown types
+                return template;
+        }
     }
 
     public AccessRequest saveAccessRequest(AccessRequestDTO requestDTO, User requestor)
             throws ResourceNotFoundException, JsonParseException, IllegalArgumentException {
         List<AccessLevelObject> accessLevelObjects = requestDTO.getAccessLevelObjects();
         if (accessLevelObjects.isEmpty()) {
-            throw new ResourceNotFoundException("No access level objects provided");
+            throw new ResourceNotFoundException(Constants.getMessage("error.no.access.level.objects"));
         }
 
         // Assuming all objects are for the same asset
@@ -147,7 +192,7 @@ public class AccessRequestService {
         request.setExpiryHours(
                 requestDTO != null && requestDTO.getExpirationHours() != null && requestDTO.getExpirationHours() != 0
                         ? requestDTO.getExpirationHours()
-                        : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
+                        : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));
         // Calculate expiry date
         request.setExpiryDate(request.getRequestTime().plusHours(request.getExpiryHours()));
 
@@ -226,11 +271,11 @@ public class AccessRequestService {
             Map<String, String> notificationData) throws JsonParseException {
         NotificationMessage notificationMessage = new NotificationMessage();
         if (notificationData.get(Constants.EMAIL_VAR_IS_ACCESS_REQUEST).equals("1")) {
-            notificationMessage.setTitle("New Asset Access Request");
+            notificationMessage.setTitle(Constants.getMessage(Constants.NOTIFICATION_TITLE_NEW_ACCESS_REQUEST));
             notificationMessage.setBody(String.format("%s %s has requested access to %s",
                     requestor.getFirstName(), requestor.getLastName(), asset.getName()));
         } else {
-            notificationMessage.setTitle("Relinquished Asset Access Request");
+            notificationMessage.setTitle(Constants.getMessage(Constants.NOTIFICATION_TITLE_RELINQUISHED_ACCESS_REQUEST));
             notificationMessage.setBody(String.format("%s %s has relinquished access to %s",
                     requestor.getFirstName(), requestor.getLastName(), asset.getName()));
         }
@@ -290,14 +335,14 @@ public class AccessRequestService {
 
     public AccessRequest findById(Long id) {
         return accessRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Access Request not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.access.request.not.found") + id));
     }
 
     public AccessRequest setCredentialPassword(Long accessRequestId, AssetCredentialDTO credentialInfo)
             throws CryptoException {
         AccessRequest accessRequest = findById(accessRequestId);
         if (accessRequest == null) {
-            throw new ResourceNotFoundException("No access request provided");
+            throw new ResourceNotFoundException(Constants.getMessage("error.no.access.request"));
         }
 
         AssetCredential devCredential = accessRequest.getAssetCredential();
@@ -312,7 +357,7 @@ public class AccessRequestService {
             throws JsonParseException, ResourceNotFoundException, IllegalArgumentException {
         AccessRequest accessRequest = findById(accessRequestId);
         if (accessRequest == null) {
-            throw new ResourceNotFoundException("No access request provided");
+            throw new ResourceNotFoundException(Constants.getMessage("error.no.access.request"));
         }
 
         accessRequest.setExpiryDate(LocalDateTime.now());
@@ -332,7 +377,7 @@ public class AccessRequestService {
                 .map(credential -> {
                     List<AccessRequest> lstAccessRequest = accessRequestRepository.findPendingsByAsset(credential.getAsset());
                     Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
-                            .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
+                            .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.asset.not.found.msg")));
                     lstAccessRequest.forEach(request -> {
                         AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
                         request.setAssetDTO(assetDTO);
@@ -347,7 +392,7 @@ public class AccessRequestService {
     public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, AccessRequestDTO accessRequestDTO, ApprovalStatus approvalStatus)
             throws JsonParseException {
         AccessRequest accessRequest = accessRequestRepository.findById(accessRequestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Access Request Not Found"));
+                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.access.request.not.found.msg")));
 
         Map<String, String> newCredMapper = new HashMap<>();
         if (approvalStatus == ApprovalStatus.APPROVED) {
@@ -368,9 +413,9 @@ public class AccessRequestService {
             }
             checkUserAndSetCredentials(accessRequest.getAsset().getId(), accessRequest.getRequestor(), accessRequest,
                     existUsername, newCredMapper);
-            if (newCredMapper.containsKey("credentialID")) {
-                AssetCredential credential = assetCredentialsRepository.findById(Long.parseLong(newCredMapper.get("credentialID")))
-                        .orElseThrow(() -> new ResourceNotFoundException("New Created Credential Not Found"));
+            if (newCredMapper.containsKey(Constants.CREDENTIAL_ID_KEY)) {
+                AssetCredential credential = assetCredentialsRepository.findById(Long.parseLong(newCredMapper.get(Constants.CREDENTIAL_ID_KEY)))
+                        .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.new.credential.not.found")));
                 accessRequest.setAssetCredential(credential);
             }
         } else if (approvalStatus == ApprovalStatus.REJECTED) {
@@ -379,26 +424,26 @@ public class AccessRequestService {
         accessRequest.setAssetApproverStatus(approvalStatus);
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
-        accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS);
+        accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));
         // Calculate expiry date
         accessRequest.setExpiryDate(LocalDateTime.now().plusHours(accessRequest.getExpiryHours()));
 
         accessRequestRepository.save(accessRequest);
         User currentUser = userService.getCurrentUser();
         Map<String, String> notificationData = new HashMap<>();
-        notificationData.put("requestId", accessRequest.getId().toString());
-        notificationData.put("assetId", accessRequest.getAsset().getId().toString());
-        notificationData.put("assetName", accessRequest.getAsset().getName());
-        notificationData.put("assetDescription", accessRequest.getAsset().getDescription());
-        notificationData.put("developerName",
+        notificationData.put(Constants.NOTIFICATION_KEY_REQUEST_ID, accessRequest.getId().toString());
+        notificationData.put(Constants.NOTIFICATION_KEY_ASSET_ID, accessRequest.getAsset().getId().toString());
+        notificationData.put(Constants.NOTIFICATION_KEY_ASSET_NAME, accessRequest.getAsset().getName());
+        notificationData.put(Constants.NOTIFICATION_KEY_ASSET_DESCRIPTION, accessRequest.getAsset().getDescription());
+        notificationData.put(Constants.NOTIFICATION_KEY_DEVELOPER_NAME,
                 accessRequest.getRequestor().getFirstName() + " " + accessRequest.getRequestor().getLastName());
-        notificationData.put("approverName",
+        notificationData.put(Constants.NOTIFICATION_KEY_APPROVER_NAME,
                 currentUser.getFirstName() + " " + currentUser.getLastName());
-        notificationData.put("approvalStatus", approvalStatus.name());
-        notificationData.put("messageType", "1"); //1 : success, 0: fail
+        notificationData.put(Constants.NOTIFICATION_KEY_APPROVAL_STATUS, approvalStatus.name());
+        notificationData.put(Constants.EMAIL_VAR_MESSAGE_TYPE, "1"); //1 : success, 0: fail
         if (!newCredMapper.isEmpty()) {
-            notificationData.put(Constants.EMAIL_VAR_DB_USERNAME, newCredMapper.get(Constants.EMAIL_VAR_DB_USERNAME));
-            notificationData.put(Constants.EMAIL_VAR_DB_PASSWORD, newCredMapper.get(Constants.EMAIL_VAR_DB_PASSWORD));
+                    notificationData.put(Constants.EMAIL_VAR_DB_USERNAME, newCredMapper.get(Constants.EMAIL_VAR_DB_USERNAME));
+        notificationData.put(Constants.EMAIL_VAR_DB_PASSWORD, newCredMapper.get(Constants.EMAIL_VAR_DB_PASSWORD));
         }
         sendApprovalNotificationAndEmail(currentUser, accessRequest.getRequestor(), accessRequest.getAsset(),
                 notificationData, approvalStatus);
@@ -408,7 +453,7 @@ public class AccessRequestService {
     private void sendApprovalNotificationAndEmail(User approver, User receiver, Asset asset,
             Map<String, String> notificationData, ApprovalStatus approvalStatus) throws JsonParseException {
         NotificationMessage notificationMessage = new NotificationMessage();
-        notificationMessage.setTitle("Approval Result of Asset Access Request");
+        notificationMessage.setTitle(Constants.getMessage("notification.title.approval.result"));
         if (approvalStatus == ApprovalStatus.APPROVED) {
             if (notificationData.get(Constants.EMAIL_VAR_DB_USERNAME) != null
                     && notificationData.get(Constants.EMAIL_VAR_DB_PASSWORD) != null) {
@@ -466,7 +511,7 @@ public class AccessRequestService {
                 .toList();
 
         if (validCredentials.isEmpty()) {
-            throw new ResourceNotFoundException("No valid credentials found for the current user");
+            throw new ResourceNotFoundException(Constants.getMessage("error.no.valid.credentials"));
         }
 
         AssetCredential cred = validCredentials.get(0);
@@ -486,7 +531,7 @@ public class AccessRequestService {
                     newCredMapper);
         } catch (Exception e) {
             throw new DatabaseAccessException(
-                    "Failed to update database objects upon asset owner login due to credential errors. credential: "
+                    Constants.getMessage("error.credential.errors")
                             + cred.getId(),
                     e);
         }

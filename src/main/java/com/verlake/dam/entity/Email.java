@@ -1,8 +1,6 @@
 package com.verlake.dam.entity;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.verlake.dam.annotation.Audited;
-import com.verlake.dam.converter.JsonAttributeConverter;
 import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.listener.AuditEntityListener;
 
@@ -28,9 +26,17 @@ public class Email {
     @Column(name = "email_type", nullable = false)
     private EmailType emailType;
 
-    @Column(nullable = false, columnDefinition = "json")
-    @Convert(converter = JsonAttributeConverter.class)
-    private JsonNode metadata;
+    @Column(nullable = false, columnDefinition = "text")
+    private String metadata;
+    
+    @PrePersist
+    @PreUpdate
+    private void validateMetadata() {
+        // Ensure metadata is never null before persisting - use empty JSON string if null
+        if (this.metadata == null || this.metadata.trim().isEmpty()) {
+            this.metadata = "{}";
+        }
+    }
 
     @Column(nullable = false)
     private String subject;
