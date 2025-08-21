@@ -82,19 +82,54 @@ public class AuthController {
 
     @PostMapping("/api/auth/verifyToken")
     public ResponseEntity<UserDTO> verifyToken(@RequestBody UserDTO userDto) {
-        log.info("Received authentication request for provider: {}, inviteCode: {}", 
-                 userDto.getAuthProvider(), userDto.getInviteCode());
+        log.info("=== VERIFY TOKEN REQUEST START ===");
+        log.info("Auth Provider: {}", userDto.getAuthProvider());
+        log.info("Has Token: {}", userDto.getToken() != null);
+        log.info("Token Length: {}", userDto.getToken() != null ? userDto.getToken().length() : 0);
+        log.info("Token Preview: {}", userDto.getToken() != null ? userDto.getToken().substring(0, Math.min(50, userDto.getToken().length())) + "..." : "null");
+        log.info("Has Invite Code: {}", userDto.getInviteCode() != null);
+        log.info("Invite Code: {}", userDto.getInviteCode());
         
-        TokenService tokenService = getTokenService(userDto.getAuthProvider());
-        authService.validateToken(userDto, tokenService);
-        User user = authService.authenticateUser(userDto, tokenService);
+        try {
+            log.info("Step 1: Getting token service for provider: {}", userDto.getAuthProvider());
+            TokenService tokenService = getTokenService(userDto.getAuthProvider());
+            log.info("Token service obtained: {}", tokenService.getClass().getSimpleName());
+            
+            log.info("Step 2: Validating token with token service");
+            authService.validateToken(userDto, tokenService);
+            log.info("Token validation successful");
+            
+            log.info("Step 3: Authenticating user with token service");
+            User user = authService.authenticateUser(userDto, tokenService);
+            log.info("User authentication successful for email: {}", user != null ? user.getEmail() : "null");
+            
+            if (user != null) {
+                log.info("User details - ID: {}, Email: {}, Active: {}, Roles: {}", 
+                    user.getId(), user.getEmail(), user.getIsActive(), 
+                    user.getRoles().stream().map(role -> role.getName()).toList());
+            }
 
-        if (isAssetOwner(user)) {
-            processAssetOwnerCredentials(user);
+            log.info("Step 4: Checking if user is asset owner");
+            if (isAssetOwner(user)) {
+                log.info("User is asset owner, processing credentials asynchronously");
+                processAssetOwnerCredentials(user);
+            } else {
+                log.info("User is not asset owner, skipping credential processing");
+            }
+            
+            log.info("Step 5: Setting user in response DTO");
+            userDto.setUser(user);
+            
+            log.info("=== VERIFY TOKEN REQUEST SUCCESS ===");
+            return ResponseEntity.ok().body(userDto);
+            
+        } catch (Exception e) {
+            log.error("=== VERIFY TOKEN REQUEST FAILED ===");
+            log.error("Error Type: {}", e.getClass().getSimpleName());
+            log.error("Error Message: {}", e.getMessage());
+            log.error("Full Stack Trace: ", e);
+            throw e; // Re-throw to maintain existing error handling
         }
-        userDto.setUser(user);
-
-        return ResponseEntity.ok().body(userDto);
     }
 
     @PostMapping("/api/auth/updatePassword")

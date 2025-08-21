@@ -80,7 +80,7 @@
     - name: Set MySQL root password if MySQL is newly installed
       mysql_user:
         name: root
-        password: "{{ db_password }}"
+        password: "{{ lookup('env', 'MYSQL_PASSWORD') }}"
         login_user: root
         login_password: "{{ mysql_temp_password.stdout }}"
         state: present
@@ -96,21 +96,21 @@
 
     - name: Set new password if expired
       shell: |
-        sudo mysql -u root --password="{{ mysql_temp_password.stdout }}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ db_password }}';" --connect-expired-password
+        sudo mysql -u root --password="{{ mysql_temp_password.stdout }}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ lookup('env', 'MYSQL_PASSWORD') }}';" --connect-expired-password
       ignore_errors: yes
 
     - name: Check if the database exists
       shell: |
-        mysql -u root --password='{{ db_password }}' -e "SHOW DATABASES LIKE '{{ db_name }}';"
+        mysql -u root --password='{{ lookup('env', 'MYSQL_PASSWORD') }}' -e "SHOW DATABASES LIKE '{{ lookup('env', 'MYSQL_DB_NAME') }}';"
       register: db_check
       ignore_errors: yes
       failed_when: false
 
     - name: Create database if it does not exist
       mysql_db:
-        name: "{{ db_name }}"
+        name: "{{ lookup('env', 'MYSQL_DB_NAME') }}"
         state: present
         login_user: root
-        login_password: "{{ db_password }}"
+        login_password: "{{ lookup('env', 'MYSQL_PASSWORD') }}"
       ignore_errors: yes
 

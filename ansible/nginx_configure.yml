@@ -1,29 +1,25 @@
 ---
-- name: Configure HTTPS on EC2 Instance for Keycloak and Frontend
+- name: Configure Nginx for Frontend
   hosts: ec2
   become: true
-  vars:
-    keycloak_port: 8081
-    frontend_port: 443
-    https_keycloak_port: 8443
-
   tasks:
-    # Update and install required packages
-    - name: Update system packages
+    - name: Install Nginx
       dnf:
-        name: "*"
-        state: latest
-
-    - name: Install required packages
-      dnf:
-        name:
-          - nginx
-          - openssl
+        name: nginx
         state: present
 
+    - name: Ensure frontend directory exists
+      file:
+        path: /var/www/frontend
+        state: directory
+        mode: '0755'
 
-    # Configure Nginx for Frontend and Keycloak
-    - name: Configure Nginx
+    - name: Check if nginx.conf template exists
+      stat:
+        path: /tmp/nginx.conf
+      register: nginx_template
+
+    - name: Create basic nginx configuration if template not found
       copy:
         dest: /etc/nginx/nginx.conf
         content: |
@@ -37,46 +33,76 @@
           }
 
           http {
-              include       /etc/nginx/mime.types;
-              default_type  application/octet-stream;
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                                '$status $body_bytes_sent "$http_referer" '
+                                '"$http_user_agent" "$http_x_forwarded_for"';
 
+              access_log  /var/log/nginx/access.log  main;
 
-              # Redirect HTTP traffic to HTTPS
+              sendfile            on;
+              tcp_nopush          on;
+              tcp_nodelay         on;
+              keepalive_timeout   65;
+              types_hash_max_size 2048;
+
+              include             /etc/nginx/mime.types;
+              default_type        application/octet-stream;
+
               server {
-                  listen 80;
-                   server_name _;
-                   root /var/www/frontend;
-                   
-                   location / {
-                   try_files \$uri \$uri/ /index.html;
-                   index index.html;
-                   }
+                  listen       80 default_server;
+                  listen       [::]:80 default_server;
+                  server_name  _;
+                  root         /var/www/frontend;
+
+                  location / {
+                      try_files $uri $uri/ /index.html;
+                  }
+
+                  location /api/ {
+                      proxy_pass http://localhost:8080/;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto $scheme;
+                  }
+
+                  error_page   404              /404.html;
+                  error_page   500 502 503 504  /50x.html;
+                  location = /50x.html {
+                      root   /usr/share/nginx/html;
+                  }
               }
           }
+        backup: yes
+      when: not nginx_template.stat.exists
 
-    # Restart Nginx
-    - name: Restart and enable Nginx
+    - name: Process nginx template if it exists
+      shell: |
+        sed "s/\${domain_name}/localhost/g" /tmp/nginx.conf > /etc/nginx/nginx.conf
+      when: nginx_template.stat.exists
+
+    - name: Set proper ownership for frontend files
+      file:
+        path: /var/www/frontend
+        owner: nginx
+        group: nginx
+        recurse: yes
+
+    - name: Test nginx configuration
+      command: nginx -t
+      register: nginx_test
+
+    - name: Enable and start nginx service
       systemd:
         name: nginx
-        state: restarted
-        enabled: true
+        enabled: yes
+        state: started
 
-    # Ensure Keycloak service is running
-    - name: Ensure Keycloak is running
-      shell: |
-        systemctl is-active --quiet keycloak || systemctl start keycloak
-      register: keycloak_status
-      changed_when: keycloak_status.rc == 0
+    - name: Check nginx service status
+      systemd:
+        name: nginx
+      register: nginx_status
 
-    # Open required ports in firewall
-    - name: Open HTTPS port for frontend
-      shell: |
-        firewall-cmd --permanent --add-port={{ frontend_port }}/tcp
-        firewall-cmd --reload
-      ignore_errors: true
-
-    - name: Open HTTPS port for Keycloak
-      shell: |
-        firewall-cmd --permanent --add-port={{ https_keycloak_port }}/tcp
-        firewall-cmd --reload
-      ignore_errors: true
+    - name: Display nginx service status
+      debug:
+        msg: "Nginx service is {{ nginx_status.status.ActiveState }}"

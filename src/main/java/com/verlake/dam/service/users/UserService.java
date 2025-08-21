@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -80,10 +81,37 @@ public class UserService {
     }
 
     public User findByEmail(String email) {
-        return userRepository.findByEmail(email)
-                .orElseGet(() -> {
-                    return null;
-                });
+        log.info("=== UserService.findByEmail START ===");
+        log.info("Looking up user by email: {}", email);
+        
+        try {
+            Optional<User> userOptional = userRepository.findByEmail(email);
+            
+            if (userOptional.isPresent()) {
+                User user = userOptional.get();
+                log.info("User found in database:");
+                log.info("  - ID: {}", user.getId());
+                log.info("  - Email: {}", user.getEmail());
+                log.info("  - First Name: {}", user.getFirstName());
+                log.info("  - Last Name: {}", user.getLastName());
+                log.info("  - Is Active: {}", user.getIsActive());
+                log.info("  - Invite Code: {}", user.getInviteCode());
+                log.info("  - Roles: {}", user.getRoles().stream().map(role -> role.getName()).toList());
+                log.info("=== UserService.findByEmail SUCCESS ===");
+                return user;
+            } else {
+                log.error("User NOT FOUND in database for email: {}", email);
+                log.error("This will likely result in a 403 FORBIDDEN response");
+                log.info("=== UserService.findByEmail NOT FOUND ===");
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("=== UserService.findByEmail FAILED ===");
+            log.error("Exception during user lookup: {}", e.getMessage());
+            log.error("Exception type: {}", e.getClass().getSimpleName());
+            log.error("Full stack trace: ", e);
+            return null;
+        }
     }
 
     public User findById(Long id) {

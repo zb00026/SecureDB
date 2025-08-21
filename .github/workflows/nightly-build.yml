@@ -164,10 +164,18 @@ jobs:
           echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
           echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
           echo "APM_SECRET_TOKEN=\"${{ secrets.APM_SECRET_TOKEN }}\"" >> .env
-          echo "FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY" >> .env
+          echo "FIREBASE_PRIVATE_KEY=\"$FIREBASE_PRIVATE_KEY\"" >> .env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
           
           cp .env build/libs/
+          # Copy ansible folder to build/libs/ so it's included in the ZIP at root level
+          cp -r ansible build/libs/
+          # Copy realm-export.json to build/libs/ so it's included in the ZIP
+          cp src/main/resources/keycloak/realm-export.json build/libs/
+          # Generate and copy logstash.conf to build/libs/
+          export ELASTICSEARCH_URL=${{ env.ELASTICSEARCH_URL }}
+          export ELASTIC_PASSWORD=${{ env.ELASTIC_PASSWORD }}
+          envsubst < src/main/resources/logstash/logstash_temp.conf > build/libs/logstash.conf
           cd build/libs/
           ls -la
           zip -r "../../${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" ./* .env
@@ -224,81 +232,3 @@ jobs:
             --from "$EMAIL_FROM" \
             --destination "ToAddresses=$EMAIL_TO" \
             --message "Subject={Data=$SUBJECT},Body={Text={Data=$BODY}}"
-
-  deploy_to_ec2:
-    needs: backend_build
-    if: success()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set environment variable
-        run: |
-          echo "timestamp=$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_ENV
-
-      - name: Load .env variables
-        run: |
-          # Load the .env file
-          set -o allexport
-          source .env
-          set +o allexport
-          # Save the variables to GITHUB_ENV
-          echo "HOST_DOMAIN=$HOST_DOMAIN" >> $GITHUB_ENV
-          echo "HOST_IP_ADDRESS=$HOST_IP_ADDRESS" >> $GITHUB_ENV
-          echo "HOST_USER=$HOST_USER" >> $GITHUB_ENV
-          echo "HOST_REGION=$HOST_REGION" >> $GITHUB_ENV
-          echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> $GITHUB_ENV
-          echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
-          echo "MYSQL_URL=$MYSQL_URL" >> $GITHUB_ENV
-          echo "MYSQL_USERNAME=$MYSQL_USERNAME" >> $GITHUB_ENV
-          echo "MYSQL_DB_NAME=$MYSQL_DB_NAME" >> $GITHUB_ENV
-          echo "KEYCLOAK_ADMIN_USERNAME=$KEYCLOAK_ADMIN_USERNAME" >> $GITHUB_ENV
-          echo "KEYCLOAK_REALM_NAME=$KEYCLOAK_REALM_NAME" >> $GITHUB_ENV
-          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
-          echo "ELASTICSEARCH_URL=$ELASTICSEARCH_URL" >> $GITHUB_ENV
-          echo "ELASTIC_PASSWORD=${{ secrets.APM_AUTH_PASSWORD }}" >> $GITHUB_ENV
-
-      - name: Update and install Ansible
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
-
-      - name: Set up SSH for EC2
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ env.HOST_IP_ADDRESS }} >> ~/.ssh/known_hosts
-
-      - name: Generate inventory.ini from template
-        run: |
-          export HOST_IP_ADDRESS=${{ env.HOST_IP_ADDRESS }}
-          export HOST_USER=${{ env.HOST_USER }}
-          envsubst < ansible/inventory.ini.j2 > ansible/inventory.ini
-          cat ansible/inventory.ini
-          
-      - name: Generate logstash.conf from template
-        run: |
-          export ELASTICSEARCH_URL=${{ env.ELASTICSEARCH_URL }}
-          export ELASTIC_PASSWORD=${{ env.ELASTIC_PASSWORD }}
-          envsubst < ./src/main/resources/logstash/logstash_temp.conf > logstash.conf
-          cat logstash.conf
-      
-      - name: Clean up temporary files on EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }} 'sudo rm -rf /tmp/*'
-
-      - name: Upload realm-export.json and logstash.conf to EC2
-        run: |
-          scp -i ~/.ssh/id_rsa ./src/main/resources/keycloak/realm-export.json ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }}:/tmp/realm-export.json
-          scp -i ~/.ssh/id_rsa logstash.conf ${{ env.HOST_USER }}@${{ env.HOST_IP_ADDRESS }}:/tmp/logstash.conf
-
-      - name: Deploy to EC2 using Ansible
-        run: |
-          ansible-playbook -i ansible/inventory.ini ansible/mysql_install.yml -e "db_name=${{ env.MYSQL_DB_NAME }} db_password=${{ env.MYSQL_PASSWORD }}"
-          ansible-playbook -i ansible/inventory.ini ansible/keycloak_install.yml -e "host_domain=${{ env.HOST_DOMAIN }} ec2_ip=${{ env.HOST_IP_ADDRESS }} s3_bucket=${{ env.S3_BUCKET_NAME }} keycloak_admin_user=${{ env.KEYCLOAK_ADMIN_USERNAME }} keycloak_admin_password=${{ env.KEYCLOAK_ADMIN_USER_PASSWORD }} keycloak_client_secret=${{ env.KEYCLOAK_CLIENT_SECRET }} realm_name=${{ env.KEYCLOAK_REALM_NAME }}"
-          ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e "aws_access_key=${{ secrets.AWS_ACCESS_KEY_ID }} aws_secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} host_ip_address=${{ env.HOST_IP_ADDRESS }} domain_name=${{ env.HOST_DOMAIN }} s3_bucket=${{ env.S3_BUCKET_NAME }} host_user=${{ env.HOST_USER }} backend_artifact=${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ needs.backend_build.outputs.timestamp }}.zip"
-          ansible-playbook -i ansible/inventory.ini ansible/logstash_install.yml -e host_user=${{ env.HOST_USER }}

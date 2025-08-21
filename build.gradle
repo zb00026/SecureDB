@@ -171,6 +171,9 @@ tasks.withType(JavaCompile).configureEach {
 	options.compilerArgs << "-parameters";
 }
 
+// Include ansible folder in the JAR
+// Removed ansible from JAR - it should be in ZIP root via GitHub Actions
+
 configurations {
 	configureEach {
 		// Exclude log4j-to-slf4j globally

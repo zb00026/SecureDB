@@ -12,62 +12,66 @@
 
     - name: Printing backend artifact
       shell:
-        echo "{{ backend_artifact }}"
+        echo "{{ lookup('env', 'BACKEND_ARTIFACT_PREFIX') }}-{{ lookup('env', 'timestamp') }}.zip"
 
     - name: Ensure the backend directory exists
       file:
         path: "/var/spring_backend"
         state: directory
         mode: '0770'
-        owner: "{{ host_user }}"
-        group: "{{ host_user }}"
+        owner: "{{ lookup('env', 'HOST_USER') }}"
+        group: "{{ lookup('env', 'HOST_USER') }}"
 
     - name: Ensure the backend directory exists
       file:
         path: "/var/spring_backend/backend"
         state: directory
         mode: '0770'
-        owner: "{{ host_user }}"
-        group: "{{ host_user }}"
+        owner: "{{ lookup('env', 'HOST_USER') }}"
+        group: "{{ lookup('env', 'HOST_USER') }}"
 
     - name: Stop any existing Java processes
       shell: |
         pkill -f 'java -jar /var/spring_backend/backend/DAM-0.0.1-SNAPSHOT.jar'
-        sudo systemctl stop dam-backend
+        sudo systemctl stop dam_backend
       ignore_errors: yes
 
-    - name: Download the latest backend artifact from S3tail
-      aws_s3:
-        bucket: "{{ s3_bucket }}"
-        object: "{{ backend_artifact }}"
-        dest: "/tmp/{{ backend_artifact }}"
-        mode: get
-        aws_access_key: "{{ aws_access_key }}"
-        aws_secret_key: "{{ aws_secret_key }}"
-        region: "ap-south-1"
+    # Skip S3 download for manual testing - files are already in place
+    - name: Check if JAR file exists (for manual testing)
+      stat:
+        path: "/var/spring_backend/backend/DAM-0.0.1-SNAPSHOT.jar"
+      register: jar_file_check
 
-    - name: Unzip backend artifact
-      unarchive:
-        src: "/tmp/{{ backend_artifact }}"
-        dest: "/var/spring_backend/backend"
-        remote_src: yes
+    - name: Fail if JAR file not found
+      fail:
+        msg: "DAM-0.0.1-SNAPSHOT.jar not found in /var/spring_backend/backend/. Please ensure files are copied manually."
+      when: not jar_file_check.stat.exists
 
-    - name: Install DAM Backend service
-      shell: |
-        
-        sudo chown -R /var/spring_backend/backend
+    - name: Change ownership of backend directory
+      file:
+        path: /var/spring_backend/backend
+        owner: "{{ lookup('env', 'HOST_USER') }}"
+        group: "{{ lookup('env', 'HOST_USER') }}"
+        recurse: yes
 
-        sudo systemctl stop dam_backend
+    - name: Stop DAM Backend service if running
+      systemd:
+        name: dam_backend
+        state: stopped
+      ignore_errors: yes
 
-        # Create a service file for DAM Backend
-        echo "[Unit]
+    - name: Create DAM Backend systemd service file
+      copy:
+        dest: /etc/systemd/system/dam_backend.service
+        content: |
+          [Unit]
           Description=Spring Boot DAM Backend Application
           After=syslog.target
           After=network.target
 
           [Service]
-          User={{ host_user }}
-          Group={{ host_user }}
+          User={{ lookup('env', 'HOST_USER') }}
+          Group={{ lookup('env', 'HOST_USER') }}
           WorkingDirectory=/var/spring_backend/backend
           ExecStart=/usr/bin/java -jar /var/spring_backend/backend/DAM-0.0.1-SNAPSHOT.jar --spring.profiles.active=qa
           SuccessExitStatus=143
@@ -76,21 +80,34 @@
           RestartSec=10
 
           [Install]
-          WantedBy=multi-user.target" | sudo tee /etc/systemd/system/dam_backend.service > /dev/null
+          WantedBy=multi-user.target
+        mode: '0644'
 
-        # Reload systemd to apply the service
-        sudo systemctl daemon-reload
-        sudo systemctl enable dam_backend
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
 
-        # Start Keycloak service
-        sudo systemctl start dam_backend
+    - name: Enable DAM Backend service
+      systemd:
+        name: dam_backend
+        enabled: yes
 
-
-        echo "DAM Backend Service is ready."
-      ignore_errors: yes
+    - name: Start DAM Backend service
+      systemd:
+        name: dam_backend
+        state: started
       register: dam_backend_service
 
     - name: Debug DAM Backend Service status
       debug:
-        msg: "DAM Backend Service: {{ dam_backend_service.stdout }}"
-      when: dam_backend_service.stdout is defined
+        msg: "DAM Backend Service: {{ dam_backend_service.status }}"
+      when: dam_backend_service.status is defined
+
+    - name: Check DAM Backend service status
+      systemd:
+        name: dam_backend
+      register: backend_status
+
+    - name: Display backend service status
+      debug:
+        msg: "Backend service is {{ backend_status.status.ActiveState }}"

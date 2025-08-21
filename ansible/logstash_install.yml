@@ -30,7 +30,7 @@
         mode: '0700'
 
     - name: Copy Logstash configuration file with sudo
-      command: sudo cp /tmp/logstash.conf /etc/logstash/conf.d/logstash.conf
+      command: sudo cp /var/spring_backend/backend/logstash.conf /etc/logstash/conf.d/logstash.conf
 
     - name: Set ownership and permissions for logstash.conf
       command: sudo chown logstash:logstash /etc/logstash/conf.d/logstash.conf

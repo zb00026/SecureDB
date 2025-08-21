@@ -31,10 +31,21 @@ public class TokenServiceManager {
     }
 
     public TokenService getService(AuthProvider provider) {
+        log.info("=== TokenServiceManager.getService START ===");
+        log.info("Requested provider: {}", provider);
+        log.info("Available providers: {}", tokenServiceMap.keySet());
+        log.info("Active providers from config: {}", activeProviders);
+        
         if (!isProviderActive(provider)) {
+            log.error("Provider {} is NOT ACTIVE", provider);
+            log.error("This will result in a BAD_REQUEST (400) response");
             return null;
         }
-        return tokenServiceMap.get(provider);
+        
+        TokenService service = tokenServiceMap.get(provider);
+        log.info("Token service found for provider {}: {}", provider, service != null ? service.getClass().getSimpleName() : "null");
+        log.info("=== TokenServiceManager.getService SUCCESS ===");
+        return service;
     }
 
     public boolean isProviderActive(AuthProvider provider) {

@@ -51,12 +51,12 @@
         [Service]
         Type=simple
         User=keycloak
-        Environment=KEYCLOAK_ADMIN={{ keycloak_admin_user }}
-        Environment=KEYCLOAK_ADMIN_PASSWORD={{ keycloak_admin_password }}
+        Environment=KEYCLOAK_ADMIN={{ lookup('env', 'KEYCLOAK_ADMIN_USERNAME') }}
+        Environment=KEYCLOAK_ADMIN_PASSWORD={{ lookup('env', 'KEYCLOAK_ADMIN_USER_PASSWORD') }}
         Environment=KC_HEALTH_ENABLED=true
         Environment=KC_METRICS_ENABLED=true
         Environment=KC_FEATURES=scripts
-        ExecStart=/opt/keycloak-26.1.0/bin/kc.sh start --hostname=https://{{ host_domain }}:8081 --http-enabled=true --hostname-strict=false --http-port=8081 --spi-script-upload-enabled=true
+        ExecStart=/opt/keycloak-26.1.0/bin/kc.sh start --hostname=https://{{ lookup('env', 'HOST_DOMAIN') }} --http-enabled=true --hostname-strict=false --http-port=8081 --spi-script-upload-enabled=true
         Restart=on-failure
         LimitNOFILE=10240
 
@@ -92,7 +92,7 @@
 
     - name: Check if Keycloak realm exists
       uri:
-        url: "{{ local_keycloak_url }}/realms/{{ realm_name }}"
+        url: "{{ local_keycloak_url }}/realms/{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}"
         method: GET
         return_content: yes
         status_code: 200
@@ -102,7 +102,7 @@
 
     - name: Create Keycloak root admin user token
       shell: |
-        curl -s -X POST {{ local_keycloak_url }}/realms/master/protocol/openid-connect/token -d 'username={{ keycloak_admin_user }}' -d 'password={{ keycloak_admin_password }}' -d 'grant_type=password' -d 'client_id=admin-cli' | jq -r '.access_token'
+        curl -s -X POST {{ local_keycloak_url }}/realms/master/protocol/openid-connect/token -d 'username={{ lookup('env', 'KEYCLOAK_ADMIN_USERNAME') }}' -d 'password={{ lookup('env', 'KEYCLOAK_ADMIN_USER_PASSWORD') }}' -d 'grant_type=password' -d 'client_id=admin-cli' | jq -r '.access_token'
       register: keycloak_token
       failed_when: "'error' in keycloak_token.stderr"
       ignore_errors: yes  # To continue even if it fails for debugging purposes
@@ -112,13 +112,69 @@
         msg: "Keycloak Token: {{ keycloak_token.stdout }}"
       when: keycloak_token is defined
 
-    - name: Set up Keycloak realm (assuming realm-export.json is present)
+    - name: Check if realm-export.json exists
+      stat:
+        path: /var/spring_backend/backend/realm-export.json
+      register: realm_export_file
+
+    - name: Import Keycloak realm from realm-export.json
       shell: |
-        curl -s -X POST {{ local_keycloak_url }}/admin/realms \ 
-        -H 'Authorization: Bearer {{ keycloak_token.stdout }}' \ 
-        -H 'Content-Type: application/json' \
-        --data-binary @/tmp/realm-export.json
+        set -e
+        echo "Attempting to import DAM realm..."
+        
+        # Retry logic for realm import (Keycloak API might not be fully ready)
+        for attempt in {1..5}; do
+          echo "Import attempt $attempt/5"
+          
+          response=$(curl -s -w "%{http_code}" -X POST {{ local_keycloak_url }}/admin/realms \
+            -H 'Authorization: Bearer {{ keycloak_token.stdout }}' \
+            -H 'Content-Type: application/json' \
+            --data-binary @/var/spring_backend/backend/realm-export.json)
+          
+          http_code="${response: -3}"
+          response_body="${response%???}"
+          
+          echo "HTTP Code: $http_code"
+          echo "Response: $response_body"
+          
+          if [ "$http_code" = "201" ] || [ "$http_code" = "409" ]; then
+            if [ "$http_code" = "201" ]; then
+              echo "Realm imported successfully"
+            else
+              echo "Realm already exists (409), continuing..."
+            fi
+            exit 0
+          elif [ "$http_code" = "401" ]; then
+            echo "Authentication failed - token may be invalid"
+            exit 1
+          else
+            echo "Import failed with HTTP $http_code, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
+        
+        echo "Failed to import realm after 5 attempts"
+        exit 1
+      register: realm_import_result
+      when: keycloak_token.stdout is defined and realm_export_file.stat.exists
+      failed_when: realm_import_result.rc != 0
+
+    - name: Display realm import result
+      debug:
+        msg: "Realm import output: {{ realm_import_result.stdout }}"
+      when: realm_import_result is defined
+
+    - name: Verify DAM realm was created
+      uri:
+        url: "{{ local_keycloak_url }}/admin/realms/DAM"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ keycloak_token.stdout }}"
+        status_code: 200
+      register: realm_verification
       when: keycloak_token.stdout is defined
+      retries: 3
+      delay: 5
 
     - name: Get DAM realm client list
       shell: |
@@ -131,7 +187,7 @@
 
     - name: Get the dam_client_id for the DAM client
       shell: |
-        jq '.[] | select(.clientId=="{{ realm_name }}-realm") | .id' /tmp/clients.json
+        jq '.[] | select(.clientId=="{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}-realm") | .id' /tmp/clients.json
       register: dam_client_id
       failed_when: false
       changed_when: false
@@ -143,7 +199,7 @@
 
     - name: Get the manage-users role ID from DAM realm
       shell: |
-        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/clients/{{ dam_client_id.stdout }}/roles -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/roles.json
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}/clients/{{ dam_client_id.stdout }}/roles -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/roles.json
         jq '.[] | select(.name=="manage-users") | .id' /tmp/roles.json
       register: dam_users_management_role
       failed_when: false
@@ -179,7 +235,7 @@
 
     - name: Check if DAM admin user exists in Keycloak
       shell: |
-        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/response.json
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}/users -H "Authorization: Bearer {{ keycloak_token.stdout }}" -o /tmp/response.json
         jq '.[] | select(.username=="admin") | .username' /tmp/response.json
       register: admin_user_check
       failed_when: false
@@ -194,11 +250,11 @@
     - name: Get the manage-account role ID from account client
       shell: |
         # First get account client ID
-        account_client_id=$(curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/clients \
+        account_client_id=$(curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}/clients \
         -H "Authorization: Bearer {{ keycloak_token.stdout }}" | jq -r '.[] | select(.clientId=="account") | .id')
         
         # Then get manage-account role ID
-        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/clients/$account_client_id/roles \
+        curl -s -X GET {{ local_keycloak_url }}/admin/realms/{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}/clients/$account_client_id/roles \
         -H "Authorization: Bearer {{ keycloak_token.stdout }}" | jq -r '.[] | select(.name=="manage-account") | .id'
       register: manage_account_role
       failed_when: false
@@ -211,16 +267,16 @@
     - name: Create DAM admin user if not exist in Keycloak
       shell: |
         # First create the user
-        user_response=$(curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ realm_name }}/users \
+        user_response=$(curl -s -X POST {{ local_keycloak_url }}/admin/realms/{{ lookup('env', 'KEYCLOAK_REALM_NAME') }}/users \
         -H "Authorization: Bearer {{ keycloak_token.stdout }}" \
-        -d "{\"username\": \"{{ keycloak_admin_user }}\", \
+        -d "{\"username\": \"{{ lookup('env', 'KEYCLOAK_ADMIN_USERNAME') }}\", \
           \"enabled\": true, \
           \"firstName\": \"Admin\", \
           \"lastName\": \"Admin\", \
           \"email\": \"chuc06872@gmail.com\", \
           \"credentials\": [{ \
             \"type\":\"password\", \
-            \"value\":\"{{ keycloak_admin_password }}\", \
+            \"value\":\"{{ lookup('env', 'KEYCLOAK_ADMIN_USER_PASSWORD') }}\", \
             \"temporary\":false \
           }]}" -H 'Content-Type: application/json' -D -)
 
@@ -237,7 +293,7 @@
 
     - name: Ignore Keycloak HTTPS service
       shell: |
-        sudo /opt/keycloak-26.1.0/bin/kcadm.sh config credentials --server {{ local_keycloak_url }} --realm master --user {{ keycloak_admin_user }} --password {{ keycloak_admin_password }}
+        sudo /opt/keycloak-26.1.0/bin/kcadm.sh config credentials --server {{ local_keycloak_url }} --realm master --user {{ lookup('env', 'KEYCLOAK_ADMIN_USERNAME') }} --password {{ lookup('env', 'KEYCLOAK_ADMIN_USER_PASSWORD') }}
         sudo /opt/keycloak-26.1.0/bin/kcadm.sh update realms/master -s sslRequired=NONE
         sudo /opt/keycloak-26.1.0/bin/kcadm.sh update realms/DAM -s sslRequired=NONE
 
