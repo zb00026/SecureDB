@@ -11,6 +11,7 @@ import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
+import com.verlake.dam.entity.assets.dto.PingResult;
 import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.user.User;
@@ -59,6 +60,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
     private final AccessRequestService accessRequestService;
     private final UserService userService;
     private final AssetQueryChangeRequestService assetQueryChangeRequestService;
+    private static final Logger logger = LoggerFactory.getLogger(OwnerAssetController.class);
 
     @Autowired
     private EmailService emailService;
@@ -153,6 +155,26 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @Override
     public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
         return super.getAssetAccess(id);
+    }
+
+    /**
+     * Ping an asset to test connectivity without credentials
+     * This endpoint allows asset owners to verify that the asset's connection details are correct
+     * 
+     * @param id Asset ID to ping
+     * @return PingResult containing success status and response time
+     */
+    @PostMapping("/{id}/ping")
+    public ResponseEntity<PingResult> pingAsset(@PathVariable Long id) {
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        logger.info("Asset owner {} pinging asset ID: {}", currentUserEmail, id);
+        
+        PingResult result = assetService.pingAsset(id);
+        
+        logger.info("Asset ping completed for asset ID: {} by owner: {}. Success: {}", 
+                   id, currentUserEmail, result.isSuccess());
+        
+        return ResponseEntity.ok(result);
     }
 
     @Override

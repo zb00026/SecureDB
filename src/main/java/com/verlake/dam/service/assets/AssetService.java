@@ -34,6 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.Key;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +48,7 @@ import java.util.Optional;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.dto.PingResult;
 
 @Service
 @Slf4j
@@ -100,6 +106,16 @@ public class AssetService {
                 .databaseName(assetDTO.getDatabaseName())
                 .deleted(false)
                 .build();
+
+        // Ping the asset to test connectivity and catch any copy-paste errors
+        PingResult pingResult = pingAsset(asset);
+        
+        if (!pingResult.isSuccess()) {
+            throw new ResourceNotFoundException(String.format("Asset ping failed during creation. Asset: %s, Error: %s", asset.getName(), pingResult.getMessage()));
+        } else {
+            log.info("Asset ping successful during creation. Asset: {}, Response: {}ms", 
+                    asset.getName(), pingResult.getResponseTimeMs());
+        }
 
         return assetRepository.save(asset);
     }
@@ -294,6 +310,16 @@ public class AssetService {
         asset.setHostAddress(updateDTO.getHostAddress());
         asset.setPortNumber(updateDTO.getPortNumber());
         asset.setDatabaseName(updateDTO.getDatabaseName());
+
+        // Ping the asset to test connectivity and catch any copy-paste errors in updated details
+        PingResult pingResult = pingAsset(asset);
+        
+        if (!pingResult.isSuccess()) {
+            throw new ResourceNotFoundException(String.format("Asset ping failed during update. Asset: %s, Error: %s", asset.getName(), pingResult.getMessage()));
+        } else {
+            log.info("Asset ping successful during update. Asset: {} (ID: {}), Response: {}ms", 
+                    asset.getName(), id, pingResult.getResponseTimeMs());
+        }
 
         assetRepository.save(asset);
     }
@@ -600,5 +626,139 @@ public class AssetService {
                  adminCredential.getUsername(), asset.getName());
         
         return adminCredential;
+    }
+
+    /**
+     * Pings an asset to test connectivity without credentials
+     * This method can be used to verify that the asset's connection details are correct
+     * 
+     * @param asset The asset to ping
+     * @return PingResult containing success status and response time
+     */
+    public PingResult pingAsset(Asset asset) {
+        if (asset == null) {
+            return PingResult.failure("Asset is null");
+        }
+
+        if (asset.getHostAddress() == null || asset.getHostAddress().isEmpty()) {
+            return PingResult.failure("Invalid host address: " + asset.getHostAddress());
+        }
+
+        if (asset.getDatabaseType() == null) {
+            return PingResult.failure("Database type is not specified");
+        }
+
+        String jdbcUrl = buildJdbcUrl(asset);
+        Instant startTime = Instant.now();
+        
+        try {
+            // Try to establish a connection without credentials
+            // This will fail with authentication error, but we can catch it
+            // to verify the URL is valid and the server is reachable
+            try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
+                // If we get here, it means the connection was successful
+                // This is unexpected since we didn't provide credentials
+                Duration responseTime = Duration.between(startTime, Instant.now());
+                return PingResult.success("Connection successful", responseTime.toMillis());
+            }
+        } catch (SQLException e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMessage = e.getMessage();
+            
+            // Check if the error is authentication-related (which is expected)
+            // or if it's a connection/URL issue (which indicates a problem)
+            if (isAuthenticationError(errorMessage)) {
+                // Authentication error is expected when no credentials provided
+                // This means the URL is valid and the server is reachable
+                return PingResult.success("Server reachable (authentication required)", responseTime.toMillis());
+            } else if (isConnectionError(errorMessage)) {
+                // Connection error indicates URL or network issues
+                return PingResult.failure("Connection failed: " + errorMessage, responseTime.toMillis());
+            } else {
+                // Other errors
+                return PingResult.failure("Unexpected error: " + errorMessage, responseTime.toMillis());
+            }
+        } catch (Exception e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            return PingResult.failure("Unexpected error: " + e.getMessage(), responseTime.toMillis());
+        }
+    }
+
+    /**
+     * Pings an existing asset to test connectivity without credentials
+     * This method can be used to verify that the asset's connection details are correct
+     * 
+     * @param assetId The ID of the asset to ping
+     * @return PingResult containing success status and response time
+     * @throws ResourceNotFoundException if asset not found
+     */
+    public PingResult pingAsset(Long assetId) {
+        Asset asset = findById(assetId);
+        log.info("Pinging asset: {} (ID: {})", asset.getName(), assetId);
+        
+        PingResult result = pingAsset(asset);
+        
+        if (result.isSuccess()) {
+            log.info("Asset ping successful: {} - {} ({}ms)", 
+                    asset.getName(), result.getMessage(), result.getResponseTimeMs());
+        } else {
+            log.warn("Asset ping failed: {} - {} ({}ms)", 
+                    asset.getName(), result.getMessage(), result.getResponseTimeMs());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Builds the JDBC URL for an asset
+     * 
+     * @param asset The asset to build URL for
+     * @return Complete JDBC URL string
+     */
+    private String buildJdbcUrl(Asset asset) {
+        return switch (asset.getDatabaseType()) {
+            case MYSQL -> Constants.JDBC_MYSQL_URL + asset.getHostUrl();
+            case POSTGRESQL -> Constants.JDBC_POSTGRESQL_URL + asset.getHostUrl();
+            case ORACLE -> Constants.JDBC_ORACLE_URL + asset.getHostUrl();
+            case SQLSERVER -> Constants.JDBC_SQLSERVER_URL + asset.getHostUrl() + Constants.JDBC_SQLSERVER_SSL_PARAMS;
+            default -> throw new IllegalArgumentException("Unsupported database type: " + asset.getDatabaseType());
+        };
+    }
+
+    /**
+     * Checks if the SQL exception is authentication-related
+     */
+    private boolean isAuthenticationError(String errorMessage) {
+        if (errorMessage == null) return false;
+        
+        String message = errorMessage.toLowerCase();
+        return message.contains("access denied") ||
+               message.contains("authentication") ||
+               message.contains("login failed") ||
+               message.contains("invalid credentials") ||
+               message.contains("user") && message.contains("password") ||
+               message.contains("authentication failed") ||
+               message.contains("access denied for user") ||
+               message.contains("password authentication failed") ||
+               message.contains("login failed for user");
+    }
+
+    /**
+     * Checks if the SQL exception is connection-related
+     */
+    private boolean isConnectionError(String errorMessage) {
+        if (errorMessage == null) return false;
+        
+        String message = errorMessage.toLowerCase();
+        return message.contains("connection refused") ||
+               message.contains("connection timed out") ||
+               message.contains("no route to host") ||
+               message.contains("unknown host") ||
+               message.contains("network is unreachable") ||
+               message.contains("connection reset") ||
+               message.contains("host not found") ||
+               message.contains("connection failed") ||
+               message.contains("timeout") ||
+               message.contains("unable to connect");
     }
 }

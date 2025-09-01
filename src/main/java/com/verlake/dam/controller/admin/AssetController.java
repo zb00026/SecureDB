@@ -6,6 +6,7 @@ import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
+import com.verlake.dam.entity.assets.dto.PingResult;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.AssetCsvService;
@@ -106,6 +107,27 @@ public class AssetController extends BaseAssetAccessController {
     @Override
     public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
         return super.getAssetAccess(id);
+    }
+
+    /**
+     * Ping an asset to test connectivity without credentials
+     * This endpoint allows admins to verify that the asset's connection details are correct
+     * 
+     * @param id Asset ID to ping
+     * @return PingResult containing success status and response time
+     */
+    @PostMapping("/{id}/ping")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
+    public ResponseEntity<PingResult> pingAsset(@PathVariable Long id) {
+        String currentAdminEmail = CommonUtils.getEmailFromSession();
+        logger.info("Admin {} pinging asset ID: {}", currentAdminEmail, id);
+        
+        PingResult result = assetService.pingAsset(id);
+        
+        logger.info("Asset ping completed for asset ID: {} by admin: {}. Success: {}", 
+                   id, currentAdminEmail, result.isSuccess());
+        
+        return ResponseEntity.ok(result);
     }
 
     /**
