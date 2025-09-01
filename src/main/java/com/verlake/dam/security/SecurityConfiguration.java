@@ -46,6 +46,7 @@ public class SecurityConfiguration {
                     log.info("Configuring authorization rules:");
                     log.info("  - Permitting all: /public/**, /api/auth/**, /api/firebase/notifications/**, /api/license/status, /api/auth/validateResetToken");
                     log.info("  - Admin paths: /api{}", Roles.ADMIN.getAvailablePath());
+                    log.info("  - AI Chat paths: /api/ai/chat/** (Admin only)");
                     log.info("  - Asset Owner paths: /api/asset_owner/assets/**");
                     log.info("  - Developer paths: /api{}", Roles.DEVELOPER.getAvailablePath());
                     log.info("  - Approver paths: /api{}", Roles.APPROVER.getAvailablePath());
@@ -62,7 +63,9 @@ public class SecurityConfiguration {
                             .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())
                             .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.APPROVER.name())
                             .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
-                            .requestMatchers("/api" + Roles.ASSET_OWNER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name())
+                            .requestMatchers("/api" + Roles.ASSET_OWNER.getAvailablePath(), "/api/ai/chat/**").hasAnyAuthority(
+                                Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name(),
+                                Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                             .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
                             .anyRequest().denyAll();
                 })

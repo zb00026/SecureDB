@@ -2,6 +2,7 @@ package com.verlake.dam.controller.common;
 
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -36,7 +37,7 @@ public abstract class BaseAssetAccessController {
             // Handle access denied scenarios
             if (e.getCause() instanceof AccessDeniedException ||
                 e.getMessage().contains("User has no access to asset")) {
-                Map<String, String> errorResponse = Map.of("error", "User has no access to asset");
+                Map<String, String> errorResponse = Map.of(Constants.ERROR_FIELD_ERROR, "User has no access to asset");
                 return ResponseEntity.status(403).body(errorResponse);
             }
             
@@ -56,7 +57,7 @@ public abstract class BaseAssetAccessController {
      */
     protected ResponseEntity<?> handleGenericError(RuntimeException e) {
         // Default implementation returns 500 with error message
-        Map<String, String> errorResponse = Map.of("error", "Failed to fetch asset access information");
+        Map<String, String> errorResponse = Map.of(Constants.ERROR_FIELD_ERROR, "Failed to fetch asset access information");
         return ResponseEntity.status(500).body(errorResponse);
     }
 } 

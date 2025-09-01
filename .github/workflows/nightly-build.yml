@@ -20,6 +20,7 @@ env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
 jobs:
   backend_build:
@@ -166,6 +167,7 @@ jobs:
           echo "APM_SECRET_TOKEN=\"${{ secrets.APM_SECRET_TOKEN }}\"" >> .env
           echo "FIREBASE_PRIVATE_KEY=\"$FIREBASE_PRIVATE_KEY\"" >> .env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
           
           cp .env build/libs/
           # Copy ansible folder to build/libs/ so it's included in the ZIP at root level

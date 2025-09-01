@@ -4,6 +4,7 @@ import com.verlake.dam.entity.License;
 import com.verlake.dam.exception.LicenseException;
 import com.verlake.dam.repository.LicenseRepository;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -215,7 +216,7 @@ public class LicenseService {
                 "totalLicenses", 0L,
                 "activeLicenses", 0L,
                 "hasActiveLicense", false,
-                "error", "Failed to retrieve statistics"
+                Constants.ERROR_FIELD_ERROR, "Failed to retrieve statistics"
             );
         }
     }

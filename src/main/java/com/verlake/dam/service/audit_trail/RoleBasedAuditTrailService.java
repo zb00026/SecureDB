@@ -4,6 +4,7 @@ import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetApprover;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.utils.Constants;
 import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.Roles;
@@ -58,7 +59,7 @@ public class RoleBasedAuditTrailService {
         // Execute the filtered query
         Page<AuditTrail> result = auditTrailRepository.findAll(
             filter.toSpecification(), 
-            filter.toPageRequest(Sort.by(Sort.Direction.DESC, "timestamp"))
+            filter.toPageRequest(Sort.by(Sort.Direction.DESC, Constants.TIMESTAMP_NAME))
         );
         
         log.debug("Returned {} audit trail records for user {}", result.getTotalElements(), currentUser.getEmail());

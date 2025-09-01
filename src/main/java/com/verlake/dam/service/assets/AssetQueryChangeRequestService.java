@@ -16,8 +16,10 @@ import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.service.ai.DataMaskingService;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.exception.AssetQueryChangeRequestNotFoundException;
+import com.verlake.dam.exception.QueryExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -47,12 +49,14 @@ public class AssetQueryChangeRequestService {
     private final ObjectMapper objectMapper;
     private final AccessRequestService accessRequestService;
     private final AuditTrailService auditTrailService;
+    private final DataMaskingService dataMaskingService;
 
     public AssetQueryChangeRequestService(AssetQueryChangeRequestRepository assetQueryChangeRequestRepository,
             AssetService assetService,
             AssetApproversRepository assetApproversRepository,
             NotificationTaskRepository notificationTaskRepository, DatabaseAccessService databaseAccessService,
-            UserService userService, AccessRequestService accessRequestService, AuditTrailService auditTrailService) {
+            UserService userService, AccessRequestService accessRequestService, AuditTrailService auditTrailService,
+            DataMaskingService dataMaskingService) {
         this.assetQueryChangeRequestRepository = assetQueryChangeRequestRepository;
         this.assetService = assetService;
         this.assetApproversRepository = assetApproversRepository;
@@ -62,6 +66,7 @@ public class AssetQueryChangeRequestService {
         this.objectMapper = new ObjectMapper();
         this.accessRequestService = accessRequestService;
         this.auditTrailService = auditTrailService;
+        this.dataMaskingService = dataMaskingService;
     }
 
     /**
@@ -272,17 +277,56 @@ public class AssetQueryChangeRequestService {
     }
 
     public Map<String, Object> runQueryFromDeveloper(AccessQueryDTO accessQueryDTO) {
+        AccessRequest accessRequest = validateAccessRequest(accessQueryDTO);
+        AssetCredential devCredential = validateAssetCredential(accessRequest);
+        validateAccessRequestStatus(accessRequest);
+
+        long startTime = System.currentTimeMillis();
+
+        try {
+            Map<String, Object> result = executeQueryWithMasking(accessQueryDTO, accessRequest, devCredential);
+            
+            if (accessQueryDTO.isChangeRequest()) {
+                createChangeRequest(accessQueryDTO, accessRequest);
+            }
+
+            createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, true, null, result, startTime);
+            return result;
+            
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            log.error("Error executing query for access request: {}", accessQueryDTO.getRequestId(), e);
+            createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, false, errorMessage, null, startTime);
+            throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Validate access request
+     */
+    private AccessRequest validateAccessRequest(AccessQueryDTO accessQueryDTO) {
         AccessRequest accessRequest = accessRequestService.findById(accessQueryDTO.getRequestId());
         if (accessRequest == null) {
             throw new ResourceNotFoundException("No access request provided");
         }
-
+        return accessRequest;
+    }
+    
+    /**
+     * Validate asset credential
+     */
+    private AssetCredential validateAssetCredential(AccessRequest accessRequest) {
         AssetCredential devCredential = accessRequest.getAssetCredential();
         if (devCredential == null) {
             throw new ResourceNotFoundException("No asset credential found for this access request");
         }
-
-        // Validate that the access request is approved and not expired
+        return devCredential;
+    }
+    
+    /**
+     * Validate access request status
+     */
+    private void validateAccessRequestStatus(AccessRequest accessRequest) {
         if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
                 !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
             throw new IllegalArgumentException("Access request is not approved");
@@ -291,45 +335,62 @@ public class AssetQueryChangeRequestService {
         if (accessRequest.getExpiryDate() != null && accessRequest.getExpiryDate().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Access request has expired");
         }
-
-        Map<String, Object> result = null;
-        boolean querySuccess = false;
-        String errorMessage = null;
-        long startTime = System.currentTimeMillis();
-
+    }
+    
+    /**
+     * Execute query with masking
+     */
+    private Map<String, Object> executeQueryWithMasking(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest, AssetCredential devCredential) {
         try {
-            result = databaseAccessService.executeQueryWithCredentialsDryRun(devCredential, accessQueryDTO.getQuery(),
-                    accessQueryDTO.isChangeRequest());
-            querySuccess = true;
-            if (accessQueryDTO.isChangeRequest()) {
-                AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
-                changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
-                changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
-                changeRequest.setQuery(accessQueryDTO.getQuery());
-
-                // Get current user and asset for notifications
-                User currentUser = userService.getCurrentUser();
-                Asset asset = accessRequest.getAsset();
-
-                saveChangeRequestWithNotifications(changeRequest, asset, currentUser);
+            Map<String, Object> result = databaseAccessService.executeQueryWithCredentialsDryRun(devCredential, accessQueryDTO.getQuery(), accessQueryDTO.isChangeRequest());
+            
+            if (result != null && result.containsKey("data")) {
+                applyDataMasking(result, accessRequest);
             }
-
-            // Create successful audit log
-            createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, querySuccess, null, result,
-                    startTime);
-
+            
             return result;
         } catch (Exception e) {
-            errorMessage = e.getMessage();
-            log.error("Error executing query for access request: {}", accessQueryDTO.getRequestId(), e);
-
-            // Create failed audit log
-            createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, querySuccess, errorMessage,
-                    null,
-                    startTime);
-
-            throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
+            throw new QueryExecutionException("Failed to execute query: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Apply data masking to query results
+     */
+    private void applyDataMasking(Map<String, Object> result, AccessRequest accessRequest) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get("data");
+        
+        if (rawResults != null && !rawResults.isEmpty()) {
+            User currentUser = userService.getCurrentUser();
+            String userEmail = currentUser.getEmail();
+            String userRole = currentUser.getRoles().isEmpty() ? "Developer" : 
+                            currentUser.getRoles().iterator().next().getName();
+            
+            List<Map<String, Object>> maskedResults = dataMaskingService.maskQueryResults(
+                accessRequest.getAsset(), userRole, userEmail, rawResults);
+            
+            result.put("data", maskedResults);
+            result.put("maskingApplied", !maskedResults.equals(rawResults));
+            
+            log.info("Applied masking to query results for user {} (role: {}) on asset {}", 
+                    userEmail, userRole, accessRequest.getAsset().getId());
+        }
+    }
+    
+    /**
+     * Create change request
+     */
+    private void createChangeRequest(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
+        AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
+        changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
+        changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
+        changeRequest.setQuery(accessQueryDTO.getQuery());
+
+        User currentUser = userService.getCurrentUser();
+        Asset asset = accessRequest.getAsset();
+
+        saveChangeRequestWithNotifications(changeRequest, asset, currentUser);
     }
 
     private String getCurrentIpAddress() {

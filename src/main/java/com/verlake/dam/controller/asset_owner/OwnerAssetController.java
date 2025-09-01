@@ -2,6 +2,7 @@ package com.verlake.dam.controller.asset_owner;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.verlake.dam.controller.common.BaseAssetAccessController;
+import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.Asset;
@@ -16,6 +17,7 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
+import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.service.assets.AccessRequestService;
@@ -76,6 +78,9 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private AccessLevelObjectRepository accessLevelObjectRepository;
+
+    @Autowired
+    private RoleRepository roleRepository;
 
     @Autowired
     private DatabaseAccessService databaseAccessService;
@@ -301,5 +306,10 @@ public class OwnerAssetController extends BaseAssetAccessController {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to encrypt password", e);
         }
+    }
+
+    @GetMapping("/roles")
+    public List<Role> getAllRoles() {
+        return roleRepository.findAll();
     }
 }

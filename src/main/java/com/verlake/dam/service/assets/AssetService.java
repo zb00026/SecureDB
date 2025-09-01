@@ -201,7 +201,7 @@ public class AssetService {
         asset.setDeleted(true);
 
         // Wipe all credentials
-        credentialsRepository.resetCredentialsByAssetId(asset.getId());
+        credentialsRepository.deleteByAssetId(asset.getId());
 
         assetRepository.save(asset);
     }

@@ -1,0 +1,1326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.15.xsd">
+
+    <changeSet id="031-create-ai-sensitive-patterns-table" author="system">
+        <comment>Create ai_sensitive_patterns table for managing AI sensitive data detection patterns</comment>
+        
+        <createTable tableName="ai_sensitive_patterns">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="pattern_key" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="pattern_name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="pattern_description" type="VARCHAR(500)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="pattern_regex" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="masking_strategy" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="detection_reason" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="sensitivity_level" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="pattern_category" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="is_active" type="TINYINT(1)" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="confidence_score" type="DOUBLE" defaultValueNumeric="0.7">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="preserve_chars" type="INT" defaultValueNumeric="4">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="mask_char" type="VARCHAR(10)" defaultValue="*">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="sample_value" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="version" type="INT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="created_by" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="updated_by" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="ai_sensitive_patterns" indexName="idx_ai_patterns_key">
+            <column name="pattern_key"/>
+        </createIndex>
+
+        <createIndex tableName="ai_sensitive_patterns" indexName="idx_ai_patterns_category">
+            <column name="pattern_category"/>
+        </createIndex>
+
+        <createIndex tableName="ai_sensitive_patterns" indexName="idx_ai_patterns_active">
+            <column name="is_active"/>
+        </createIndex>
+
+        <createIndex tableName="ai_sensitive_patterns" indexName="idx_ai_patterns_sensitivity">
+            <column name="sensitivity_level"/>
+        </createIndex>
+
+        <createIndex tableName="ai_sensitive_patterns" indexName="idx_ai_patterns_strategy">
+            <column name="masking_strategy"/>
+        </createIndex>
+        
+        <!-- Ensure UTF-8 support for text fields and fix boolean column types -->
+        <sql dbms="mysql">
+            ALTER TABLE ai_sensitive_patterns 
+            MODIFY COLUMN pattern_name VARCHAR(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN pattern_description VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN pattern_regex VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN detection_reason VARCHAR(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN sample_value VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1;
+        </sql>
+        
+        <sql dbms="postgresql">
+            ALTER TABLE ai_sensitive_patterns 
+            ALTER COLUMN pattern_name TYPE VARCHAR(200) COLLATE "en_US.utf8",
+            ALTER COLUMN pattern_description TYPE VARCHAR(500) COLLATE "en_US.utf8",
+            ALTER COLUMN pattern_regex TYPE VARCHAR(500) COLLATE "en_US.utf8",
+            ALTER COLUMN detection_reason TYPE VARCHAR(200) COLLATE "en_US.utf8",
+            ALTER COLUMN sample_value TYPE VARCHAR(100) COLLATE "en_US.utf8";
+        </sql>
+        
+        <sql dbms="mssql">
+            ALTER TABLE ai_sensitive_patterns 
+            ALTER COLUMN pattern_name NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN pattern_description NVARCHAR(500) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN pattern_regex NVARCHAR(500) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN detection_reason NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN sample_value NVARCHAR(100) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN is_active BIT NOT NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="031-seed-ai-sensitive-patterns" author="system">
+        <comment>Seed AI sensitive patterns table with default detection patterns</comment>
+        
+        <!-- Email Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="email"/>
+            <column name="pattern_name" value="Email Pattern"/>
+            <column name="pattern_description" value="Detects email address fields"/>
+            <column name="pattern_regex" value="email"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Email field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="EMAIL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="j***@example.com"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="mail"/>
+            <column name="pattern_name" value="Mail Pattern"/>
+            <column name="pattern_description" value="Detects mail address fields"/>
+            <column name="pattern_regex" value="mail"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Email field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="EMAIL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="j***@example.com"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="e-mail"/>
+            <column name="pattern_name" value="E-mail Pattern"/>
+            <column name="pattern_description" value="Detects e-mail address fields"/>
+            <column name="pattern_regex" value="e-mail"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Email field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="EMAIL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="j***@example.com"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- SSN Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="ssn"/>
+            <column name="pattern_name" value="SSN Pattern"/>
+            <column name="pattern_description" value="Detects Social Security Number fields"/>
+            <column name="pattern_regex" value="ssn"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="SSN field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="SSN"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="***********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="social"/>
+            <column name="pattern_name" value="Social Security Pattern"/>
+            <column name="pattern_description" value="Detects social security related fields"/>
+            <column name="pattern_regex" value="social"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="SSN field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="SSN"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="***********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="social_security"/>
+            <column name="pattern_name" value="Social Security Number Pattern"/>
+            <column name="pattern_description" value="Detects social security number fields"/>
+            <column name="pattern_regex" value="social_security"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="SSN field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="SSN"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="***********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Credit Card Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="credit"/>
+            <column name="pattern_name" value="Credit Pattern"/>
+            <column name="pattern_description" value="Detects credit card related fields"/>
+            <column name="pattern_regex" value="credit"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Credit card field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="CREDIT_CARD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.85"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-****-****-1234"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="card"/>
+            <column name="pattern_name" value="Card Pattern"/>
+            <column name="pattern_description" value="Detects card number fields"/>
+            <column name="pattern_regex" value="card"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Credit card field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="CREDIT_CARD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.85"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-****-****-1234"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="cc"/>
+            <column name="pattern_name" value="CC Pattern"/>
+            <column name="pattern_description" value="Detects credit card abbreviation fields"/>
+            <column name="pattern_regex" value="cc"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Credit card field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="CREDIT_CARD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.85"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-****-****-1234"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="credit_card"/>
+            <column name="pattern_name" value="Credit Card Pattern"/>
+            <column name="pattern_description" value="Detects credit card fields"/>
+            <column name="pattern_regex" value="credit_card"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Credit card field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="CREDIT_CARD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.85"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-****-****-1234"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Name Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="name"/>
+            <column name="pattern_name" value="Name Pattern"/>
+            <column name="pattern_description" value="Detects name fields"/>
+            <column name="pattern_regex" value="name"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Name field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NAME"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.75"/>
+            <column name="preserve_chars" valueNumeric="1"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="J*** D***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="fname"/>
+            <column name="pattern_name" value="First Name Pattern"/>
+            <column name="pattern_description" value="Detects first name fields"/>
+            <column name="pattern_regex" value="fname"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Name field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NAME"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.75"/>
+            <column name="preserve_chars" valueNumeric="1"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="J***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="lname"/>
+            <column name="pattern_name" value="Last Name Pattern"/>
+            <column name="pattern_description" value="Detects last name fields"/>
+            <column name="pattern_regex" value="lname"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Name field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NAME"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.75"/>
+            <column name="preserve_chars" valueNumeric="1"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="D***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="first_name"/>
+            <column name="pattern_name" value="First Name Full Pattern"/>
+            <column name="pattern_description" value="Detects first_name fields"/>
+            <column name="pattern_regex" value="first_name"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Name field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NAME"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.75"/>
+            <column name="preserve_chars" valueNumeric="1"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="J***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="last_name"/>
+            <column name="pattern_name" value="Last Name Full Pattern"/>
+            <column name="pattern_description" value="Detects last_name fields"/>
+            <column name="pattern_regex" value="last_name"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Name field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NAME"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.75"/>
+            <column name="preserve_chars" valueNumeric="1"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="D***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Phone Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="phone"/>
+            <column name="pattern_name" value="Phone Pattern"/>
+            <column name="pattern_description" value="Detects phone number fields"/>
+            <column name="pattern_regex" value="phone"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Phone field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="PHONE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="3"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="555-***-****"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="mobile"/>
+            <column name="pattern_name" value="Mobile Pattern"/>
+            <column name="pattern_description" value="Detects mobile phone fields"/>
+            <column name="pattern_regex" value="mobile"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Phone field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="PHONE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="3"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="555-***-****"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="telephone"/>
+            <column name="pattern_name" value="Telephone Pattern"/>
+            <column name="pattern_description" value="Detects telephone fields"/>
+            <column name="pattern_regex" value="telephone"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Phone field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="PHONE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="3"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="555-***-****"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Password Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="password"/>
+            <column name="pattern_name" value="Password Pattern"/>
+            <column name="pattern_description" value="Detects password fields"/>
+            <column name="pattern_regex" value="password"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Password field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="PASSWORD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="pass"/>
+            <column name="pattern_name" value="Pass Pattern"/>
+            <column name="pattern_description" value="Detects pass fields"/>
+            <column name="pattern_regex" value="pass"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Password field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="PASSWORD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="pwd"/>
+            <column name="pattern_name" value="PWD Pattern"/>
+            <column name="pattern_description" value="Detects pwd fields"/>
+            <column name="pattern_regex" value="pwd"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Password field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="PASSWORD"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Address Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="address"/>
+            <column name="pattern_name" value="Address Pattern"/>
+            <column name="pattern_description" value="Detects address fields"/>
+            <column name="pattern_regex" value="address"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Address field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="ADDRESS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.7"/>
+            <column name="preserve_chars" valueNumeric="5"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="123 M*** S***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="addr"/>
+            <column name="pattern_name" value="Addr Pattern"/>
+            <column name="pattern_description" value="Detects addr fields"/>
+            <column name="pattern_regex" value="addr"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Address field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="ADDRESS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.7"/>
+            <column name="preserve_chars" valueNumeric="5"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="123 M*** S***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Birth Date Patterns -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="birth"/>
+            <column name="pattern_name" value="Birth Pattern"/>
+            <column name="pattern_description" value="Detects birth date fields"/>
+            <column name="pattern_regex" value="birth"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Birth date field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="BIRTH_DATE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-01-15"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="dob"/>
+            <column name="pattern_name" value="Date of Birth Pattern"/>
+            <column name="pattern_description" value="Detects date of birth fields"/>
+            <column name="pattern_regex" value="dob"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Birth date field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="BIRTH_DATE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-01-15"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="birth_date"/>
+            <column name="pattern_name" value="Birth Date Pattern"/>
+            <column name="pattern_description" value="Detects birth_date fields"/>
+            <column name="pattern_regex" value="birth_date"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Birth date field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="BIRTH_DATE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****-01-15"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- ===== COMPREHENSIVE PATTERNS ===== -->
+        
+        <!-- API Keys -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="api_key"/>
+            <column name="pattern_name" value="API Key Pattern"/>
+            <column name="pattern_description" value="Detects API key fields"/>
+            <column name="pattern_regex" value="api_?key|x?-?api-?key"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="API key field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="CREDENTIALS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Access Tokens -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="access_token"/>
+            <column name="pattern_name" value="Access Token Pattern"/>
+            <column name="pattern_description" value="Detects access token fields"/>
+            <column name="pattern_regex" value="access_?token|bearer_?token|id_?token|jwt"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Access token field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="CREDENTIALS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Refresh Tokens -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="refresh_token"/>
+            <column name="pattern_name" value="Refresh Token Pattern"/>
+            <column name="pattern_description" value="Detects refresh token fields"/>
+            <column name="pattern_regex" value="refresh_?token"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Refresh token field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="CREDENTIALS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Session IDs -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="session_id"/>
+            <column name="pattern_name" value="Session ID Pattern"/>
+            <column name="pattern_description" value="Detects session ID fields"/>
+            <column name="pattern_regex" value="session_?id|\\bsid\\b|jsessionid|phpsessid|csrftoken|xsrf"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Session ID field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="CREDENTIALS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Security Answers -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="security_answer"/>
+            <column name="pattern_name" value="Security Answer Pattern"/>
+            <column name="pattern_description" value="Detects security answer fields"/>
+            <column name="pattern_regex" value="security_?answer|secret_?answer|mother'?s?_?maiden"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Security answer field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="CREDENTIALS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Username -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="username"/>
+            <column name="pattern_name" value="Username Pattern"/>
+            <column name="pattern_description" value="Detects username fields"/>
+            <column name="pattern_regex" value="username|user_?name|login_?id|handle|screen_?name"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Username field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="CREDENTIALS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="2"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="jo***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- User ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="user_id"/>
+            <column name="pattern_name" value="User ID Pattern"/>
+            <column name="pattern_description" value="Detects user ID fields"/>
+            <column name="pattern_regex" value="\\buid\\b|user_?id|customer_?id|account_?id|profile_?id"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="User ID field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="IDENTIFICATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="1234***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Passport -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="passport"/>
+            <column name="pattern_name" value="Passport Pattern"/>
+            <column name="pattern_description" value="Detects passport number fields"/>
+            <column name="pattern_regex" value="passport|pp_?number|passport_?no"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Passport field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="IDENTIFICATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="A123***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Driver's License -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="drivers_license"/>
+            <column name="pattern_name" value="Driver's License Pattern"/>
+            <column name="pattern_description" value="Detects driver's license fields"/>
+            <column name="pattern_regex" value="driver'?s?_?license|dl_?number|license_?number|driving_?license"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Driver's license field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="IDENTIFICATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="DL12***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- National ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="national_id"/>
+            <column name="pattern_name" value="National ID Pattern"/>
+            <column name="pattern_description" value="Detects national ID fields"/>
+            <column name="pattern_regex" value="national_?id|citizen_?id|identity_?card|aadhaar|aadhar|uidai"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="National ID field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="IDENTIFICATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="1234***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Tax ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="tax_id"/>
+            <column name="pattern_name" value="Tax ID Pattern"/>
+            <column name="pattern_description" value="Detects tax ID fields"/>
+            <column name="pattern_regex" value="tax_?id|tin\\b|ein\\b|pan_?number|\\bpan\\b|gst(in)?\\b"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Tax ID field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="IDENTIFICATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="ABCD***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- CVV -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="cvv"/>
+            <column name="pattern_name" value="CVV Pattern"/>
+            <column name="pattern_description" value="Detects CVV fields"/>
+            <column name="pattern_regex" value="\\bcvv\\b|\\bcvc\\b|card_?security_?code|cvn\\b"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="CVV field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="FINANCIAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Bank Account -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="bank_account"/>
+            <column name="pattern_name" value="Bank Account Pattern"/>
+            <column name="pattern_description" value="Detects bank account fields"/>
+            <column name="pattern_regex" value="account_?number|acct_?no|\\biban\\b|account_?no|ban\\b"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Bank account field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="FINANCIAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****1234"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Bank Routing -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="bank_routing"/>
+            <column name="pattern_name" value="Bank Routing Pattern"/>
+            <column name="pattern_description" value="Detects bank routing fields"/>
+            <column name="pattern_regex" value="routing_?number|sort_?code|ifsc|bic|swift"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Bank routing field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="FINANCIAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="****1234"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Card Expiry -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="card_expiry"/>
+            <column name="pattern_name" value="Card Expiry Pattern"/>
+            <column name="pattern_description" value="Detects card expiry fields"/>
+            <column name="pattern_regex" value="exp(ir(y|ation))?_?date|card_?exp|expiry_?mm_?yy"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Card expiry field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="FINANCIAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="2"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="12/**"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Crypto Wallet -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="crypto_wallet"/>
+            <column name="pattern_name" value="Crypto Wallet Pattern"/>
+            <column name="pattern_description" value="Detects crypto wallet fields"/>
+            <column name="pattern_regex" value="wallet_?address|crypto_?address|btc_?address|eth_?address|public_?key"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Crypto wallet field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="FINANCIAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="8"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="1A1zP1***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Medical Record Number -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="medical_record_number"/>
+            <column name="pattern_name" value="Medical Record Number Pattern"/>
+            <column name="pattern_description" value="Detects medical record number fields"/>
+            <column name="pattern_regex" value="mrn\\b|medical_?record|patient_?record|chart_?number"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Medical record number field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="HEALTH"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="MRN1***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Health Insurance ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="health_insurance_id"/>
+            <column name="pattern_name" value="Health Insurance ID Pattern"/>
+            <column name="pattern_description" value="Detects health insurance ID fields"/>
+            <column name="pattern_regex" value="insurance_?id|policy_?number|member_?id|subscriber_?id"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Health insurance ID field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="HEALTH"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="INS1***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Diagnosis Code -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="diagnosis_code"/>
+            <column name="pattern_name" value="Diagnosis Code Pattern"/>
+            <column name="pattern_description" value="Detects diagnosis code fields"/>
+            <column name="pattern_regex" value="icd(_?10|_?9)?\\b|diagnosis_?code|dx_?code"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Diagnosis code field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="HEALTH"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="3"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="E11***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Prescription ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="prescription_id"/>
+            <column name="pattern_name" value="Prescription ID Pattern"/>
+            <column name="pattern_description" value="Detects prescription ID fields"/>
+            <column name="pattern_regex" value="prescription_?id|rx_?number|rx\\b"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Prescription ID field detected"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="pattern_category" value="HEALTH"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.9"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="RX12***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- IP Address -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="ip_address"/>
+            <column name="pattern_name" value="IP Address Pattern"/>
+            <column name="pattern_description" value="Detects IP address fields"/>
+            <column name="pattern_regex" value="ip_?address|ipaddr|client_?ip|remote_?ip|source_?ip"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="IP address field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NETWORK"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="7"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="192.168***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- MAC Address -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="mac_address"/>
+            <column name="pattern_name" value="MAC Address Pattern"/>
+            <column name="pattern_description" value="Detects MAC address fields"/>
+            <column name="pattern_regex" value="mac_?address|hardware_?address"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="MAC address field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NETWORK"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="8"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="00:11:22***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Device ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="device_id"/>
+            <column name="pattern_name" value="Device ID Pattern"/>
+            <column name="pattern_description" value="Detects device ID fields"/>
+            <column name="pattern_regex" value="device_?id|device_?identifier|\\bimei\\b|\\bmeid\\b|serial_?number|android_?id|idfa|aaid"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Device ID field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="NETWORK"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="8"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="12345678***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Geo Coordinates -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="geo_coordinates"/>
+            <column name="pattern_name" value="Geo Coordinates Pattern"/>
+            <column name="pattern_description" value="Detects geo coordinate fields"/>
+            <column name="pattern_regex" value="latitude|longitude|lat_?lng|geo(_?lat|_?lon|_?long)|gps_?(coord(inate)?s?)?"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Geo coordinates field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="LOCATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="6"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="40.712***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Geohash -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="geohash"/>
+            <column name="pattern_name" value="Geohash Pattern"/>
+            <column name="pattern_description" value="Detects geohash fields"/>
+            <column name="pattern_regex" value="geohash|map_?coord(inate)?s"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Geohash field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="LOCATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="drm3***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Biometric Fingerprint -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="biometric_fingerprint"/>
+            <column name="pattern_name" value="Biometric Fingerprint Pattern"/>
+            <column name="pattern_description" value="Detects biometric fingerprint fields"/>
+            <column name="pattern_regex" value="fingerprint|finger_?scan|fp_?template"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Biometric fingerprint field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="BIOMETRIC"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Biometric Face -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="biometric_face"/>
+            <column name="pattern_name" value="Biometric Face Pattern"/>
+            <column name="pattern_description" value="Detects biometric face fields"/>
+            <column name="pattern_regex" value="face_?id|facial_?(template|vector|embedding)|faceprint"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Biometric face field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="BIOMETRIC"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Biometric Iris -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="biometric_iris"/>
+            <column name="pattern_name" value="Biometric Iris Pattern"/>
+            <column name="pattern_description" value="Detects biometric iris fields"/>
+            <column name="pattern_regex" value="iris_?scan|iris_?code"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Biometric iris field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="BIOMETRIC"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Biometric Voice -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="biometric_voice"/>
+            <column name="pattern_name" value="Biometric Voice Pattern"/>
+            <column name="pattern_description" value="Detects biometric voice fields"/>
+            <column name="pattern_regex" value="voiceprint|voice_?id|speaker_?id"/>
+            <column name="masking_strategy" value="full"/>
+            <column name="detection_reason" value="Biometric voice field detected"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="pattern_category" value="BIOMETRIC"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.95"/>
+            <column name="preserve_chars" valueNumeric="0"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="********"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Vehicle ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="vehicle_id"/>
+            <column name="pattern_name" value="Vehicle ID Pattern"/>
+            <column name="pattern_description" value="Detects vehicle ID fields"/>
+            <column name="pattern_regex" value="\\bvin\\b|vehicle_?id|license_?plate|registration_?number"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Vehicle ID field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="VEHICLE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="ABC1***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Student ID -->
+        <insert tableName="ai_sensitive_patterns">
+            <column name="pattern_key" value="student_id"/>
+            <column name="pattern_name" value="Student ID Pattern"/>
+            <column name="pattern_description" value="Detects student ID fields"/>
+            <column name="pattern_regex" value="student_?id|roll_?number|enrollment_?no"/>
+            <column name="masking_strategy" value="partial"/>
+            <column name="detection_reason" value="Student ID field detected"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="pattern_category" value="EDUCATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="confidence_score" valueNumeric="0.8"/>
+            <column name="preserve_chars" valueNumeric="4"/>
+            <column name="mask_char" value="*"/>
+            <column name="sample_value" value="STU1***"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+    </changeSet>
+
+</databaseChangeLog>

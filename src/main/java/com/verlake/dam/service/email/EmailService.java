@@ -206,7 +206,7 @@ public class EmailService {
             context.setVariable(Constants.EMAIL_VAR_TEMP_PASSWORD, user.getPassword());
 
             // Generate email content using Thymeleaf template
-            String inviteCode = CommonUtils.generateInviteCode(Constants.getTechnicalPropertyAsInt(Constants.INVITE_CODE_LENGTH));
+            String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
             String redirectLink = hostDomainUri + "?inviteCode=" + inviteCode;
             context.setVariable(Constants.EMAIL_VAR_REDIRECT_LINK, redirectLink);
             

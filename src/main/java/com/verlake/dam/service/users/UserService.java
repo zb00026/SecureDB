@@ -152,24 +152,10 @@ public class UserService {
                 "Password must be at least 12 characters long");
         }
 
-        if (!Pattern.compile("[A-Z]").matcher(password).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                "Password must contain at least one uppercase letter (A–Z)");
-        }
-
-        if (!Pattern.compile("[a-z]").matcher(password).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                "Password must contain at least one lowercase letter (a–z)");
-        }
-
-        if (!Pattern.compile("\\d").matcher(password).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                "Password must contain at least one digit (0–9)");
-        }
-
-        if (!Pattern.compile("[!@#$%^&*()\\-_=+\\[\\]{}|;:'\",.<>/?]").matcher(password).find()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                "Password must contain at least one special character (!@#$%^&*()-_=+[]{}|;:'\",.<>/?)");
+        try {
+            CommonUtils.validatePasswordStrength(password);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 
@@ -336,7 +322,7 @@ public class UserService {
     public void deleteUserWithCascade(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
-                        String.format(Constants.getMessage("user.not.found"), userId)));
+                        Constants.getMessage("user.not.found", userId)));
         
         log.info(Constants.LOG_USER_CASCADE_DELETE_START, userId, user.getEmail());
         

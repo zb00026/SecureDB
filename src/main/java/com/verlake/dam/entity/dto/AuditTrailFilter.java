@@ -40,14 +40,14 @@ public class AuditTrailFilter extends PageRequestDTO implements FilterMetaData<A
 
             if (startDate != null) {
                 predicates.add(cb.greaterThanOrEqualTo(
-                    root.get("timestamp"), 
+                    root.get(Constants.TIMESTAMP_NAME), 
                     LocalDateTime.of(startDate, LocalTime.MIN)
                 ));
             }
             
             if (endDate != null) {
                 predicates.add(cb.lessThanOrEqualTo(
-                    root.get("timestamp"), 
+                    root.get(Constants.TIMESTAMP_NAME), 
                     LocalDateTime.of(endDate, LocalTime.MAX)
                 ));
             }

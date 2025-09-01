@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.verlake.dam.utils.Constants;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.security.MessageDigest;
@@ -72,7 +73,7 @@ public class SystemInfoService {
             
         } catch (Exception e) {
             logger.error("Error collecting system information", e);
-            systemInfo.put("error", "Failed to collect system information: " + e.getMessage());
+            systemInfo.put(Constants.ERROR_FIELD_ERROR, "Failed to collect system information: " + e.getMessage());
         }
         
         return systemInfo;

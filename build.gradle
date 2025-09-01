@@ -107,6 +107,12 @@ dependencies {
 	// AOP
 	implementation 'org.springframework.boot:spring-boot-starter-aop'
 	implementation 'org.springframework.cloud:spring-cloud-context:4.+'
+
+	implementation 'com.google.cloud:google-cloud-aiplatform:3.+'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    
+    
+    
 }
 
 sourceSets {

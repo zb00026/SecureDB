@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.15.xsd">
+
+    <changeSet id="030-create-ai-prompts-table" author="system">
+        <comment>Create ai_prompts table for managing AI prompt templates</comment>
+        
+        <createTable tableName="ai_prompts">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="prompt_key" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="prompt_name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="prompt_description" type="VARCHAR(500)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="prompt_content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="prompt_category" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="is_active" type="TINYINT(1)" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="version" type="INT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="created_by" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <column name="updated_by" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="ai_prompts" indexName="idx_ai_prompts_key">
+            <column name="prompt_key"/>
+        </createIndex>
+
+        <createIndex tableName="ai_prompts" indexName="idx_ai_prompts_category">
+            <column name="prompt_category"/>
+        </createIndex>
+
+        <createIndex tableName="ai_prompts" indexName="idx_ai_prompts_active">
+            <column name="is_active"/>
+        </createIndex>
+        
+        <!-- Ensure UTF-8 support for text fields and fix boolean column types -->
+        <sql dbms="mysql">
+            ALTER TABLE ai_prompts 
+            MODIFY COLUMN prompt_content TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN prompt_name VARCHAR(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN prompt_description VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            MODIFY COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1;
+        </sql>
+        
+        <sql dbms="postgresql">
+            ALTER TABLE ai_prompts 
+            ALTER COLUMN prompt_content TYPE TEXT COLLATE "en_US.utf8",
+            ALTER COLUMN prompt_name TYPE VARCHAR(200) COLLATE "en_US.utf8",
+            ALTER COLUMN prompt_description TYPE VARCHAR(500) COLLATE "en_US.utf8";
+        </sql>
+        
+        <sql dbms="mssql">
+            ALTER TABLE ai_prompts 
+            ALTER COLUMN prompt_content NVARCHAR(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN prompt_name NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN prompt_description NVARCHAR(500) COLLATE SQL_Latin1_General_CP1_CI_AS,
+            ALTER COLUMN is_active BIT NOT NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="030-seed-ai-prompts" author="system">
+        <comment>Seed AI prompts table with default prompt templates</comment>
+        
+        <!-- Welcome Message -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="WELCOME_MESSAGE"/>
+            <column name="prompt_name" value="AI Chat Welcome Message"/>
+            <column name="prompt_description" value="Welcome message shown when users start a new AI chat session"/>
+            <column name="prompt_content" value="👋 Hi! I'm your AI assistant for data masking policies.&#10;&#10;I'm here to help you protect sensitive data in your **{assetName}** database.&#10;&#10;You can tell me things like:&#10;• &quot;Mask all personally identifiable information&quot;&#10;• &quot;Hide credit card numbers except the last 4 digits&quot;&#10;• &quot;Protect customer email addresses&quot;&#10;• &quot;Mask SSNs for non-admin users&quot;&#10;&#10;I'll analyze your database schema, suggest the best masking strategies, and help you apply them safely.&#10;&#10;What would you like to protect today?"/>
+            <column name="prompt_category" value="WELCOME"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Intent Analysis -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="INTENT_ANALYSIS"/>
+            <column name="prompt_name" value="Intent Analysis Prompt"/>
+            <column name="prompt_description" value="Prompt for analyzing user intent when creating masking policies"/>
+            <column name="prompt_content" value="You are an expert data security AI assistant. Analyze this data masking request and extract the intent.&#10;&#10;User Request: &quot;{userRequest}&quot;&#10;&#10;Analyze and respond with ONLY valid JSON in this exact format:&#10;{&#10;    &quot;intentType&quot;: &quot;mask_pii|mask_credit_cards|mask_names|mask_emails|mask_ssn|mask_phone|custom&quot;,&#10;    &quot;targetFields&quot;: [&quot;field1&quot;, &quot;field2&quot;],&#10;    &quot;targetTables&quot;: [&quot;table1&quot;, &quot;table2&quot;],&#10;    &quot;maskingStrategy&quot;: &quot;partial|full|hash|tokenize|format_preserving&quot;,&#10;    &quot;userRole&quot;: &quot;admin|user|all|non-admin|specific_role&quot;,&#10;    &quot;confidence&quot;: 0.95,&#10;    &quot;originalRequest&quot;: &quot;{userRequest}&quot;,&#10;    &quot;reasoning&quot;: &quot;Brief explanation of why this strategy was chosen&quot;,&#10;    &quot;preserveChars&quot;: 4,&#10;    &quot;maskChar&quot;: &quot;*&quot;,&#10;    &quot;requiresConfirmation&quot;: true,&#10;    &quot;hasAmbiguity&quot;: false,&#10;    &quot;clarificationNeeded&quot;: &quot;&quot;&#10;}&#10;&#10;Rules:&#10;1. For emails: suggest partial masking (j***@example.com)&#10;2. For SSN/Credit Cards: suggest full masking or partial with last 4 digits&#10;3. For names: suggest partial masking (J*** D***)&#10;4. For passwords: suggest full masking or hashing&#10;5. Set confidence based on clarity of request (0.0-1.0)&#10;6. Set requiresConfirmation=true for ambiguous requests&#10;7. Identify common field names (email, ssn, credit_card, name, etc.)"/>
+            <column name="prompt_category" value="INTENT_ANALYSIS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Field Suggestions -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="FIELD_SUGGESTIONS"/>
+            <column name="prompt_name" value="Field Suggestions Prompt"/>
+            <column name="prompt_description" value="Prompt for generating masking policy suggestions based on schema analysis"/>
+            <column name="prompt_content" value="You are a data security expert. Analyze this database schema and suggest masking policies.&#10;&#10;Schema Information:&#10;{schemaInfo}&#10;&#10;User Context: {userContext}&#10;&#10;Respond with ONLY valid JSON array of suggestions:&#10;[&#10;    {&#10;        &quot;tableName&quot;: &quot;users&quot;,&#10;        &quot;fieldName&quot;: &quot;email&quot;,&#10;        &quot;dataType&quot;: &quot;VARCHAR&quot;,&#10;        &quot;suggestedStrategy&quot;: &quot;partial&quot;,&#10;        &quot;confidence&quot;: 0.9,&#10;        &quot;reason&quot;: &quot;Email field detected - contains PII&quot;,&#10;        &quot;sampleValue&quot;: &quot;j***@example.com&quot;,&#10;        &quot;detectionMethod&quot;: &quot;field_name&quot;,&#10;        &quot;maskingPattern&quot;: &quot;***&quot;,&#10;        &quot;preserveChars&quot;: 4,&#10;        &quot;maskChar&quot;: &quot;*&quot;,&#10;        &quot;sensitivityLevel&quot;: &quot;MEDIUM&quot;&#10;    }&#10;]&#10;&#10;Detection Rules:&#10;1. Field names containing: email, mail -> EMAIL masking&#10;2. Field names containing: ssn, social -> SSN masking (full or last 4)&#10;3. Field names containing: credit, card, cc -> Credit card masking&#10;4. Field names containing: name, fname, lname -> Name masking&#10;5. Field names containing: phone, mobile -> Phone masking&#10;6. Field names containing: password, pass -> Full masking/hashing&#10;7. Field names containing: address -> Address masking&#10;8. Date fields with birth, dob -> Date masking&#10;&#10;Sensitivity Levels:&#10;- LOW: Basic contact info&#10;- MEDIUM: Email, phone, address&#10;- HIGH: SSN, financial data&#10;- CRITICAL: Passwords, keys"/>
+            <column name="prompt_category" value="FIELD_SUGGESTIONS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Chat Response Generation -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="CHAT_RESPONSE"/>
+            <column name="prompt_name" value="Chat Response Generation"/>
+            <column name="prompt_description" value="Prompt for generating conversational responses in chat interface"/>
+            <column name="prompt_content" value="You are a friendly AI assistant helping with data masking policies.&#10;&#10;User said: &quot;{userMessage}&quot;&#10;&#10;AI Analysis:&#10;- Intent: {intentType} (confidence: {confidence})&#10;- Target fields: {targetFields}&#10;- Suggested strategy: {maskingStrategy}&#10;- Reasoning: {reasoning}&#10;&#10;Field Suggestions: {suggestions}&#10;&#10;Generate a conversational response that:&#10;1. Acknowledges their request naturally&#10;2. Explains what you understood in simple terms&#10;3. Shows the fields you identified&#10;4. Explains the masking strategy you recommend&#10;5. Asks for confirmation in a friendly way&#10;6. Uses bullet points for clarity&#10;&#10;Keep it professional but friendly. Don't use technical jargon.&#10;Example: &quot;I understand you want to protect customer email addresses...&quot;"/>
+            <column name="prompt_category" value="CHAT_RESPONSE"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Error Messages -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="AI_UNAVAILABLE"/>
+            <column name="prompt_name" value="AI Service Unavailable Message"/>
+            <column name="prompt_description" value="Message shown when AI service is not available"/>
+            <column name="prompt_content" value="I'm currently not available in your region for AI processing. Please use the manual masking policy creation instead, or contact your administrator to configure an alternative AI service."/>
+            <column name="prompt_category" value="ERROR"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Clarification Request -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="CLARIFICATION_REQUEST"/>
+            <column name="prompt_name" value="Request for Clarification"/>
+            <column name="prompt_description" value="Message asking user for more details when intent is unclear"/>
+            <column name="prompt_content" value="I want to make sure I understand your request correctly.&#10;&#10;You said: &quot;{userMessage}&quot;&#10;&#10;Could you please be more specific? For example:&#10;• Which type of data do you want to protect? (emails, names, SSNs, etc.)&#10;• Should it be fully hidden or partially visible?&#10;• Who should see the masked data? (all users, non-admins, etc.)&#10;&#10;The more details you provide, the better I can help you create the right masking policy."/>
+            <column name="prompt_category" value="CLARIFICATION"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Policy Applied Success Message -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="POLICY_APPLIED_SUCCESS"/>
+            <column name="prompt_name" value="Policy Applied Success Message"/>
+            <column name="prompt_description" value="Success message shown when masking policies are successfully applied"/>
+            <column name="prompt_content" value="✅ **Masking policies applied successfully!**&#10;&#10;**Applied {appliedCount} masking rules:**&#10;{appliedPolicies}&#10;&#10;**Policy Details:**&#10;• Strategy: {strategy}&#10;• Target Role: {userRole}&#10;• Confidence: {confidence}%&#10;&#10;The policies are now active and will protect your data according to the specified rules.&#10;&#10;Is there anything else you'd like to mask or modify?"/>
+            <column name="prompt_category" value="SUCCESS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Schema Fields Information -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="SCHEMA_FIELDS_INFO"/>
+            <column name="prompt_name" value="Schema Fields Information"/>
+            <column name="prompt_description" value="Message showing available database schema fields and instructions"/>
+            <column name="prompt_content" value="Here are the available fields in your database schema:&#10;&#10;**Schema Information:**&#10;{schemaInfo}&#10;&#10;**To create a masking policy:**&#10;1. Tell me which specific fields you want to mask&#10;2. Specify the masking strategy (partial, full, hash)&#10;3. Define who should see the masked data&#10;&#10;**Example requests:**&#10;• &quot;Mask the email field in the users table&quot;&#10;• &quot;Hide SSN fields for non-admin users&quot;&#10;• &quot;Partially mask credit card numbers&quot;&#10;&#10;You can also use the manual policy creation interface for more control."/>
+            <column name="prompt_category" value="SCHEMA_INFO"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- AI Fallback Guidance -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="AI_FALLBACK_GUIDANCE"/>
+            <column name="prompt_name" value="AI Fallback Guidance"/>
+            <column name="prompt_description" value="Guidance message when AI service is unavailable but user wants to create masking policies"/>
+            <column name="prompt_content" value="I understand you want to create a data masking policy, but I'm currently not available in your region for AI processing.&#10;&#10;**Your request:** &quot;{userMessage}&quot;&#10;&#10;**What you can do:**&#10;1. **Use Manual Policy Creation** - Go to the masking policies section and create rules manually&#10;2. **Specify Exact Fields** - Tell me the exact table and field names you want to mask&#10;3. **Use Rule-Based Detection** - I can suggest common sensitive fields based on naming patterns&#10;&#10;**Common masking patterns:**&#10;• Email fields: `user_email`, `email`, `mail` → Partial masking (j***@example.com)&#10;• SSN fields: `ssn`, `social_security` → Full masking (***********)&#10;• Credit card: `credit_card`, `cc_number` → Partial masking (****-****-****-1234)&#10;• Names: `first_name`, `last_name` → Partial masking (J*** D***)&#10;&#10;Would you like me to show you the available fields in your database, or would you prefer to use the manual interface?"/>
+            <column name="prompt_category" value="FALLBACK"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- No Fields Found -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="NO_FIELDS_FOUND"/>
+            <column name="prompt_name" value="No Fields Found Message"/>
+            <column name="prompt_description" value="Message shown when no matching fields are found for the user's request"/>
+            <column name="prompt_content" value="I understand you want to {originalRequest}, but I couldn't find matching fields in your database schema.&#10;&#10;**What I understood:**&#10;• Intent: {intentType}&#10;• Strategy: {strategy}&#10;• Target: {userRole} users&#10;&#10;**Suggestions:**&#10;• Could you specify the exact table and field names?&#10;• Are you looking for fields with different names?&#10;• Would you like me to show you all available fields first?&#10;&#10;Try saying something like: &quot;Show me all tables&quot; or &quot;Mask the user_email field in the customers table&quot;"/>
+            <column name="prompt_category" value="NO_RESULTS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+        <!-- Field Suggestions (Updated) -->
+        <insert tableName="ai_prompts">
+            <column name="prompt_key" value="FIELD_SUGGESTIONS_CHAT"/>
+            <column name="prompt_name" value="Field Suggestions Chat Response"/>
+            <column name="prompt_description" value="Chat response showing field suggestions and asking for confirmation"/>
+            <column name="prompt_content" value="Great! I found some fields that match your request.&#10;&#10;**What I understood:**&#10;&quot;{userMessage}&quot;&#10;&#10;**Fields I found that contain sensitive data:**&#10;{fieldSuggestions}&#10;&#10;**Recommended masking strategy:** {strategy}&#10;• {strategyDescription}&#10;&#10;Would you like me to apply these masking rules? Just say &quot;Yes, apply it&quot; or let me know if you'd like to modify anything."/>
+            <column name="prompt_category" value="SUGGESTIONS"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="NOW()"/>
+            <column name="updated_at" valueDate="NOW()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+
+    </changeSet>
+
+</databaseChangeLog>

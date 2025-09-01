@@ -203,8 +203,8 @@ public class DatabaseAccessService {
     }
 
     private void fetchTables(Connection connection, String dbName, ArrayNode tableData) throws SQLException {
-        // Validate database name to prevent SQL injection
-        if (!dbName.matches("^\\w+$")) {
+        // Validate database name to prevent SQL injection using centralized, ReDoS-safe validator
+        if (!CommonUtils.isValidSqlIdentifier(dbName)) {
             log.error("Invalid database name: {}", dbName);
             return;
         }
@@ -355,16 +355,16 @@ public class DatabaseAccessService {
         // Replace username with $USER placeholder
         // Pattern: TO 'username'@'host' or TO `username`@`host`
         // Use safer regex without nested quantifiers to prevent ReDoS
-        template = template.replaceAll("TO\\s+['`\"]([^'`\"@]+)['`\"]@['`\"]([^'`\"]+)['`\"]", "TO $USER");
+        template = template.replaceAll("TO\\s+['`\"]([^'`\"@]+)['`\"]@['`\"]([^'`\"]+)['`\"]", "TO \\$USER");
         
         // Replace database name with $DATABASE placeholder
         // Pattern: ON `database`.`table` or ON database.table
         // Use safer regex without nested quantifiers to prevent ReDoS
-        template = template.replaceAll("ON\\s+['`\"]([^'`\".]+)['`\"]\\.", "ON $DATABASE.");
-        template = template.replaceAll("ON\\s+([^.\\s]+)\\.", "ON $DATABASE.");
+        template = template.replaceAll("ON\\s+['`\"]([^'`\".]+)['`\"]\\.", "ON \\$DATABASE.");
+        template = template.replaceAll("ON\\s+([^.\\s]+)\\.", "ON \\$DATABASE.");
         
         // For global grants (ON *.*)
-        template = template.replaceAll("ON\\s+\\*\\.\\*", "ON $DATABASE.*");
+        template = template.replaceAll("ON\\s+\\*\\.\\*", "ON \\$DATABASE.*");
         
         return template;
     }
@@ -796,14 +796,17 @@ public class DatabaseAccessService {
                     break;
 
                 case SQLSERVER:
-                    // SQL Server doesn't support parameter binding for usernames in DDL
-                    String sqlServerUsername = devCredential.getUsername().replace("[", "[[]").replace("]", "]]");
-                    String sqlServerPassword = newPassword.replace("'", "''");
-                    
-                    String alterLoginSql = String.format("ALTER LOGIN [%s] WITH PASSWORD = '%s' OLD_PASSWORD = '%s'", 
-                        sqlServerUsername, sqlServerPassword, devCredential.getPassword());
-                    try (Statement stmt = connection.createStatement()) {
-                        stmt.executeUpdate(alterLoginSql);
+                    // SQL Server doesn't support parameter binding for identifiers in DDL.
+                    // Validate and escape the identifier; bind secret values via PreparedStatement.
+                    if (!CommonUtils.isValidUsername(devCredential.getUsername())) {
+                        throw new IllegalArgumentException("Invalid username: " + devCredential.getUsername());
+                    }
+                    String escapedSqlServerUsername = CommonUtils.escapeSqlServerIdentifier(devCredential.getUsername());
+                    String alterLoginSqlTemplate = "ALTER LOGIN [" + escapedSqlServerUsername + "] WITH PASSWORD = ? OLD_PASSWORD = ?"; // NOSONAR java:S2077 - identifier is validated and safely escaped
+                    try (PreparedStatement ps = connection.prepareStatement(alterLoginSqlTemplate)) {
+                        ps.setString(1, newPassword);
+                        ps.setString(2, devCredential.getPassword());
+                        ps.executeUpdate();
                         log.info("Updated SQL Server login password: {}", devCredential.getUsername());
                     }
                     break;
@@ -981,11 +984,16 @@ public class DatabaseAccessService {
 
                 // Create user
                 if (credential.getAsset().getDatabaseType() == DatabaseType.POSTGRESQL) {
-                    // PostgreSQL doesn't support parameter binding for usernames in DDL
-                    String createUserSql = String.format("CREATE USER \"%s\" WITH PASSWORD '%s'", 
-                        username.replace("\"", "\"\""), password.replace("'", "''"));
-                    try (Statement stmt = connection.createStatement()) {
-                        stmt.executeUpdate(createUserSql);
+                    // PostgreSQL doesn't support parameter binding for identifiers in DDL.
+                    // Validate and escape the identifier; bind secret via PreparedStatement.
+                    if (!CommonUtils.isValidUsername(username)) {
+                        throw new IllegalArgumentException("Invalid username: " + username);
+                    }
+                    String escapedPgUsername = CommonUtils.escapePostgresqlIdentifier(username);
+                    String createUserTemplate = "CREATE USER \"" + escapedPgUsername + "\" WITH PASSWORD ?"; // NOSONAR java:S2077 - identifier is validated and safely escaped
+                    try (PreparedStatement stmt = connection.prepareStatement(createUserTemplate)) {
+                        stmt.setString(1, password);
+                        stmt.executeUpdate();
                     }
                 } else {
                     String createUserSql = getCreateUserSql(credential.getAsset().getDatabaseType());
@@ -1039,22 +1047,28 @@ public class DatabaseAccessService {
                     break;
 
                 case POSTGRESQL:
-                    // PostgreSQL doesn't support parameter binding for usernames in DDL
-                    String username = credential.getUsername().replace("\"", "\"\"");
-                    
+                    // PostgreSQL doesn't support parameter binding for identifiers in DDL.
+                    // Validate and escape identifier; build static template; no user-controllable SQL parts remain.
+                    if (!CommonUtils.isValidUsername(credential.getUsername())) {
+                        throw new IllegalArgumentException("Invalid username: " + credential.getUsername());
+                    }
+                    String escapedPgUser = CommonUtils.escapePostgresqlIdentifier(credential.getUsername());
                     // Revoke all privileges from all tables
                     try (Statement stmt = connection.createStatement()) {
-                        stmt.execute(String.format("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, username));
+                        String revokeTables = String.format("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, escapedPgUser); // NOSONAR java:S2077 - identifier validated and escaped
+                        stmt.execute(revokeTables);
                     }
 
                     // Revoke all privileges from all sequences
                     try (Statement stmt = connection.createStatement()) {
-                        stmt.execute(String.format("REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, username));
+                        String revokeSeq = String.format("REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, escapedPgUser); // NOSONAR java:S2077
+                        stmt.execute(revokeSeq);
                     }
 
                     // Drop the user
                     try (Statement stmt = connection.createStatement()) {
-                        stmt.execute(String.format("DROP USER IF EXISTS \"%s\"", username));
+                        String dropUser = String.format("DROP USER IF EXISTS \"%s\"", escapedPgUser); // NOSONAR java:S2077
+                        stmt.execute(dropUser);
                     }
                     break;
 
@@ -1073,14 +1087,15 @@ public class DatabaseAccessService {
                     break;
 
                 case SQLSERVER:
-                    // SQL Server doesn't support parameter binding for usernames in DDL
-                    String sqlServerUsername = credential.getUsername().replace("[", "[[]").replace("]", "]]");
-                    
+                    // SQL Server doesn't support parameter binding for identifiers in DDL.
+                    if (!CommonUtils.isValidUsername(credential.getUsername())) {
+                        throw new IllegalArgumentException("Invalid username: " + credential.getUsername());
+                    }
+                    String escapedSqlUser = CommonUtils.escapeSqlServerIdentifier(credential.getUsername());
                     // First drop the database user
-                    dropSqlServerUser(connection, sqlServerUsername, credential.getUsername());
-                    
+                    dropSqlServerUser(connection, escapedSqlUser, credential.getUsername());
                     // Then drop the login
-                    dropSqlServerLogin(connection, sqlServerUsername, credential.getUsername());
+                    dropSqlServerLogin(connection, escapedSqlUser, credential.getUsername());
                     break;
 
                 default:
@@ -1104,7 +1119,7 @@ public class DatabaseAccessService {
      */
     private void dropSqlServerUser(Connection connection, String sqlServerUsername, String originalUsername) {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute(String.format("DROP USER IF EXISTS [%s]", sqlServerUsername));
+            stmt.execute(String.format("DROP USER IF EXISTS [%s]", sqlServerUsername)); // NOSONAR java:S2077 - identifier validated and safely escaped
             log.info("Dropped SQL Server user: {}", originalUsername);
         } catch (SQLException e) {
             log.warn("Failed to drop SQL Server user {}: {}", originalUsername, e.getMessage());
@@ -1120,7 +1135,7 @@ public class DatabaseAccessService {
      */
     private void dropSqlServerLogin(Connection connection, String sqlServerUsername, String originalUsername) {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute(String.format("DROP LOGIN [%s]", sqlServerUsername));
+            stmt.execute(String.format("DROP LOGIN [%s]", sqlServerUsername)); // NOSONAR java:S2077 - identifier validated and safely escaped
             log.info("Dropped SQL Server login: {}", originalUsername);
         } catch (SQLException e) {
             log.warn("Failed to drop SQL Server login {}: {}", originalUsername, e.getMessage());
@@ -1142,7 +1157,7 @@ public class DatabaseAccessService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    private Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest, boolean isDryRun)
+    protected Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest, boolean isDryRun)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
         
@@ -1751,28 +1766,35 @@ public class DatabaseAccessService {
 
     /**
      * Executes the lock/unlock SQL operation for a user
+     * Uses proper escaping to prevent SQL injection
      */
     private boolean executeUserLockUnlockOperation(Connection connection, String sql, String username, String operation) {
         try {
+            // Validate username to prevent SQL injection
+            if (!CommonUtils.isValidUsername(username)) {
+                log.error("Invalid username detected for {} operation: {}", operation, username);
+                return false;
+            }
+            
             // For PostgreSQL and SQL Server, we need to use string formatting instead of parameter binding
             if (sql.contains("ALTER USER ?")) {
-                // PostgreSQL
-                String escapedUsername = username.replace("\"", "\"\"");
+                // PostgreSQL - use proper escaping
+                String escapedUsername = CommonUtils.escapePostgresqlIdentifier(username);
                 sql = sql.replace("ALTER USER ?", "ALTER USER \"" + escapedUsername + "\"");
                 
                 try (Statement stmt = connection.createStatement()) {
                     stmt.executeUpdate(sql);
                 }
             } else if (sql.contains("ALTER LOGIN ?")) {
-                // SQL Server
-                String escapedUsername = username.replace("[", "[[]").replace("]", "]]");
+                // SQL Server - use proper escaping
+                String escapedUsername = CommonUtils.escapeSqlServerIdentifier(username);
                 sql = sql.replace("ALTER LOGIN ?", "ALTER LOGIN [" + escapedUsername + "]");
                 
                 try (Statement stmt = connection.createStatement()) {
                     stmt.executeUpdate(sql);
                 }
             } else {
-                // MySQL and Oracle
+                // MySQL and Oracle - use parameterized queries
                 try (PreparedStatement stmt = connection.prepareStatement(sql)) {
                     stmt.setString(1, username);
                     stmt.executeUpdate();
@@ -1787,5 +1809,7 @@ public class DatabaseAccessService {
             return false;
         }
     }
+    
+
 
 }

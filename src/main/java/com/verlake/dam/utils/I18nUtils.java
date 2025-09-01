@@ -22,9 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class I18nUtils {
 
-    private static MessageSource messageSource;
     private static Properties technicalProperties;
-    private static LocaleResolver localeResolver;
 
     /**
      * Private constructor to hide the implicit public one
@@ -33,27 +31,37 @@ public class I18nUtils {
         // Utility class - prevent instantiation
     }
 
-    @Autowired
-    public static void setMessageSource(MessageSource messageSource) {
-        I18nUtils.messageSource = messageSource;
+    /**
+     * Get MessageSource from Spring context
+     */
+    private static MessageSource getMessageSource() {
+        try {
+            return SpringContext.getBean(MessageSource.class);
+        } catch (Exception e) {
+            log.warn("Could not get MessageSource from Spring context: {}", e.getMessage());
+            return null;
+        }
     }
 
-    @Autowired
-    public static void setTechnicalProperties(Properties technicalProperties) {
-        I18nUtils.technicalProperties = technicalProperties;
-    }
-
-    @Autowired
-    public static void setLocaleResolver(LocaleResolver localeResolver) {
-        I18nUtils.localeResolver = localeResolver;
+    /**
+     * Get LocaleResolver from Spring context
+     */
+    private static LocaleResolver getLocaleResolver() {
+        try {
+            return SpringContext.getBean(LocaleResolver.class);
+        } catch (Exception e) {
+            log.warn("Could not get LocaleResolver from Spring context: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
      * Get a localized message using current locale (from request headers)
      */
     public static String getMessage(String code) {
+        MessageSource messageSource = getMessageSource();
         if (messageSource == null) {
-            // Fallback to code if messageSource is not injected
+            // Fallback to code if messageSource is not available
             return code;
         }
         return messageSource.getMessage(code, null, LocaleContextHolder.getLocale());
@@ -63,8 +71,9 @@ public class I18nUtils {
      * Get a localized message with arguments using current locale (from request headers)
      */
     public static String getMessage(String code, Object... args) {
+        MessageSource messageSource = getMessageSource();
         if (messageSource == null) {
-            // Fallback to code if messageSource is not injected
+            // Fallback to code if messageSource is not available
             return code;
         }
         return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
@@ -74,8 +83,9 @@ public class I18nUtils {
      * Get a localized message for a specific locale
      */
     public static String getMessage(String code, Locale locale) {
+        MessageSource messageSource = getMessageSource();
         if (messageSource == null) {
-            // Fallback to code if messageSource is not injected
+            // Fallback to code if messageSource is not available
             return code;
         }
         return messageSource.getMessage(code, null, locale);
@@ -85,8 +95,9 @@ public class I18nUtils {
      * Get a localized message with arguments for a specific locale
      */
     public static String getMessage(String code, Locale locale, Object... args) {
+        MessageSource messageSource = getMessageSource();
         if (messageSource == null) {
-            // Fallback to code if messageSource is not injected
+            // Fallback to code if messageSource is not available
             return code;
         }
         return messageSource.getMessage(code, args, locale);
@@ -103,8 +114,9 @@ public class I18nUtils {
      * Get locale from request headers
      */
     public static Locale getLocaleFromRequest(HttpServletRequest request) {
+        LocaleResolver localeResolver = getLocaleResolver();
         if (localeResolver == null) {
-            // Fallback to default locale if localeResolver is not injected
+            // Fallback to default locale if localeResolver is not available
             return Locale.ENGLISH;
         }
         return localeResolver.resolveLocale(request);
@@ -115,8 +127,9 @@ public class I18nUtils {
      */
     public static String getMessageFromRequest(String code, HttpServletRequest request) {
         Locale locale = getLocaleFromRequest(request);
+        MessageSource messageSource = getMessageSource();
         if (messageSource == null) {
-            // Fallback to code if messageSource is not injected
+            // Fallback to code if messageSource is not available
             return code;
         }
         return messageSource.getMessage(code, null, locale);
@@ -127,8 +140,9 @@ public class I18nUtils {
      */
     public static String getMessageFromRequest(String code, HttpServletRequest request, Object... args) {
         Locale locale = getLocaleFromRequest(request);
+        MessageSource messageSource = getMessageSource();
         if (messageSource == null) {
-            // Fallback to code if messageSource is not injected
+            // Fallback to code if messageSource is not available
             return code;
         }
         return messageSource.getMessage(code, args, locale);

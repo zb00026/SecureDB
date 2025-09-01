@@ -136,6 +136,9 @@ public class UserCsvService {
      */
     public void validateBulkUsers(List<Map<String, String>> userDataList, List<String> errors) {
         Set<String> emails = new HashSet<>();
+        Set<String> firstNames = new HashSet<>();
+        Set<String> lastNames = new HashSet<>();
+        Set<String> nameCombinations = new HashSet<>();
         
         for (Map<String, String> userData : userDataList) {
             String lineNumber = userData.get(Constants.USER_FIELD_LINE_NUMBER);
@@ -143,6 +146,7 @@ public class UserCsvService {
             
             validateRequiredFields(userData, prefix, errors);
             validateEmailField(userData, prefix, emails, errors);
+            validateNameFields(userData, prefix, firstNames, lastNames, nameCombinations, errors);
             validateRoleField(userData, prefix, errors);
         }
     }
@@ -161,7 +165,7 @@ public class UserCsvService {
     private void validateRequiredField(Map<String, String> userData, String fieldName, String prefix, List<String> errors) {
         String fieldValue = userData.get(fieldName);
         if (fieldValue == null || fieldValue.trim().isEmpty()) {
-            errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, fieldName));
+            errors.add(prefix + Constants.getMessage(Constants.ERROR_FIELD_REQUIRED_KEY, fieldName));
         }
     }
 
@@ -171,8 +175,8 @@ public class UserCsvService {
     private void validateEmailField(Map<String, String> userData, String prefix, Set<String> emails, List<String> errors) {
             String email = userData.get(Constants.USER_FIELD_EMAIL);
         
-            if (email == null || email.trim().isEmpty()) {
-                errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, Constants.USER_FIELD_EMAIL));
+                    if (email == null || email.trim().isEmpty()) {
+            errors.add(prefix + Constants.getMessage(Constants.ERROR_FIELD_REQUIRED_KEY, Constants.USER_FIELD_EMAIL));
             return;
         }
         
@@ -188,7 +192,7 @@ public class UserCsvService {
      */
     private void validateEmailFormat(String email, String prefix, List<String> errors) {
                 if (!email.matches(Constants.EMAIL_REGEX)) {
-                    errors.add(prefix + String.format(Constants.ERROR_INVALID_EMAIL_FORMAT, email));
+                    errors.add(prefix + Constants.getMessage("error.invalid.email.format", email));
         }
                 }
                 
@@ -197,7 +201,7 @@ public class UserCsvService {
      */
     private void validateEmailDuplication(String email, String prefix, Set<String> emails, List<String> errors) {
                 if (emails.contains(email)) {
-                    errors.add(prefix + String.format(Constants.ERROR_DUPLICATE_EMAIL_CSV, email));
+                    errors.add(prefix + Constants.getMessage("error.duplicate.email.csv", email));
                 } else {
                     emails.add(email);
         }
@@ -208,9 +212,59 @@ public class UserCsvService {
      */
     private void validateEmailExistence(String email, String prefix, List<String> errors) {
                 if (userRepository.existsByEmail(email)) {
-                    errors.add(prefix + String.format(Constants.ERROR_EMAIL_ALREADY_EXISTS_SYSTEM, email));
+                    errors.add(prefix + Constants.getMessage("error.email.already.exists.system", email));
                 }
             }
+            
+    /**
+     * Validates name fields for uniqueness
+     */
+    private void validateNameFields(Map<String, String> userData, String prefix, Set<String> firstNames, Set<String> lastNames, Set<String> nameCombinations, List<String> errors) {
+        String firstName = userData.get(Constants.USER_FIELD_FIRST_NAME).trim();
+        String lastName = userData.get(Constants.USER_FIELD_LAST_NAME).trim();
+        
+        // Check for duplicate first name within CSV
+        if (firstNames.contains(firstName.toLowerCase())) {
+            errors.add(prefix + Constants.getMessage("user.first.name.already.exists", firstName));
+        } else {
+            firstNames.add(firstName.toLowerCase());
+        }
+        
+        // Check for duplicate last name within CSV
+        if (lastNames.contains(lastName.toLowerCase())) {
+            errors.add(prefix + Constants.getMessage("user.last.name.already.exists", lastName));
+        } else {
+            lastNames.add(lastName.toLowerCase());
+        }
+        
+        // Check for duplicate name combination within CSV
+        String nameCombination = firstName.toLowerCase() + " " + lastName.toLowerCase();
+        if (nameCombinations.contains(nameCombination)) {
+            errors.add(prefix + Constants.getMessage("user.name.combination.already.exists", firstName, lastName));
+        } else {
+            nameCombinations.add(nameCombination);
+        }
+        
+        // Check for existing names in database
+        validateNameExistence(firstName, lastName, prefix, errors);
+    }
+    
+    /**
+     * Validates name existence in database
+     */
+    private void validateNameExistence(String firstName, String lastName, String prefix, List<String> errors) {
+        if (userRepository.existsByFirstNameIgnoreCase(firstName)) {
+            errors.add(prefix + Constants.getMessage("user.first.name.already.exists", firstName));
+        }
+        
+        if (userRepository.existsByLastNameIgnoreCase(lastName)) {
+            errors.add(prefix + Constants.getMessage("user.last.name.already.exists", lastName));
+        }
+        
+        if (userRepository.existsByFirstNameIgnoreCaseAndLastNameIgnoreCase(firstName, lastName)) {
+            errors.add(prefix + Constants.getMessage("user.name.combination.already.exists", firstName, lastName));
+        }
+    }
             
     /**
      * Validates role field and individual role names
@@ -219,7 +273,7 @@ public class UserCsvService {
             String roleName = userData.get(Constants.USER_FIELD_ROLE_NAME);
         
             if (roleName == null || roleName.trim().isEmpty()) {
-                errors.add(prefix + String.format(Constants.ERROR_FIELD_REQUIRED, Constants.USER_FIELD_ROLE_NAME));
+                errors.add(prefix + Constants.getMessage(Constants.ERROR_FIELD_REQUIRED_KEY, Constants.USER_FIELD_ROLE_NAME));
             return;
         }
         
@@ -234,7 +288,7 @@ public class UserCsvService {
      */
     private void validateIndividualRole(String roleName, String prefix, List<String> errors) {
         if (!roleName.equals(Constants.ROLE_NONE) && !roleRepository.findByName(roleName).isPresent()) {
-            errors.add(prefix + String.format(Constants.ERROR_INVALID_ROLE_NAME, roleName));
+            errors.add(prefix + Constants.getMessage("error.invalid.role.name", roleName));
         }
     }
     
@@ -319,7 +373,7 @@ public class UserCsvService {
         for (User user : users) {
             try {
                 // Generate and store invite code for each user
-                String inviteCode = CommonUtils.generateInviteCode(Constants.getTechnicalPropertyAsInt(Constants.INVITE_CODE_LENGTH));
+                String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
                 user.setInviteCode(inviteCode);
                 userRepository.save(user);
                 
@@ -495,7 +549,7 @@ public class UserCsvService {
             // Build success response
             Map<String, Object> response = new HashMap<>();
             response.put(Constants.RESPONSE_SUCCESS, true);
-            response.put(Constants.RESPONSE_MESSAGE, String.format(Constants.SUCCESS_CREATED_USERS_AND_SENT_INVITES, createdUsers.size()));
+            response.put(Constants.RESPONSE_MESSAGE, Constants.getMessage("success.created.users.and.sent.invites", createdUsers.size()));
             response.put(Constants.RESPONSE_TOTAL_USERS, createdUsers.size());
             response.put(Constants.RESPONSE_SUCCESSFUL_USERS, createdUsers.size());
             response.put(Constants.RESPONSE_FAILED_USERS, 0);
@@ -528,7 +582,7 @@ public class UserCsvService {
             // Build error response
             Map<String, Object> response = new HashMap<>();
             response.put(Constants.RESPONSE_SUCCESS, false);
-            response.put(Constants.RESPONSE_MESSAGE, String.format(Constants.ERROR_BULK_UPLOAD_FAILED, e.getMessage()));
+            response.put(Constants.RESPONSE_MESSAGE, Constants.getMessage("error.bulk.upload.failed", e.getMessage()));
             response.put(Constants.RESPONSE_TOTAL_USERS, userDataList.size());
             response.put(Constants.RESPONSE_SUCCESSFUL_USERS, 0);
             response.put(Constants.RESPONSE_FAILED_USERS, userDataList.size());

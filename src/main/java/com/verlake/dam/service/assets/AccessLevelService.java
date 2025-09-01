@@ -109,8 +109,9 @@ public class AccessLevelService {
             // Add data array from AssetObject's objectsJson
             ArrayNode dataNode = categoryNode.putArray(Constants.ACCESS_OBJECT_ATTR_DATA);
             List<AssetObject> assetObjects = assetObjectRepository.findByAsset(asset);
-            
-            assetObjects.forEach(assetObject -> {
+
+            if (assetObjects != null && !assetObjects.isEmpty()) {
+                AssetObject assetObject = assetObjects.get(0);
                 try {
                     ObjectNode objectsJson = (ObjectNode) objectMapper.readTree(assetObject.getObjectsJson());
                     if (objectsJson.has(objectType.toUpperCase())) {
@@ -122,7 +123,7 @@ public class AccessLevelService {
                 } catch (Exception e) {
                     log.error("Error parsing objectsJson for asset object: " + assetObject.getId(), e);
                 }
-            });
+            }
             
             rootArray.add(categoryNode);
         });

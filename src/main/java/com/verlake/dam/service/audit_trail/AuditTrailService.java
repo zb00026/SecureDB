@@ -108,7 +108,7 @@ public class AuditTrailService {
                 for (AuditTrail audit : audits) {
                     GenericRecord auditRecord = new GenericData.Record(Constants.AUDIT_SCHEMA);
                     auditRecord.put("id", audit.getId());
-                    auditRecord.put("timestamp", audit.getTimestamp().toString());
+                    auditRecord.put(Constants.TIMESTAMP_NAME, audit.getTimestamp().toString());
                     auditRecord.put("instanceId", audit.getInstanceId());
                     auditRecord.put("user", audit.getUser());
                     auditRecord.put("action", audit.getAction());

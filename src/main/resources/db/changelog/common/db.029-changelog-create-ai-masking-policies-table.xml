@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="029-create-ai-masking-policies-table" author="ai-system">
+        <comment>Create AI masking policies table for storing AI-generated data masking policies</comment>
+
+        <createTable tableName="ai_masking_policies">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="original_request" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="intent_type" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="table_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="field_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="masking_strategy" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="masking_pattern" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="preserve_chars" type="INT">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="mask_char" type="VARCHAR(5)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="target_role" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="ai_confidence" type="DOUBLE">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="ai_reasoning" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="user_confirmed" type="TINYINT(1)" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="is_active" type="TINYINT(1)" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="asset_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="created_by" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="applied_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <!-- Add foreign key constraints -->
+        <addForeignKeyConstraint
+                constraintName="fk_ai_masking_policies_asset"
+                baseTableName="ai_masking_policies"
+                baseColumnNames="asset_id"
+                referencedTableName="assets"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+                constraintName="fk_ai_masking_policies_user"
+                baseTableName="ai_masking_policies"
+                baseColumnNames="created_by"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="SET NULL"/>
+
+        <!-- Add indexes for performance -->
+        <createIndex indexName="idx_ai_masking_policies_asset" tableName="ai_masking_policies">
+            <column name="asset_id"/>
+        </createIndex>
+
+        <createIndex indexName="idx_ai_masking_policies_table_field" tableName="ai_masking_policies">
+            <column name="table_name"/>
+            <column name="field_name"/>
+        </createIndex>
+
+        <createIndex indexName="idx_ai_masking_policies_active" tableName="ai_masking_policies">
+            <column name="is_active"/>
+        </createIndex>
+
+        <createIndex indexName="idx_ai_masking_policies_created_by" tableName="ai_masking_policies">
+            <column name="created_by"/>
+        </createIndex>
+
+        <createIndex indexName="idx_ai_masking_policies_intent_type" tableName="ai_masking_policies">
+            <column name="intent_type"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog> 

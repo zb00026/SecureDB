@@ -105,6 +105,44 @@ public class Constants {
     public static final String AUDIT_ACTION_APPROVAL = "APPROVAL";
     public static final String AUDIT_ACTION_APPROVE = "APPROVE";
     public static final String AUDIT_ACTION_REJECT = "REJECT";
+    public static final String AUDIT_ACTION_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
+
+    // AI Chat constants
+    public static final String AI_SENDER = "ai";
+    public static final String MASKING_STRATEGY_TOKENIZE = "tokenize";
+    public static final String ACTION_TYPE_CONFIRM = "confirm";
+    public static final String UNKNOWN_USER = "unknown";
+    public static final String UNKNOWN_EMAIL = "unknown@example.com";
+
+    // AI Chat error messages
+    public static final String ERROR_SESSION_EXPIRED = "Session expired. Please start a new conversation.";
+    
+    // Field name keywords
+    public static final String FIELD_KEYWORD_PHONE = "phone";
+    public static final String FIELD_KEYWORD_MOBILE = "mobile";
+    public static final String FIELD_KEYWORD_CONTACT = "contact";
+    public static final String FIELD_KEYWORD_EMAIL = "email";
+    
+    // Prompt parameter names
+    public static final String PROMPT_PARAM_USER_MESSAGE = "userMessage";
+    public static final String PROMPT_PARAM_STRATEGY = "strategy";
+    
+    // AI Pattern error messages
+    public static final String ERROR_PATTERN_NOT_FOUND_WITH_ID = "Pattern not found with id: ";
+    
+    // Gemini AI constants
+    public static final String GEMINI_ERROR_NOT_AVAILABLE_IN_REGION = "not available in your region";
+    public static final String GEMINI_ERROR_MANUAL_MASKING_POLICY = "manual masking policy";
+    public static final String GEMINI_JSON_FIELD_PARTS = "parts";
+    public static final String GEMINI_JSON_FIELD_CANDIDATES = "candidates";
+    public static final String GEMINI_JSON_FIELD_FINISH_REASON = "finishReason";
+    public static final String GEMINI_JSON_FIELD_CONTENT = "content";
+    public static final String GEMINI_STRATEGY_PARTIAL = "partial";
+    
+    // Gemini AI response messages
+    public static final String GEMINI_CIRCUIT_BREAKER_FALLBACK = "The AI service is temporarily unavailable due to recent errors. Please try again in a moment or use manual policy creation.";
+    public static final String GEMINI_LOCATION_RESTRICTION_RESPONSE = "I'm currently not available in your region. Please use the manual masking policy creation instead, or contact your administrator to configure an alternative AI service.";
+    public static final String GEMINI_GENERIC_ERROR_RESPONSE = "I encountered an error while processing your request. Please try again or use manual policy creation.";
 
     // Notification data
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
@@ -230,13 +268,27 @@ public class Constants {
     public static final String ACCESS_REQUEST_DEFAULT_EXPIRY_HOURS = "2160";
 
     // Invite code length
-    public static final String INVITE_CODE_LENGTH = "15";
+    public static final int INVITE_CODE_LENGTH = 15;
 
     // Database operations
     public static final String DB_SPLIT_PATTERN = "\\.";
     public static final String SQL_STATEMENT_SEPARATOR = ";";
     public static final String SQL_NEWLINE_SEPARATOR = "\n";
     public static final String SQL_SEMICOLON_NEWLINE = ";\n";
+
+    // Error messages
+    public static final String ERROR_PATTERN_NOT_FOUND_FOR_ID = "Pattern not found for id {}: {}";
+    public static final String ERROR_SYSTEM_SENDER = "system";
+    public static final String ERROR_SESSION_ID = "error";
+    public static final String ERROR_FAILED_TO_GET_MASKING_POLICIES = "Failed to get masking policies";
+    public static final String ERROR_FAILED_TO_GET_STATISTICS = "Failed to get statistics";
+    public static final String ERROR_FAILED_TO_START_CHAT_SESSION = "Failed to start chat session. Please try again.";
+    public static final String ERROR_FAILED_TO_APPLY_MASKING_POLICY = "Failed to apply the masking policy. Please try again.";
+    public static final String ERROR_FAILED_TO_APPLY_MASKING_POLICIES = "Failed to apply masking policies: ";
+    public static final String ERROR_FAILED_TO_RETRIEVE_SCHEMA_INFO = "Failed to retrieve schema information. Please try again.";
+    public static final String ERROR_COULD_NOT_GET_CURRENT_USER_EMAIL = "Could not get current user email: {}";
+    public static final String ERROR_EMPTY_REQUEST_BODY = "Empty request body";
+    public static final String ERROR_INVALID_JSON_FORMAT = "Invalid JSON. Expected an object or an array of objects";
 
     // SQL placeholder replacements
     public static final String SQL_PLACEHOLDER_DATABASE_PUBLIC = "DATABASE public";
@@ -341,8 +393,8 @@ public class Constants {
     // Map keys for credential management
     public static final String CREDENTIAL_ID_KEY = "credentialID";
 
-    // Email regex pattern
-    public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@(.+)$";
+    // Email regex pattern - simplified and safe
+    public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$";
 
     // Default values
     public static final String DEFAULT_UNKNOWN_VALUE = "Unknown";
@@ -402,12 +454,12 @@ public class Constants {
     public static final String ERROR_BULK_UPLOAD_FAILED = "error.bulk.upload.failed";
     public static final String ERROR_CREATING_EMAIL_ENTITY = "error.creating.email.entity";
 
-    public static final String ROLE_NONE = "role.none";
-    public static final String ROLE_DEVELOPER = "role.developer";
-    public static final String ROLE_ADMIN = "role.admin";
-    public static final String ROLE_ASSET_OWNER = "role.asset.owner";
-    public static final String ROLE_APPROVER = "role.approver";
-    public static final String ROLE_AUDITOR = "role.auditor";
+    public static final String ROLE_NONE = "None";
+    public static final String ROLE_ADMIN = "Admin";
+    public static final String ROLE_DEVELOPER = "Developer";
+    public static final String ROLE_ASSET_OWNER = "Asset Owner";
+    public static final String ROLE_APPROVER = "Approver";
+    public static final String ROLE_AUDITOR = "Auditor";
     public static final String ERROR_VALIDATION_ERRORS_FOUND = "error.validation.errors.found";
     public static final String ERROR_UPLOADED_FILE_EMPTY = "Uploaded file is empty";
     public static final String ERROR_FILE_MUST_BE_CSV = "File must be a CSV file";
@@ -423,6 +475,7 @@ public class Constants {
     public static final String ERROR_INVALID_DATABASE_TYPE = "invalid database type: '{0}'. Available types: MYSQL, POSTGRESQL, SQLSERVER, ORACLE";
     public static final String ERROR_USER_NOT_ASSET_OWNER = "user '{0}' does not have ASSET_OWNER role";
     public static final String ERROR_FIELD_REQUIRED = "{0} is required";
+    public static final String ERROR_FIELD_REQUIRED_KEY = "error.field.required";
 
 
     // SQL constants
@@ -430,6 +483,42 @@ public class Constants {
 
     public static final String STATUS_NAME = "status";
     public static final String ERROR_MESSAGE_NAME = "error_message";
+    public static final String TIMESTAMP_NAME = "timestamp";
+    public static final String HEALTHY_STATUS = "HEALTHY";
+    public static final String UNHEALTHY_STATUS = "UNHEALTHY";
+    public static final String ERROR_STATUS = "ERROR";
+    
+    // Pagination and response field constants
+    public static final String FIELD_POLICIES = "policies";
+    public static final String FIELD_TOTAL_ELEMENTS = "totalElements";
+    public static final String FIELD_TOTAL_PAGES = "totalPages";
+    public static final String FIELD_CURRENT_PAGE = "currentPage";
+    public static final String FIELD_SIZE = "size";
+    public static final String FIELD_CREATED = "created";
+    public static final String FIELD_IS_ACTIVE = "isActive";
+    public static final String FIELD_TOTAL_POLICIES = "totalPolicies";
+    public static final String FIELD_ACTIVE_POLICIES = "activePolicies";
+    public static final String FIELD_INACTIVE_POLICIES = "inactivePolicies";
+    public static final String FIELD_USER_EMAIL = "userEmail";
+    
+    // Status constants
+    public static final String STATUS_ACTIVE = "active";
+    public static final String STATUS_INACTIVE = "inactive";
+    
+    // Masking strategy constants
+    public static final String MASKING_STRATEGY_PARTIAL = "partial";
+    public static final String MASKING_STRATEGY_FULL = "full";
+    public static final String MASKING_STRATEGY_HASH = "hash";
+    public static final String MASKING_STRATEGY_CUSTOM = "custom";
+    
+    // Intent type constants
+    public static final String INTENT_TYPE_MANUAL_CREATE = "manual_create";
+    
+    // Role constants
+    public static final String ROLE_ALL = "all";
+    
+    // Sort field constants
+    public static final String SORT_FIELD_CREATED_AT = "createdAt";
 
     public static final String ASSET_ADD_NAME = "Add";
     public static final String ASSET_REMOVE_NAME = "Remove";

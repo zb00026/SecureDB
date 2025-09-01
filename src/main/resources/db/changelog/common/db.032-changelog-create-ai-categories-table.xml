@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="db.032-create-ai-categories-table" author="system">
+        <comment>Create ai_categories table for database-driven category detection</comment>
+        
+        <!-- Create table -->
+        <createTable tableName="ai_categories">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="category_key" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="category_name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="keywords" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="field_patterns" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sensitivity_level" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_active" type="TINYINT(1)" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="INT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="DATETIME"/>
+            <column name="created_by" type="VARCHAR(100)"/>
+            <column name="updated_by" type="VARCHAR(100)"/>
+        </createTable>
+        
+        <!-- Add indexes -->
+        <createIndex tableName="ai_categories" indexName="idx_ai_categories_key">
+            <column name="category_key"/>
+        </createIndex>
+        <createIndex tableName="ai_categories" indexName="idx_ai_categories_active">
+            <column name="is_active"/>
+        </createIndex>
+        <createIndex tableName="ai_categories" indexName="idx_ai_categories_priority">
+            <column name="priority"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="db.032-add-category-id-to-ai-sensitive-patterns" author="system">
+        <comment>Add category_id column to ai_sensitive_patterns table to support relationship with ai_categories</comment>
+        
+        <!-- Add category_id column -->
+        <addColumn tableName="ai_sensitive_patterns">
+            <column name="category_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Add foreign key constraint -->
+        <addForeignKeyConstraint 
+            baseTableName="ai_sensitive_patterns" 
+            baseColumnNames="category_id" 
+            constraintName="fk_ai_sensitive_patterns_category_id" 
+            referencedTableName="ai_categories" 
+            referencedColumnNames="id" 
+            onDelete="SET NULL"/>
+        
+        <!-- Add index for better performance -->
+        <createIndex tableName="ai_sensitive_patterns" indexName="idx_ai_sensitive_patterns_category_id">
+            <column name="category_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="db.032-seed-ai-categories" author="system">
+        <comment>Seed initial AI categories for database-driven detection</comment>
+        
+        <!-- SSN Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="SSN"/>
+            <column name="category_name" value="Social Security Number"/>
+            <column name="description" value="Social Security Number and related identifiers"/>
+            <column name="keywords" value="ssn,social security,social_security,social_security_number"/>
+            <column name="field_patterns" value="ssn,social_security,social_sec,ss_number,ssn_number"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="100"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Credit Card Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="CREDIT_CARD"/>
+            <column name="category_name" value="Credit Card Information"/>
+            <column name="description" value="Credit card numbers and related payment information"/>
+            <column name="keywords" value="credit card,credit_card,card number,cc,creditcard"/>
+            <column name="field_patterns" value="credit_card,card_number,cc_number,creditcard,cc_num,card_num"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="95"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Email Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="EMAIL"/>
+            <column name="category_name" value="Email Address"/>
+            <column name="description" value="Email addresses and contact information"/>
+            <column name="keywords" value="email,mail,email address"/>
+            <column name="field_patterns" value="email,mail,email_address,email_addr,user_email,contact_email"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="80"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Phone Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="PHONE"/>
+            <column name="category_name" value="Phone Number"/>
+            <column name="description" value="Phone numbers and contact information"/>
+            <column name="keywords" value="phone,contact,tel,telephone,mobile"/>
+            <column name="field_patterns" value="phone,telephone,tel,mobile,cell,contact_phone,phone_number"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="75"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Password Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="PASSWORD"/>
+            <column name="category_name" value="Password"/>
+            <column name="description" value="Passwords and authentication credentials"/>
+            <column name="keywords" value="password,pwd,pass,secret"/>
+            <column name="field_patterns" value="password,pwd,pass,secret,passwd,user_password"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="90"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Name Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="NAME"/>
+            <column name="category_name" value="Personal Name"/>
+            <column name="description" value="Personal names and identification"/>
+            <column name="keywords" value="name,first name,last name,full name"/>
+            <column name="field_patterns" value="name,first_name,last_name,full_name,fname,lname,username,user_name"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="70"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Address Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="ADDRESS"/>
+            <column name="category_name" value="Address"/>
+            <column name="description" value="Physical addresses and location information"/>
+            <column name="keywords" value="address,street,city,zip,postal"/>
+            <column name="field_patterns" value="address,addr,street,city,zip,postal,address_line,street_address"/>
+            <column name="sensitivity_level" value="MEDIUM"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="65"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Date of Birth Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="DATE_OF_BIRTH"/>
+            <column name="category_name" value="Date of Birth"/>
+            <column name="description" value="Date of birth and age-related information"/>
+            <column name="keywords" value="dob,birth,birthday,born,date of birth"/>
+            <column name="field_patterns" value="birth,dob,birthday,born,birth_date,date_of_birth"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="85"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Bank Account Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="BANK_ACCOUNT"/>
+            <column name="category_name" value="Bank Account"/>
+            <column name="description" value="Bank account numbers and financial information"/>
+            <column name="keywords" value="bank account,account number,iban,swift"/>
+            <column name="field_patterns" value="bank_account,account_number,iban,swift,account_num,bank_acc"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="92"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Driver License Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="DRIVER_LICENSE"/>
+            <column name="category_name" value="Driver License"/>
+            <column name="description" value="Driver license numbers and vehicle information"/>
+            <column name="keywords" value="driver license,license number,dl,drivers license"/>
+            <column name="field_patterns" value="driver_license,license_number,dl_number,drivers_license,license_num"/>
+            <column name="sensitivity_level" value="HIGH"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="88"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+        
+        <!-- Passport Category -->
+        <insert tableName="ai_categories">
+            <column name="category_key" value="PASSPORT"/>
+            <column name="category_name" value="Passport"/>
+            <column name="description" value="Passport numbers and travel documents"/>
+            <column name="keywords" value="passport,passport number,travel document"/>
+            <column name="field_patterns" value="passport,passport_number,passport_num,travel_document"/>
+            <column name="sensitivity_level" value="CRITICAL"/>
+            <column name="is_active" valueNumeric="1"/>
+            <column name="priority" valueNumeric="93"/>
+            <column name="version" valueNumeric="1"/>
+            <column name="created_at" valueDate="CURRENT_TIMESTAMP"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

@@ -329,7 +329,7 @@ public class AssetCsvService {
         // Sample data
         csvContent.append("Production Database,Main production database for customer data,DATABASE,MYSQL,db.example.com,3306,customer_db,admin@example.com\n");
         csvContent.append("Analytics Database,Analytics and reporting database,DATABASE,POSTGRESQL,analytics.example.com,5432,analytics_db,jane.smith@example.com\n");
-        csvContent.append("Test Database,Development and testing database,DATABASE,MYSQL,test.example.com,3306,test_db,\n");
+        csvContent.append("Test Database,Development and testing database,DATABASE,MYSQL,test.example.com,3306,test_db,jane@example.com\n");
         csvContent.append("Legacy System,Legacy SQL Server database,DATABASE,SQLSERVER,legacy.example.com,1433,legacy_db,bob.johnson@example.com\n");
         
         // Add comment lines explaining the format

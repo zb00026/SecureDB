@@ -4,19 +4,15 @@ import com.verlake.dam.controller.common.BaseAssetAccessController;
 import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
-import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-import jakarta.persistence.Access;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,21 +22,13 @@ import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.service.ai.DataMaskingService;
 
-import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
-
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
 @RestController
 @RequestMapping("/api/developer/assets")
@@ -51,18 +39,20 @@ public class AccessRequestController extends BaseAssetAccessController {
     private final AccessRequestService accessRequestService;
     private final AccessLevelService accessLevelService;
     private final UserService userService;
+    private final DataMaskingService dataMaskingService;
 
-    @Autowired
     public AccessRequestController(AssetService assetService, 
                                  AssetQueryChangeRequestService assetQueryChangeRequestService,
                                  AccessRequestService accessRequestService,
                                  AccessLevelService accessLevelService,
-                                 UserService userService) {
+                                 UserService userService,
+                                 DataMaskingService dataMaskingService) {
         super(assetService);
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.accessRequestService = accessRequestService;
         this.accessLevelService = accessLevelService;
         this.userService = userService;
+        this.dataMaskingService = dataMaskingService;
     }
 
     @GetMapping
@@ -87,7 +77,7 @@ public class AccessRequestController extends BaseAssetAccessController {
     @Override
     protected ResponseEntity<?> handleGenericError(RuntimeException e) {
         // Developer controller returns 500 with error message for generic errors
-        Map<String, String> errorResponse = Map.of("error", "Failed to fetch asset access information");
+                    Map<String, String> errorResponse = Map.of(Constants.ERROR_FIELD_ERROR, "Failed to fetch asset access information");
         return ResponseEntity.status(500).body(errorResponse);
     }
 
@@ -209,13 +199,48 @@ public class AccessRequestController extends BaseAssetAccessController {
     @PostMapping("/run_query")
     public ResponseEntity<Map<String, Object>> runAssetQuery(@RequestBody AccessQueryDTO queryDto) {
         try {
+            // Get raw query results
+            Map<String, Object> queryResult = assetQueryChangeRequestService.runQueryFromDeveloper(queryDto);
+            
+            // Extract results list from the query result structure
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> resultsList = (List<Map<String, Object>>) queryResult.get("results");
+            
+            if (resultsList != null && !resultsList.isEmpty()) {
+                // Apply masking to each result in the list
+                String userEmail = CommonUtils.getEmailFromSession();
+                User user = userService.findByEmail(userEmail);
+                
+                // Get primary role name from user's roles
+                String userRole = user.getRoles().isEmpty() ? "Developer" : 
+                                user.getRoles().iterator().next().getName(); // Use first role
+                
+                // Get asset to check for masking policies
+                Asset asset = assetService.findById(queryDto.getAssetId());
+                
+                // Process each result in the list
+                for (Map<String, Object> result : resultsList) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get("data");
+                    
+                    if (rawResults != null && !rawResults.isEmpty()) {
+                        List<Map<String, Object>> maskedResults = dataMaskingService.maskQueryResults(
+                            asset, userRole, userEmail, rawResults);
+                        
+                        // Update the data in the result
+                        result.put("data", maskedResults);
+                        result.put("maskingApplied", !maskedResults.equals(rawResults));
+                    }
+                }
+            }
+            
             Map<String, Object> response = new LinkedHashMap<>();
             response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
-            response.put("results", assetQueryChangeRequestService.runQueryFromDeveloper(queryDto));
+            response.put("results", queryResult);
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error relinquishing access: {}", e.getMessage(), e);
+            log.error("Error running query: {}", e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

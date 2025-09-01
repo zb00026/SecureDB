@@ -70,7 +70,7 @@ public class UserController {
         User user = userService.findById(id);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id));
+                    HttpStatus.NOT_FOUND, Constants.getMessage(Constants.USER_NOT_FOUND, id));
         }
         return user;
     }
@@ -79,10 +79,15 @@ public class UserController {
     public ResponseEntity<Object> createUserAndSendInvite(@RequestBody UserDTO userDto) {
         User user = userDto.getUser();
         AuthProvider userAuthProvider = userDto.getAuthProvider();
+        
+        // Validate email uniqueness
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    String.format(Constants.getMessage("user.email.already.exists"), user.getEmail()));
+                    Constants.getMessage("user.email.already.exists", user.getEmail()));
         }
+        
+        // Validate name uniqueness
+        validateUserNames(user.getFirstName(), user.getLastName());
 
         // Generate temporary password if not provided
         if (user.getPassword() == null || user.getPassword().isEmpty()) {
@@ -113,8 +118,11 @@ public class UserController {
 
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    String.format(Constants.getMessage("user.email.already.exists"), user.getEmail()));
+                    Constants.getMessage("user.email.already.exists", user.getEmail()));
         }
+        
+        // Validate name uniqueness
+        validateUserNames(user.getFirstName(), user.getLastName());
 
         // Check password complexity
         if (user.getPassword() != null && !user.getPassword().isEmpty()) {
@@ -137,6 +145,12 @@ public class UserController {
     public User updateUser(@PathVariable Long id, @RequestBody User userDetails) {
         return userRepository.findById(id)
                 .map(user -> {
+                    // Validate name uniqueness only if names are being changed
+                    if (!user.getFirstName().equals(userDetails.getFirstName()) || 
+                        !user.getLastName().equals(userDetails.getLastName())) {
+                        validateUserNamesForUpdate(userDetails.getFirstName(), userDetails.getLastName(), id);
+                    }
+                    
                     user.setFirstName(userDetails.getFirstName());
                     user.setLastName(userDetails.getLastName());
                     user.setEmail(userDetails.getEmail());
@@ -176,7 +190,7 @@ public class UserController {
                     return userRepository.save(user);
                 })
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id)));
+                        HttpStatus.NOT_FOUND, Constants.getMessage(Constants.USER_NOT_FOUND, id)));
     }
 
     @DeleteMapping("/{id}")
@@ -193,7 +207,7 @@ public class UserController {
                     return ResponseEntity.ok(response);
                 })
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        String.format(Constants.getMessage("user.not.found.dot"), id)));
+                        Constants.getMessage("user.not.found.dot", id)));
     }
 
     @PutMapping("/setApprover/{id}/{approverId}")
@@ -214,7 +228,7 @@ public class UserController {
         User user = userService.findById(id);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id));
+                    HttpStatus.NOT_FOUND, Constants.getMessage(Constants.USER_NOT_FOUND, id));
         }
         
         User activatedUser = userService.activateUser(user);
@@ -229,7 +243,7 @@ public class UserController {
         User user = userService.findById(id);
         if (user == null) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, String.format(Constants.getMessage(Constants.USER_NOT_FOUND), id));
+                    HttpStatus.NOT_FOUND, Constants.getMessage(Constants.USER_NOT_FOUND, id));
         }
         
         User deactivatedUser = userService.deactivateUser(user);
@@ -275,6 +289,55 @@ public class UserController {
             } else {
                 return buildJsonResponse(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR), response);
             }
+        }
+    }
+
+    /**
+     * Validates that user names are unique to prevent confusion
+     */
+    private void validateUserNames(String firstName, String lastName) {
+        // Check for duplicate first name
+        if (userRepository.existsByFirstNameIgnoreCase(firstName)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    Constants.getMessage("user.first.name.already.exists", firstName));
+        }
+        
+        // Check for duplicate last name
+        if (userRepository.existsByLastNameIgnoreCase(lastName)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    Constants.getMessage("user.last.name.already.exists", lastName));
+        }
+        
+        // Check for duplicate first name and last name combination
+        if (userRepository.existsByFirstNameIgnoreCaseAndLastNameIgnoreCase(firstName, lastName)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    Constants.getMessage("user.name.combination.already.exists", firstName, lastName));
+        }
+    }
+    
+    /**
+     * Validates that user names are unique when updating (excludes current user)
+     */
+    private void validateUserNamesForUpdate(String firstName, String lastName, Long currentUserId) {
+        // Check for duplicate first name (excluding current user)
+        List<User> usersWithSameFirstName = userRepository.findByFirstNameIgnoreCase(firstName);
+        if (usersWithSameFirstName.stream().anyMatch(u -> !u.getId().equals(currentUserId))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    Constants.getMessage("user.first.name.already.exists", firstName));
+        }
+        
+        // Check for duplicate last name (excluding current user)
+        List<User> usersWithSameLastName = userRepository.findByLastNameIgnoreCase(lastName);
+        if (usersWithSameLastName.stream().anyMatch(u -> !u.getId().equals(currentUserId))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    Constants.getMessage("user.last.name.already.exists", lastName));
+        }
+        
+        // Check for duplicate first name and last name combination (excluding current user)
+        List<User> usersWithSameName = userRepository.findByFirstNameAndLastNameIgnoreCase(firstName, lastName);
+        if (usersWithSameName.stream().anyMatch(u -> !u.getId().equals(currentUserId))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    Constants.getMessage("user.name.combination.already.exists", firstName, lastName));
         }
     }
 

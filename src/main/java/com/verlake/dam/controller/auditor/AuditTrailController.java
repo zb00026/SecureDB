@@ -11,7 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import java.util.stream.Collectors;
+
 
 @RestController
 @RequestMapping("/api/audit-trails")
@@ -28,7 +28,7 @@ public class AuditTrailController {
         return new PageImpl<>(
             auditTrails.getContent().stream()
                 .map(AuditTrailDTO::fromEntity)
-                .collect(Collectors.toList()),
+                .toList(),
             auditTrails.getPageable(),
             auditTrails.getTotalElements()
         );

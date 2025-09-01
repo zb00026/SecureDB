@@ -153,4 +153,179 @@ public class CommonUtils {
         }
     }
 
+    // ===== SECURE VALIDATION METHODS (ReDoS Protected) =====
+
+    /**
+     * Validate password strength without vulnerable regex patterns
+     * Uses character-by-character checking to prevent ReDoS attacks
+     */
+    public static void validatePasswordStrength(String password) {
+        if (password == null || password.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters long");
+        }
+
+        boolean hasUpperCase = false;
+        boolean hasLowerCase = false;
+        boolean hasDigit = false;
+        boolean hasSpecialChar = false;
+
+        for (char c : password.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                hasUpperCase = true;
+            } else if (Character.isLowerCase(c)) {
+                hasLowerCase = true;
+            } else if (Character.isDigit(c)) {
+                hasDigit = true;
+            } else if (isSpecialCharacter(c)) {
+                hasSpecialChar = true;
+            }
+        }
+
+        if (!hasUpperCase) {
+            throw new IllegalArgumentException("Password must contain at least one uppercase letter (A-Z)");
+        }
+        if (!hasLowerCase) {
+            throw new IllegalArgumentException("Password must contain at least one lowercase letter (a-z)");
+        }
+        if (!hasDigit) {
+            throw new IllegalArgumentException("Password must contain at least one digit (0-9)");
+        }
+        if (!hasSpecialChar) {
+            throw new IllegalArgumentException("Password must contain at least one special character (!@#$%^&*()-_=+[]{}|;:'\",.<>/?)");
+        }
+    }
+
+    /**
+     * Check if character is a special character (ReDoS safe)
+     */
+    private static boolean isSpecialCharacter(char c) {
+        return "!@#$%^&*()-_=+[]{}|;:'\",.<>/?".indexOf(c) != -1;
+    }
+
+    /**
+     * Validate SQL identifier without vulnerable regex patterns
+     * Uses character-by-character checking to prevent ReDoS attacks
+     */
+    public static boolean isValidSqlIdentifier(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            return false;
+        }
+
+        String trimmed = identifier.trim();
+        
+        // Check length limit to prevent DoS
+        if (trimmed.length() > 128) {
+            return false;
+        }
+
+        // Check each character individually
+        for (char c : trimmed.toCharArray()) {
+            if (!isValidSqlIdentifierChar(c)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if character is valid for SQL identifier (ReDoS safe)
+     */
+    private static boolean isValidSqlIdentifierChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '.';
+    }
+
+    /**
+     * Validate username without vulnerable regex patterns
+     * Uses character-by-character checking to prevent ReDoS attacks
+     */
+    public static boolean isValidUsername(String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return false;
+        }
+
+        String trimmed = username.trim();
+        
+        // Check length limit to prevent DoS
+        if (trimmed.length() > 64) {
+            return false;
+        }
+
+        // Check each character individually
+        for (char c : trimmed.toCharArray()) {
+            if (!isValidUsernameChar(c)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if character is valid for username (ReDoS safe)
+     */
+    private static boolean isValidUsernameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '.' || c == '-';
+    }
+
+    /**
+     * Escape SQL identifier to prevent injection (ReDoS safe)
+     */
+    public static String escapeSqlIdentifier(String identifier) {
+        if (identifier == null) {
+            return "";
+        }
+
+        // Use StringBuilder for efficient string manipulation
+        StringBuilder escaped = new StringBuilder();
+        for (char c : identifier.toCharArray()) {
+            switch (c) {
+                case '`' -> escaped.append("``");  // MySQL backtick escape
+                case '"' -> escaped.append("\"\""); // PostgreSQL/SQL Server quote escape
+                case '[' -> escaped.append("[[");  // SQL Server bracket escape
+                case ']' -> escaped.append("]]");  // SQL Server bracket escape
+                default -> escaped.append(c);
+            }
+        }
+        return escaped.toString();
+    }
+
+    /**
+     * Escape PostgreSQL identifier specifically
+     */
+    public static String escapePostgresqlIdentifier(String identifier) {
+        if (identifier == null) {
+            return "";
+        }
+
+        StringBuilder escaped = new StringBuilder();
+        for (char c : identifier.toCharArray()) {
+            if (c == '"') {
+                escaped.append("\"\"");
+            } else {
+                escaped.append(c);
+            }
+        }
+        return escaped.toString();
+    }
+
+    /**
+     * Escape SQL Server identifier specifically
+     */
+    public static String escapeSqlServerIdentifier(String identifier) {
+        if (identifier == null) {
+            return "";
+        }
+
+        StringBuilder escaped = new StringBuilder();
+        for (char c : identifier.toCharArray()) {
+            if (c == '[' || c == ']') {
+                escaped.append(c).append(c); // Double the brackets
+            } else {
+                escaped.append(c);
+            }
+        }
+        return escaped.toString();
+    }
+
 }

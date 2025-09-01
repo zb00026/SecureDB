@@ -28,7 +28,10 @@
     <include file="db/changelog/common/db.025-changelog-add-reject-reason-access-request.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.026-changelog-add-asset-id-to-audit-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.028-changelog-create-licenses-table.xml" relativeToChangelogFile="false"/>
-    
+    <include file="db/changelog/common/db.029-changelog-create-ai-masking-policies-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.030-changelog-create-ai-prompts-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.031-changelog-create-ai-sensitive-patterns-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.032-changelog-create-ai-categories-table.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

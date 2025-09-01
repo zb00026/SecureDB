@@ -11,7 +11,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
-import java.util.stream.Collectors;
+
 
 @RequiredArgsConstructor
 @Slf4j
@@ -25,7 +25,7 @@ public abstract class BaseAuditTrailController {
      * @return Page of audit trails filtered by role-based access
      */
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ASSET_OWNER', 'APPROVER', 'DEVELOPER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
     public ResponseEntity<Page<AuditTrailDTO>> getAuditTrails(RoleBasedAuditTrailFilter filter) {
         String roleName = getRoleName();
         log.info("{} requesting audit trails with filter: {}", roleName, filter);
@@ -39,7 +39,7 @@ public abstract class BaseAuditTrailController {
         Page<AuditTrailDTO> dtoPage = new PageImpl<>(
             auditTrails.getContent().stream()
                 .map(AuditTrailDTO::fromEntity)
-                .collect(Collectors.toList()),
+                .toList(),
             auditTrails.getPageable(),
             auditTrails.getTotalElements()
         );
