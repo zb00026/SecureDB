@@ -491,7 +491,6 @@ public class AccessRequestService {
 
     private void checkUserAndSetCredentials(Long assetId, User requestor, AccessRequest accessRequest,
             String existUsername, Map<String, String> newCredMapper) {
-        User currentUser = userService.getCurrentUser();
         final String userKey = keycloakService.getUserKey();
 
         //Asset Credential has user_access_type, get credentials which are only asset owner's
@@ -504,7 +503,7 @@ public class AccessRequestService {
                             && cred.getPassword() != null && !cred.getPassword().isEmpty();
 
                     // Check if user is the owner of the asset associated with this credential
-                    boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(currentUser.getId());
+                    boolean isAssetOwner = cred.getUser() != null && userService.isAssetOwner(cred.getUser());
 
                     return hasValidCredentials && isAssetOwner;
                 })

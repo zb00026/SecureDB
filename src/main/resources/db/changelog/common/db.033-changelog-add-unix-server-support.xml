@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="033-add-unix-server-support" author="admin">
+        <!-- Add UNIX_SERVER to AssetType enum -->
+        <sql>
+            ALTER TABLE assets MODIFY COLUMN type ENUM('DATABASE', 'UNIX_SERVER') NOT NULL;
+        </sql>
+        
+        <!-- Add unix_server_type column to assets table -->
+        <addColumn tableName="assets">
+            <column name="unix_server_type" type="varchar(50)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Add SSH-related columns to existing asset_credentials table -->
+        <addColumn tableName="asset_credentials">
+            <column name="ssh_key_file" type="LONGTEXT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog> 

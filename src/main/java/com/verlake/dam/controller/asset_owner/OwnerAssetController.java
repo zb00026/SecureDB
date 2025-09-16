@@ -7,10 +7,8 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
-import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.assets.dto.PingResult;
 import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
@@ -25,6 +23,7 @@ import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseAccessService;
+import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
@@ -86,6 +85,8 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private DatabaseAccessService databaseAccessService;
+
+
 
     /**
      * Constructor for OwnerAssetController.
@@ -333,5 +334,105 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @GetMapping("/roles")
     public List<Role> getAllRoles() {
         return roleRepository.findAll();
+    }
+
+    // SSH Credential Management for Unix Server assets
+
+    /**
+     * Create SSH credentials for a Unix Server asset
+     */
+    @PostMapping("/{assetId}/ssh-credentials")
+    public ResponseEntity<AssetCredentialDTO> createSSHCredentials(@PathVariable Long assetId, 
+                                                               @RequestBody AssetCredentialDTO createDTO) {
+        createDTO.setAssetId(assetId);
+        AssetCredential credential = assetService.createSSHCredential(assetId, createDTO);
+        
+        AssetCredentialDTO result = AssetCredentialDTO.builder()
+                .assetId(credential.getAsset().getId())
+                .username(credential.getUsername())
+                .sshKeyFile(credential.getSshKeyFile())
+                .userAccessType(credential.getUserAccessType())
+                .assetType(credential.getAsset().getType())
+                .build();
+        
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Update existing SSH credentials
+     */
+    @PutMapping("/ssh-credentials/{id}")
+    public ResponseEntity<AssetCredentialDTO> updateSSHCredentials(@PathVariable Long id, 
+                                                               @RequestBody AssetCredentialDTO updateDTO) {
+        AssetCredential existingCredential = assetService.findCredentialById(id);
+        if (existingCredential == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
+        }
+        
+        // Update fields
+        if (updateDTO.getUsername() != null) {
+            existingCredential.setUsername(updateDTO.getUsername());
+        }
+        
+        if (updateDTO.getSshKeyFile() != null) {
+            // Encrypt the new SSH key file
+            String userKey = keycloakService.getUserKey();
+            if (userKey == null || userKey.isEmpty()) {
+                throw new SecurityException("User encryption key not available");
+            }
+            try {
+                String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
+                existingCredential.setSshKeyFile(encryptedSSHKey);
+            } catch (CommonUtils.CryptoException e) {
+                throw new SecurityException("Failed to encrypt SSH key", e);
+            }
+        }
+        
+        assetService.saveCredential(existingCredential);
+        
+        AssetCredentialDTO result = AssetCredentialDTO.builder()
+                .assetId(existingCredential.getAsset().getId())
+                .username(existingCredential.getUsername())
+                .sshKeyFile(existingCredential.getSshKeyFile())
+                .userAccessType(existingCredential.getUserAccessType())
+                .assetType(existingCredential.getAsset().getType())
+                .build();
+        
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Delete SSH credentials
+     */
+    @DeleteMapping("/ssh-credentials/{id}")
+    public ResponseEntity<Map<String, Object>> deleteSSHCredentials(@PathVariable Long id) {
+        AssetCredential existingCredential = assetService.findCredentialById(id);
+        if (existingCredential == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
+        }
+        
+        assetService.deleteAssetCredential(existingCredential);
+        return CommonUtils.getSuccessResponse();
+    }
+
+    /**
+     * Get current user's SSH credentials
+     */
+    @GetMapping("/ssh-credentials")
+    public ResponseEntity<List<AssetCredentialDTO>> getSSHCredentials() {
+        List<AssetCredential> allCredentials = assetService.getAssignedCredentials();
+        
+        List<AssetCredentialDTO> sshCredentials = allCredentials.stream()
+                .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER && cred.getSshKeyFile() != null)
+                .map(cred -> AssetCredentialDTO.builder()
+                        .assetId(cred.getAsset().getId())
+                        .username(cred.getUsername())
+                        .sshKeyFile(cred.getSshKeyFile())
+                        .userAccessType(cred.getUserAccessType())
+                        .assetType(cred.getAsset().getType())
+                        .build())
+                .toList();
+        
+        return ResponseEntity.ok(sshCredentials);
     }
 }

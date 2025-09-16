@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <changeSet id="034-create-terminal-session-recordings-table" author="system">
+        <createTable tableName="terminal_session_recordings">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="asset_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="host_address" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="port_number" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="session_start" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="session_end" type="TIMESTAMP"/>
+            <column name="duration_seconds" type="BIGINT"/>
+            <column name="full_session_log" type="LONGTEXT"/>
+            <column name="command_count" type="INT" defaultValue="0"/>
+            <column name="is_active" type="BIT" defaultValue="1"/>
+            <column name="client_ip" type="VARCHAR(255)"/>
+            <column name="user_agent" type="TEXT"/>
+            <column name="terminal_size" type="VARCHAR(20)"/>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+        
+        <addForeignKeyConstraint
+                baseTableName="terminal_session_recordings"
+                baseColumnNames="asset_id"
+                referencedTableName="assets"
+                referencedColumnNames="id"
+                constraintName="fk_terminal_session_asset"/>
+                
+        <addForeignKeyConstraint
+                baseTableName="terminal_session_recordings"
+                baseColumnNames="user_id"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                constraintName="fk_terminal_session_user"/>
+                
+        <createIndex tableName="terminal_session_recordings" indexName="idx_session_id">
+            <column name="session_id"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_session_recordings" indexName="idx_session_start">
+            <column name="session_start"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_session_recordings" indexName="idx_is_active">
+            <column name="is_active"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_session_recordings" indexName="idx_user_session">
+            <column name="user_id"/>
+            <column name="session_start"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_session_recordings" indexName="idx_asset_session">
+            <column name="asset_id"/>
+            <column name="session_start"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="034-create-terminal-command-audit-table" author="system">
+        <createTable tableName="terminal_command_audit">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="session_recording_id" type="BIGINT"/>
+            <column name="asset_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="command_sequence" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="raw_input" type="TEXT"/>
+            <column name="parsed_command" type="TEXT"/>
+            <column name="command_type" type="VARCHAR(100)"/>
+            <column name="is_dangerous" type="BIT" defaultValue="0"/>
+            <column name="risk_level" type="VARCHAR(20)" defaultValue="LOW"/>
+            <column name="command_output" type="LONGTEXT"/>
+            <column name="exit_code" type="INT"/>
+            <column name="execution_time_ms" type="BIGINT"/>
+            <column name="working_directory" type="VARCHAR(500)"/>
+            <column name="environment_vars" type="TEXT"/>
+            <column name="client_ip" type="VARCHAR(255)"/>
+            <column name="executed_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <addForeignKeyConstraint
+                baseTableName="terminal_command_audit"
+                baseColumnNames="session_recording_id"
+                referencedTableName="terminal_session_recordings"
+                referencedColumnNames="id"
+                constraintName="fk_command_audit_session"/>
+                
+        <addForeignKeyConstraint
+                baseTableName="terminal_command_audit"
+                baseColumnNames="asset_id"
+                referencedTableName="assets"
+                referencedColumnNames="id"
+                constraintName="fk_command_audit_asset"/>
+                
+        <addForeignKeyConstraint
+                baseTableName="terminal_command_audit"
+                baseColumnNames="user_id"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                constraintName="fk_command_audit_user"/>
+                
+        <createIndex tableName="terminal_command_audit" indexName="idx_session_command">
+            <column name="session_id"/>
+            <column name="command_sequence"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_executed_at">
+            <column name="executed_at"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_is_dangerous">
+            <column name="is_dangerous"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_risk_level">
+            <column name="risk_level"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_command_type">
+            <column name="command_type"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_user_executed">
+            <column name="user_id"/>
+            <column name="executed_at"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_asset_executed">
+            <column name="asset_id"/>
+            <column name="executed_at"/>
+        </createIndex>
+        
+        <createIndex tableName="terminal_command_audit" indexName="idx_parsed_command">
+            <column name="parsed_command(255)"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

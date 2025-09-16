@@ -3,6 +3,7 @@ package com.verlake.dam.entity.assets;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.enums.UnixServerType;
 import com.verlake.dam.enums.LockType;
 import com.verlake.dam.listener.AuditEntityListener;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
@@ -41,6 +42,10 @@ public class Asset {
     @Enumerated(EnumType.STRING)
     private DatabaseType databaseType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unix_server_type")
+    private UnixServerType unixServerType;
+
     private String hostAddress;
 
     @Column(name = "port_number")
@@ -67,7 +72,10 @@ public class Asset {
         
         StringBuilder url = new StringBuilder(hostAddress);
         appendPortIfPresent(url);
-        appendDatabaseIfPresent(url);
+        
+        if (type == AssetType.DATABASE) {
+            appendDatabaseIfPresent(url);
+        }
         
         return url.toString();
     }

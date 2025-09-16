@@ -642,4 +642,95 @@ public class Constants {
     public static int getTechnicalPropertyAsInt(String key, int defaultValue) {
         return I18nUtils.getTechnicalPropertyAsInt(key, defaultValue);
     }
+
+    // ===== TERMINAL WEBSOCKET CONSTANTS =====
+    
+    // Terminal field names
+    public static final String SESSION_START_FIELD = "sessionStart";
+    public static final String UNKNOWN_VALUE = "unknown";
+    
+    // Terminal recording log messages
+    public static final String MSG_NO_RECORDING_FOUND = "No recording found for session: {}";
+    public static final String MSG_RECORDING_NOT_ACTIVE = "Recording is not active for session: {}";
+    
+    // Terminal recording regex patterns
+    public static final String REGEX_ESCAPE_BACKSLASH = "\\\\";
+    public static final String REGEX_NEWLINE_PATTERN = "[\\r\\n]";
+    
+    // Terminal service regex patterns
+    public static final String REGEX_ESCAPE_BACKSLASH_SIMPLE = "\\";
+    public static final String REGEX_NEWLINE_ESCAPE = "\\\\n";
+    public static final String REGEX_CRLF_PATTERN = "\r\n";
+    public static final String REGEX_CRLF_ESCAPE = "\\\\n";
+    
+    // Request/Response Field Names
+    public static final String TERMINAL_ACTION = "action";
+    public static final String TERMINAL_ASSET_ID = "assetId";
+    public static final String TERMINAL_TOKEN = "token";
+    public static final String TERMINAL_AUTH_PROVIDER = "authProvider";
+    public static final String TERMINAL_MESSAGE = "message";
+    public static final String TERMINAL_SESSION_ID = "sessionId";
+    public static final String TERMINAL_TYPE = "type";
+    public static final String TERMINAL_DATA = "data";
+    public static final String TERMINAL_COMMAND = "command";
+    public static final String TERMINAL_COLS = "cols";
+    public static final String TERMINAL_ROWS = "rows";
+    
+    // Action Types
+    public static final String TERMINAL_ACTION_AUTHENTICATE = "authenticate";
+    // TERMINAL_ACTION_INPUT and TERMINAL_ACTION_COMMAND removed - now using TERMINAL_ACTION_KEYBOARD_EVENT
+    public static final String TERMINAL_ACTION_RESIZE = "resize";
+    public static final String TERMINAL_ACTION_DISCONNECT = "disconnect";
+    public static final String TERMINAL_ACTION_INTERRUPT = "interrupt";
+    public static final String TERMINAL_ACTION_KEYBOARD_EVENT = "keyboard_event";
+    public static final String TERMINAL_ACTION_AUTHENTICATION_SUCCESS = "authentication_success";
+    
+    // Response Types
+    public static final String TERMINAL_TYPE_CONNECTION_READY = "connection_ready";
+    public static final String TERMINAL_TYPE_CONNECTION_ESTABLISHED = "connection_established";
+    public static final String TERMINAL_TYPE_CONNECTION_PROGRESS = "connection_progress";
+    public static final String TERMINAL_TYPE_SSH_CONNECTED = "ssh_connected";
+    public static final String TERMINAL_TYPE_SSH_ERROR = "ssh_error";
+    public static final String TERMINAL_TYPE_ERROR = "error";
+    public static final String TERMINAL_TYPE_RESIZE_CONFIRMED = "resize_confirmed";
+    public static final String TERMINAL_TYPE_INTERRUPT_CONFIRMED = "interrupt_confirmed";
+    public static final String TERMINAL_TYPE_DISCONNECT_CONFIRMED = "disconnect_confirmed";
+    // Tab completion is now handled natively by SSH terminal - no special response type needed
+    public static final String TERMINAL_TYPE_OUTPUT = "output";
+    public static final String TERMINAL_CONNECTION_ERROR = "connection_error";
+    
+    // Regular Expression Patterns
+    public static final String REGEX_NEWLINE_REPLACE = "[\\r\\n]";
+    public static final String REGEX_NEWLINE_REPLACEMENT = "\\\\n";
+    
+    // SSH Connection Constants
+    public static final String SSH_NEWLINE_ESCAPE = "\\\\n";
+    public static final String SSH_REGEX_NEWLINE = "[\\r\\n]";
+    public static final String ENCODING_UTF8 = "UTF-8";
+    
+    // Terminal Success Messages
+    public static final String MSG_TERMINAL_CONNECTION_READY = "Terminal connection ready - send authenticate action to proceed";
+    public static final String MSG_TERMINAL_SESSION_ESTABLISHED = "Terminal session established successfully";
+    public static final String MSG_TERMINAL_SESSION_AUTHENTICATED = "Terminal session authenticated successfully";
+    public static final String MSG_SSH_CONNECTION_ESTABLISHED = "SSH connection established successfully";
+    public static final String MSG_TERMINAL_SESSION_CLOSED = "Terminal session closed successfully";
+    public static final String MSG_INTERRUPT_SIGNAL_SENT = "Interrupt signal sent successfully";
+    public static final String MSG_CONNECTING_TO_SSH = "Connecting to SSH server...";
+    
+    // Terminal Error Messages
+    public static final String MSG_MISSING_REQUIRED_PARAMS = "Missing required parameters: assetId, host, port, token, authProvider";
+    public static final String MSG_INVALID_NUMERIC_PARAMS = "Invalid numeric parameters: assetId must be numbers";
+    public static final String MSG_AUTHENTICATION_TOKEN_REQUIRED = "Authentication token required";
+    public static final String MSG_SESSION_METADATA_NOT_FOUND = "Session metadata not found";
+    public static final String MSG_TERMINAL_SESSION_NOT_FOUND = "Terminal session not found";
+    public static final String MSG_SSH_SESSION_NOT_CONNECTED = "SSH session not connected";
+    
+    // Terminal Error Message Prefixes (for concatenation with dynamic content)
+    public static final String MSG_FAILED_TO_ESTABLISH_CONNECTION = "Failed to establish terminal connection: ";
+    public static final String MSG_AUTHENTICATION_FAILED = "Authentication failed: ";
+    public static final String MSG_AUTHENTICATION_PROCESSING_ERROR = "Authentication processing error: ";
+    public static final String MSG_FAILED_TO_ESTABLISH_SSH = "Failed to establish SSH connection: ";
+    public static final String MSG_FAILED_TO_SEND_INPUT = "Failed to send input to SSH session: ";
+    public static final String MSG_FAILED_TO_PROCESS_MESSAGE = "Failed to process message: ";
+    public static final String MSG_INVALID_AUTH_PROVIDER = "Invalid auth provider: ";
 }

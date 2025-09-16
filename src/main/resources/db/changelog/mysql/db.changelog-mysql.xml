@@ -45,6 +45,11 @@
         <modifyDataType tableName="access_levels" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER')"/>
     </changeSet>
 
+    <!-- Update asset type enum to include UNIX_SERVER -->
+    <changeSet id="mysql-update-asset-type-enum-unix-server" author="admin" dbms="mysql">
+        <modifyDataType tableName="assets" columnName="type" newDataType="ENUM('DATABASE', 'UNIX_SERVER')"/>
+    </changeSet>
+
     <!-- Access request status enums -->
     <changeSet id="mysql-update-access-requests-enums" author="admin" dbms="mysql">
         <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
@@ -69,6 +74,13 @@
             MODIFY COLUMN user_access_type varchar(50) 
             COMMENT 'Type of user access: Admin, Developer, Asset Owner, Approver, Auditor, User';
         </sql>
+        
+        <!-- Add index for SSH credentials after user_access_type column is created -->
+        <createIndex tableName="asset_credentials" indexName="idx_asset_credentials_ssh">
+            <column name="asset_id"/>
+            <column name="user_id"/>
+            <column name="user_access_type"/>
+        </createIndex>
     </changeSet>
 
     <changeSet id="mysql-notification-task-email-type" author="admin" dbms="mysql">

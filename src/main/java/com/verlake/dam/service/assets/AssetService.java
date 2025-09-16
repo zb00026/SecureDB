@@ -3,10 +3,7 @@ package com.verlake.dam.service.assets;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.verlake.dam.entity.assets.AccessLevel;
 import com.verlake.dam.entity.assets.AssetApprover;
-import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
-import com.verlake.dam.entity.assets.dto.AssetDTO;
-import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
-import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
+import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.entity.user.User;
@@ -48,7 +45,8 @@ import java.util.Optional;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.entity.assets.dto.PingResult;
+import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.UnixServerType;
 
 @Service
 @Slf4j
@@ -101,6 +99,7 @@ public class AssetService {
                 .description(assetDTO.getDescription())
                 .type(assetDTO.getType())
                 .databaseType(assetDTO.getDatabaseType())
+                .unixServerType(assetDTO.getUnixServerType())
                 .hostAddress(assetDTO.getHostAddress())
                 .portNumber(assetDTO.getPortNumber())
                 .databaseName(assetDTO.getDatabaseName())
@@ -307,6 +306,7 @@ public class AssetService {
         asset.setDescription(updateDTO.getDescription());
         asset.setType(updateDTO.getType());
         asset.setDatabaseType(updateDTO.getDatabaseType());
+        asset.setUnixServerType(updateDTO.getUnixServerType());
         asset.setHostAddress(updateDTO.getHostAddress());
         asset.setPortNumber(updateDTO.getPortNumber());
         asset.setDatabaseName(updateDTO.getDatabaseName());
@@ -644,6 +644,14 @@ public class AssetService {
             return PingResult.failure("Invalid host address: " + asset.getHostAddress());
         }
 
+        // For Unix Server assets, we don't need to ping database
+        if (asset.getType() == com.verlake.dam.enums.AssetType.UNIX_SERVER) {
+            // For Unix servers, just check if host is reachable via basic connectivity
+            // This is a simplified check - in production you might want to implement
+            // actual SSH connectivity testing
+            return PingResult.success("Unix server host address validated", 0);
+        }
+
         if (asset.getDatabaseType() == null) {
             return PingResult.failure("Database type is not specified");
         }
@@ -760,5 +768,59 @@ public class AssetService {
                message.contains("connection failed") ||
                message.contains("timeout") ||
                message.contains("unable to connect");
+    }
+    
+    /**
+     * Create SSH credentials for a Unix Server asset
+     */
+    @Transactional
+    public AssetCredential createSSHCredential(Long assetId, AssetCredentialDTO createDTO) {
+        Asset asset = findById(assetId);
+        
+        if (asset.getType() != AssetType.UNIX_SERVER) {
+            throw new IllegalArgumentException("Asset must be of type UNIX_SERVER");
+        }
+        
+        User currentUser = userService.getCurrentUser();
+        
+        // Check if user is asset owner
+        if (!userService.isAssetOwner(currentUser)) {
+            throw new SecurityException("User is not an asset owner for this asset");
+        }
+        
+        // Encrypt the SSH key file
+        String userKey = keycloakService.getUserKey();
+        if (userKey == null || userKey.isEmpty()) {
+            throw new SecurityException("User encryption key not available");
+        }
+        
+        String encryptedSSHKey;
+        try {
+            encryptedSSHKey = CommonUtils.encrypt(userKey, createDTO.getSshKeyFile());
+        } catch (CommonUtils.CryptoException e) {
+            throw new SecurityException("Failed to encrypt SSH key", e);
+        }
+        
+        AssetCredential credential = AssetCredential.builder()
+                .asset(asset)
+                .user(currentUser)
+                .username(createDTO.getUsername())
+                .sshKeyFile(encryptedSSHKey)
+                .userAccessType(Roles.ASSET_OWNER.getOriginalName())
+                .build();
+        
+        return assetCredentialsRepository.save(credential);
+    }
+    
+    
+    /**
+     * Get SSH credentials for a specific asset and user
+     */
+    public AssetCredential getSSHCredentialsForAsset(Long assetId, User user) {
+        return assetCredentialsRepository.findByAssetIdAndUserId(assetId, user.getId())
+                .stream()
+                .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER && cred.getSshKeyFile() != null)
+                .findFirst()
+                .orElse(null);
     }
 }

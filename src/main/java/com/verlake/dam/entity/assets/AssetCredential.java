@@ -52,4 +52,7 @@ public class AssetCredential {
     @Builder.Default
     @Column(name = "is_temporary_password", columnDefinition = "tinyint(1)")
     private Boolean isTemporaryPassword = false;
+    
+    @Column(name = "ssh_key_file", columnDefinition = "LONGTEXT")
+    private String sshKeyFile; // For Unix Server assets
 } 

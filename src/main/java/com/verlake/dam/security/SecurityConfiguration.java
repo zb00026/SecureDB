@@ -58,6 +58,7 @@ public class SecurityConfiguration {
                     authorize
                             .requestMatchers("/public/**", "/api/auth/**", "/api/firebase/notifications/**",
                                     "/api/license/status", "/api/auth/validateResetToken").permitAll()
+                            .requestMatchers("/api/terminal/connect").permitAll() // Allow WebSocket connections
                             .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                             .requestMatchers("/api/asset_owner/assets/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name())
                             .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())

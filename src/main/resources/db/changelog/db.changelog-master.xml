@@ -32,6 +32,8 @@
     <include file="db/changelog/common/db.030-changelog-create-ai-prompts-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.031-changelog-create-ai-sensitive-patterns-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.032-changelog-create-ai-categories-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.033-changelog-add-unix-server-support.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.034-changelog-terminal-audit.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

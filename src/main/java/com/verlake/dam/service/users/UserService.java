@@ -3,6 +3,7 @@ package com.verlake.dam.service.users;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserFilter;
 import com.verlake.dam.repository.UserRepository;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
@@ -343,6 +344,21 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
                     Constants.getMessage("error.user.cascade.delete.failed") + ": " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Check if user has asset owner role or admin role
+     * @param user The user to check
+     * @return true if user is asset owner or admin, false otherwise
+     */
+    public boolean isAssetOwner(User user) {
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        
+        return user.getRoles().stream()
+                .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()) || 
+                                 Roles.ADMIN.getOriginalName().equals(role.getName()));
     }
 
 }

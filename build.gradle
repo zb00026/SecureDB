@@ -25,6 +25,8 @@ configurations {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+	implementation 'org.springframework.boot:spring-boot-starter-reactor-netty'
 	implementation 'org.springframework.boot:spring-boot-devtools'
 	implementation 'org.springframework.boot:spring-boot-autoconfigure'
 	implementation 'org.springframework.boot:spring-boot-starter-batch'
@@ -110,6 +112,9 @@ dependencies {
 
 	implementation 'com.google.cloud:google-cloud-aiplatform:3.+'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+    
+    // SSH client for terminal connections
+    implementation 'com.github.mwiede:jsch:0.+'
     
     
     

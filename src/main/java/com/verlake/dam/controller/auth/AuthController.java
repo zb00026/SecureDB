@@ -110,9 +110,9 @@ public class AuthController {
             }
 
             log.info("Step 4: Checking if user is asset owner");
-            if (isAssetOwner(user)) {
+            if (userService.isAssetOwner(user)) {
                 log.info("User is asset owner, processing credentials asynchronously");
-                processAssetOwnerCredentials(user);
+                processAssetOwnerCredentials();
             } else {
                 log.info("User is not asset owner, skipping credential processing");
             }
@@ -219,22 +219,18 @@ public class AuthController {
         }
     }
 
-    private boolean isAssetOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()) || Roles.ADMIN.getOriginalName().equals(role.getName()));
-    }
 
-    private void processAssetOwnerCredentials(User user) {
+    private void processAssetOwnerCredentials() {
         final String userKey = keycloakService.getUserKey();
         final List<AssetCredential> credentials = assetService.getAssignedCredentials();
 
-        taskExecutor.execute(() -> processCredentialsAsync(user, userKey, credentials));
+        taskExecutor.execute(() -> processCredentialsAsync(userKey, credentials));
     }
 
-    private void processCredentialsAsync(User user, String userKey, List<AssetCredential> credentials) {
+    private void processCredentialsAsync(String userKey, List<AssetCredential> credentials) {
         try {
             credentials.stream()
-                    .filter(cred -> isValidCredential(cred, user))
+                    .filter(this::isValidCredential)
                     .forEach(cred -> processCredential(cred, userKey));
         } catch (Exception e) {
             log.error(
@@ -243,13 +239,10 @@ public class AuthController {
         }
     }
 
-    private boolean isValidCredential(AssetCredential cred, User user) {
+    private boolean isValidCredential(AssetCredential cred) {
         boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
                 && cred.getPassword() != null && !cred.getPassword().isEmpty();
-
-        boolean isAssetOwner = cred.getUser() != null && cred.getUser().getId().equals(user.getId());
-
-        return hasValidCredentials && isAssetOwner;
+        return hasValidCredentials && cred.getUser() != null && userService.isAssetOwner(cred.getUser());
     }
 
     private void processCredential(AssetCredential cred, String userKey) {
