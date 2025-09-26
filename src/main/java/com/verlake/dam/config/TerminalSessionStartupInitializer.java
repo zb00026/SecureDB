@@ -2,6 +2,7 @@ package com.verlake.dam.config;
 
 import com.verlake.dam.service.terminal.TerminalRecordingService;
 import com.verlake.dam.service.terminal.TerminalService;
+import com.verlake.dam.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -29,8 +30,14 @@ public class TerminalSessionStartupInitializer {
     @EventListener(ApplicationReadyEvent.class)
     @Order(1) // Run early in the startup process
     public void handleApplicationReady() {
-        log.info("=== Terminal Session Startup Initializer ===");
-        log.info("Marking all active terminal sessions as inactive...");
+        boolean detailedLogging = Constants.getTechnicalPropertyAsBoolean(Constants.LOGGING_DETAILED_REQUEST_RESPONSE_ENABLED, false);
+        
+        if (detailedLogging) {
+            log.info("=== Terminal Session Startup Initializer ===");
+            log.info("Marking all active terminal sessions as inactive...");
+        } else {
+            log.info("Terminal session startup cleanup starting...");
+        }
         
         try {
             // Clear any active sessions from memory (in case of server restart)
@@ -39,12 +46,15 @@ public class TerminalSessionStartupInitializer {
             // Mark all active sessions in database as inactive
             terminalRecordingService.markAllActiveSessionsAsInactive();
             
-            log.info("Terminal session cleanup completed successfully");
+            if (detailedLogging) {
+                log.info("Terminal session cleanup completed successfully");
+                log.info("=== Terminal Session Startup Initializer Complete ===");
+            } else {
+                log.info("Terminal session startup cleanup completed");
+            }
         } catch (Exception e) {
             log.error("Failed to cleanup terminal sessions during startup", e);
         }
-        
-        log.info("=== Terminal Session Startup Initializer Complete ===");
     }
     
     /**
@@ -54,8 +64,14 @@ public class TerminalSessionStartupInitializer {
     @EventListener(ContextClosedEvent.class)
     @Order(1) // Run early in the shutdown process
     public void handleApplicationStopping() {
-        log.info("=== Terminal Session Shutdown Handler ===");
-        log.info("Marking all active terminal sessions as inactive during shutdown...");
+        boolean detailedLogging = Constants.getTechnicalPropertyAsBoolean(Constants.LOGGING_DETAILED_REQUEST_RESPONSE_ENABLED, false);
+        
+        if (detailedLogging) {
+            log.info("=== Terminal Session Shutdown Handler ===");
+            log.info("Marking all active terminal sessions as inactive during shutdown...");
+        } else {
+            log.info("Terminal session shutdown cleanup starting...");
+        }
         
         try {
             // Mark all active sessions in database as inactive
@@ -64,11 +80,15 @@ public class TerminalSessionStartupInitializer {
             // Clear active sessions from memory
             terminalService.clearAllActiveSessions();
             
-            log.info("Terminal session cleanup completed successfully during shutdown");
+            if (detailedLogging) {
+                log.info("Terminal session cleanup completed successfully during shutdown");
+                log.info("=== Terminal Session Shutdown Handler Complete ===");
+            } else {
+                log.info("Terminal session shutdown cleanup completed");
+            }
         } catch (Exception e) {
             log.error("Failed to cleanup terminal sessions during shutdown", e);
         }
-        
-        log.info("=== Terminal Session Shutdown Handler Complete ===");
     }
+    
 }

@@ -23,6 +23,7 @@ import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseAccessService;
+import com.verlake.dam.service.assets.QueryExecutionService;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
@@ -45,12 +46,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
-
-import static com.verlake.dam.utils.Constants.getTechnicalProperty;
 
 @RestController
 @RequestMapping("/api/asset_owner/assets")
@@ -86,7 +86,8 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @Autowired
     private DatabaseAccessService databaseAccessService;
 
-
+    @Autowired
+    private QueryExecutionService queryExecutionService;
 
     /**
      * Constructor for OwnerAssetController.
@@ -434,5 +435,37 @@ public class OwnerAssetController extends BaseAssetAccessController {
                 .toList();
         
         return ResponseEntity.ok(sshCredentials);
+    }
+
+    /**
+     * Execute a query on an asset as an Asset Owner
+     * This endpoint allows Asset Owners to run queries on their assets for validation and management purposes
+     * 
+     * @param queryDto Query details including asset ID and SQL query
+     * @return Query results with appropriate masking applied
+     */
+    @PostMapping("/run_query")
+    public ResponseEntity<Map<String, Object>> runAssetQuery(@RequestBody AccessQueryDTO queryDto) {
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        logger.info("Asset Owner {} executing query on asset ID: {}", currentUserEmail, queryDto.getAssetId());
+        
+        try {
+            // Use the shared query execution service
+            Map<String, Object> queryResult = queryExecutionService.executeQueryForAssetOwner(queryDto);
+            
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
+            response.put("results", queryResult);
+            
+            logger.info("Asset Owner {} successfully executed query on asset ID: {} - results returned", 
+                       currentUserEmail, queryDto.getAssetId());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error running query for Asset Owner {}: {}", currentUserEmail, e.getMessage(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
     }
 }

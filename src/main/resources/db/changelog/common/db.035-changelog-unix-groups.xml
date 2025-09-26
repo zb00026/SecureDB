@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <changeSet id="035-create-unix-groups-table" author="system">
+        <comment>Create unix_groups table for managing Unix groups on assets</comment>
+        <createTable tableName="unix_groups">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="asset_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="group_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="group_id" type="INT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="description" type="VARCHAR(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="is_system_group" type="TINYINT(1)" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_synced_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="035-add-unix-groups-foreign-keys" author="system">
+        <comment>Add foreign key constraints to unix_groups table</comment>
+        <addForeignKeyConstraint
+                baseTableName="unix_groups"
+                baseColumnNames="asset_id"
+                constraintName="fk_unix_groups_asset"
+                referencedTableName="assets"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+                baseTableName="unix_groups"
+                baseColumnNames="created_by"
+                constraintName="fk_unix_groups_created_by"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="RESTRICT"/>
+    </changeSet>
+
+    <changeSet id="035-add-unix-groups-indexes" author="system">
+        <comment>Add indexes to unix_groups table</comment>
+        <createIndex tableName="unix_groups" indexName="idx_unix_groups_asset_id">
+            <column name="asset_id"/>
+        </createIndex>
+
+        <createIndex tableName="unix_groups" indexName="idx_unix_groups_name_asset">
+            <column name="group_name"/>
+            <column name="asset_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="035-add-unix-groups-unique-constraint" author="system">
+        <comment>Add unique constraint to unix_groups table</comment>
+        <addUniqueConstraint tableName="unix_groups" constraintName="uk_unix_groups_name_asset" columnNames="group_name,asset_id"/>
+    </changeSet>
+
+    <changeSet id="035-create-unix-group-folder-access-table" author="system">
+        <comment>Create unix_group_folder_access table for managing folder access permissions</comment>
+        <createTable tableName="unix_group_folder_access">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="group_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="folder_path" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="access_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="permissions" type="VARCHAR(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="recursive" type="TINYINT(1)" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="035-add-folder-access-foreign-keys" author="system">
+        <comment>Add foreign key constraints to unix_group_folder_access table</comment>
+        <addForeignKeyConstraint
+                baseTableName="unix_group_folder_access"
+                baseColumnNames="group_id"
+                constraintName="fk_unix_group_folder_access_group"
+                referencedTableName="unix_groups"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+                baseTableName="unix_group_folder_access"
+                baseColumnNames="created_by"
+                constraintName="fk_unix_group_folder_access_created_by"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="RESTRICT"/>
+    </changeSet>
+
+    <changeSet id="035-add-folder-access-indexes" author="system">
+        <comment>Add indexes to unix_group_folder_access table</comment>
+        <createIndex tableName="unix_group_folder_access" indexName="idx_unix_group_folder_access_group_id">
+            <column name="group_id"/>
+        </createIndex>
+
+        <createIndex tableName="unix_group_folder_access" indexName="idx_unix_group_folder_access_folder_path">
+            <column name="folder_path(500)"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="035-add-folder-access-unique-constraint" author="system">
+        <comment>Add unique constraint to unix_group_folder_access table</comment>
+        <sql>
+            ALTER TABLE unix_group_folder_access ADD CONSTRAINT uk_unix_group_folder_access_group_folder 
+            UNIQUE (group_id, folder_path(500));
+        </sql>
+    </changeSet>
+
+    <changeSet id="035-add-unix-group-permissions" author="system">
+        <comment>Add group management permissions to existing roles</comment>
+        <sql>
+            INSERT IGNORE INTO permissions (name, description) VALUES 
+            ('UNIX_GROUP_READ', 'Read Unix groups and folder access'),
+            ('UNIX_GROUP_WRITE', 'Create and modify Unix groups and folder access'),
+            ('UNIX_GROUP_DELETE', 'Delete Unix groups and folder access'),
+            ('UNIX_GROUP_SYNC', 'Synchronize Unix groups with server');
+        </sql>
+    </changeSet>
+
+    <changeSet id="035-grant-unix-group-permissions" author="system">
+        <comment>Grant Unix group permissions to asset owners and admins</comment>
+        <sql>
+            INSERT IGNORE INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r, permissions p
+            WHERE r.name IN ('Asset Owner', 'Admin')
+            AND p.name IN ('UNIX_GROUP_READ', 'UNIX_GROUP_WRITE', 'UNIX_GROUP_DELETE', 'UNIX_GROUP_SYNC');
+        </sql>
+    </changeSet>
+
+    <changeSet id="035-rename-recursive-column" author="system">
+        <comment>Rename 'recursive' column to 'is_recursive' to avoid MySQL reserved keyword conflict</comment>
+        <renameColumn tableName="unix_group_folder_access" 
+                      oldColumnName="recursive" 
+                      newColumnName="is_recursive" 
+                      columnDataType="TINYINT(1)"/>
+    </changeSet>
+
+</databaseChangeLog>

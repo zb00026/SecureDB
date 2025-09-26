@@ -122,6 +122,11 @@ public class AIChatService {
             log.info("Analyzed intent for session {}: {} (confidence: {})", 
                 sessionId, intent.getIntentType(), intent.getConfidence());
             
+            // Check if this is a location restriction error
+            if (isLocationRestrictionError(intent)) {
+                return createLocationRestrictionMessage(sessionId);
+            }
+            
             // Process suggestions based on intent
             List<FieldSuggestion> suggestions = processSuggestions(context, userMessage, intent);
             
@@ -827,5 +832,29 @@ public class AIChatService {
             }
         }
         return false;
+    }
+    
+    /**
+     * Check if the intent indicates a location restriction error
+     */
+    private boolean isLocationRestrictionError(MaskingIntent intent) {
+        if (intent == null || intent.getReasoning() == null) {
+            return false;
+        }
+        
+        String reasoning = intent.getReasoning().toLowerCase();
+        return reasoning.contains("not available in your region") ||
+               reasoning.contains("location restriction") ||
+               reasoning.contains("region not supported");
+    }
+    
+    /**
+     * Create a location restriction error message
+     */
+    private ChatMessage createLocationRestrictionMessage(String sessionId) {
+        ChatMessage message = createMessage(sessionId, Constants.GEMINI_LOCATION_RESTRICTION_RESPONSE, 
+                                          Constants.AI_SENDER, ChatMessage.MessageType.ERROR);
+        message.setRequiresUserAction(false);
+        return message;
     }
 } 

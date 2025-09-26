@@ -11,6 +11,7 @@ import com.verlake.dam.service.assets.DatabaseAccessService;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.DatabaseQueryUtils;
 import lombok.extern.slf4j.Slf4j;
 import com.verlake.dam.enums.SensitiveCategory;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,12 @@ public class SchemaAnalysisService {
     @Value("${ai.masking.enable.auto-detection:true}")
     private boolean enableAutoDetection;
     
+    @Value("${ai.masking.enable.sample-data:false}")
+    private boolean enableSampleData;
+    
+    @Value("${ai.masking.sample-data.timeout-ms:5000}")
+    private int sampleDataTimeoutMs;
+    
     public SchemaAnalysisService(DataSource dataSource, GeminiAIService geminiAIService, AISensitivePatternService patternService, AICategoryService categoryService, AssetService assetService, DatabaseAccessService databaseAccessService, DatabaseConnectionUtils databaseConnectionUtils, KeycloakService keycloakService) {
         this.dataSource = dataSource;
         this.geminiAIService = geminiAIService;
@@ -56,13 +63,26 @@ public class SchemaAnalysisService {
      * @throws DatabaseAccessException if database access fails
      */
     public List<FieldSuggestion> analyzeAssetSchema(Asset asset, String userContext) {
+        return analyzeAssetSchema(asset, userContext, enableSampleData);
+    }
+    
+    /**
+     * Analyze asset schema and suggest masking policies with sample data option
+     * 
+     * @param asset The asset to analyze
+     * @param userContext User context for analysis
+     * @param includeSampleData Whether to collect sample data (performance impact)
+     * @return List of field suggestions
+     * @throws DatabaseAccessException if database access fails
+     */
+    public List<FieldSuggestion> analyzeAssetSchema(Asset asset, String userContext, boolean includeSampleData) {
         if (!enableAutoDetection) {
             log.info("Auto-detection is disabled");
             return new ArrayList<>();
         }
         
         try {
-            List<TableSchema> tables = getAssetSchema(asset);
+            List<TableSchema> tables = getAssetSchema(asset, includeSampleData);
             String schemaInfo = formatSchemaForAI(tables);
             
             // Get AI suggestions
@@ -123,11 +143,12 @@ public class SchemaAnalysisService {
      * Get database schema for an asset
      * 
      * @param asset The asset to get schema for
+     * @param includeSampleData Whether to collect sample data for fields
      * @return List of table schemas
      * @throws SQLException if database access fails
      * @throws DatabaseAccessException if asset connection fails
      */
-    private List<TableSchema> getAssetSchema(Asset asset) throws SQLException {
+    private List<TableSchema> getAssetSchema(Asset asset, boolean includeSampleData) throws SQLException {
         List<TableSchema> tables = new ArrayList<>();
         
         try (Connection connection = getAssetConnection(asset)) {
@@ -146,7 +167,7 @@ public class SchemaAnalysisService {
                         continue;
                     }
                     
-                    TableSchema table = createTableSchema(metaData, catalog, schema, tableName);
+                    TableSchema table = createTableSchema(metaData, catalog, schema, tableName, asset, connection, includeSampleData);
                     tables.add(table);
                 }
             }
@@ -179,7 +200,7 @@ public class SchemaAnalysisService {
             String schema = getSchemaName(asset.getDatabaseType());
             
             for (String tableName : tableNames) {
-                TableSchema table = createTableSchema(metaData, catalog, schema, tableName);
+                TableSchema table = createTableSchema(metaData, catalog, schema, tableName, asset, connection, enableSampleData);
                 tables.add(table);
             }
         } catch (SQLException e) {
@@ -200,13 +221,16 @@ public class SchemaAnalysisService {
      * @param catalog Database catalog
      * @param schema Database schema
      * @param tableName Table name
+     * @param asset The asset containing database connection information
+     * @param connection Database connection to reuse
+     * @param includeSampleData Whether to collect sample data for fields
      * @return TableSchema object with fields populated
      * @throws SQLException if database access fails
      */
-    private TableSchema createTableSchema(DatabaseMetaData metaData, String catalog, String schema, String tableName) throws SQLException {
+    private TableSchema createTableSchema(DatabaseMetaData metaData, String catalog, String schema, String tableName, Asset asset, Connection connection, boolean includeSampleData) throws SQLException {
         TableSchema table = new TableSchema();
         table.setTableName(tableName);
-        table.setFields(getTableFields(metaData, catalog, schema, tableName));
+        table.setFields(getTableFields(metaData, catalog, schema, tableName, asset, connection, includeSampleData));
         return table;
     }
     
@@ -217,15 +241,19 @@ public class SchemaAnalysisService {
      * @param catalog Database catalog
      * @param schema Database schema
      * @param tableName Table name
+     * @param asset The asset containing database connection information
+     * @param connection Database connection to reuse
+     * @param includeSampleData Whether to collect sample data for fields
      * @return List of field schemas
      * @throws SQLException if database access fails
      * @throws DatabaseAccessException if sample value retrieval fails
      */
-    private List<FieldSchema> getTableFields(DatabaseMetaData metaData, String catalog, String schema, String tableName) throws SQLException {
+    private List<FieldSchema> getTableFields(DatabaseMetaData metaData, String catalog, String schema, String tableName, Asset asset, Connection connection, boolean includeSampleData) throws SQLException {
         List<FieldSchema> fields = new ArrayList<>();
         
         try (ResultSet columnResultSet = metaData.getColumns(catalog, schema, tableName, "%")) {
             while (columnResultSet.next()) {
+                
                 FieldSchema field = new FieldSchema();
                 field.setFieldName(columnResultSet.getString("COLUMN_NAME"));
                 field.setDataType(columnResultSet.getString("TYPE_NAME"));
@@ -233,8 +261,10 @@ public class SchemaAnalysisService {
                 field.setIsNullable(columnResultSet.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
                 field.setDefaultValue(columnResultSet.getString("COLUMN_DEF"));
                 
-                // Get sample data (first non-null value)
-                field.setSampleValue(getSampleValue(catalog, tableName, field.getFieldName()));
+                // Get sample data (first non-null value) - optional for performance
+                if (includeSampleData && enableSampleData) {
+                    field.setSampleValue(getSampleValueWithTimeout(asset, tableName, field.getFieldName(), connection));
+                }
                 
                 fields.add(field);
             }
@@ -247,57 +277,68 @@ public class SchemaAnalysisService {
     }
     
     /**
-     * Get sample value for a field (anonymized)
+     * Get sample value for a field with timeout (anonymized)
      * Uses parameterized queries to prevent SQL injection
      * 
-     * @param database Database name
+     * @param asset The asset containing database connection information
      * @param tableName Table name
      * @param fieldName Field name
-     * @return Anonymized sample value or null if not available
-     * @throws DatabaseAccessException if database access fails
+     * @param connection Database connection to reuse
+     * @return Anonymized sample value or null if not available or timeout
      */
-    private String getSampleValue(String database, String tableName, String fieldName) {
-        try (Connection connection = dataSource.getConnection()) {
-            // Validate and sanitize inputs using secure validation
-            if (!CommonUtils.isValidSqlIdentifier(database) || 
-                !CommonUtils.isValidSqlIdentifier(tableName) || 
-                !CommonUtils.isValidSqlIdentifier(fieldName)) {
-                log.warn("Invalid identifier detected: database={}, table={}, field={}", database, tableName, fieldName);
-                return null;
-            }
+    private String getSampleValueWithTimeout(Asset asset, String tableName, String fieldName, Connection connection) {
+        try {
+            // Set query timeout to prevent long-running queries
+            return getSampleValueWithQueryTimeout(asset, tableName, fieldName, connection, sampleDataTimeoutMs);
+        } catch (Exception e) {
+            log.debug("Failed to get sample value for {}.{} (timeout/error): {}", tableName, fieldName, e.getMessage());
+            return null; // Gracefully degrade - continue without sample data
+        }
+    }
+    
+    /**
+     * Get sample value with query timeout
+     * 
+     * @param asset The asset containing database connection information
+     * @param tableName Table name
+     * @param fieldName Field name
+     * @param connection Database connection to reuse
+     * @param timeoutMs Query timeout in milliseconds
+     * @return Anonymized sample value or null if not available
+     */
+    private String getSampleValueWithQueryTimeout(Asset asset, String tableName, String fieldName, Connection connection, int timeoutMs) {
+        // Validate and sanitize inputs using secure validation
+        if (!CommonUtils.isValidSqlIdentifier(tableName) || 
+            !CommonUtils.isValidSqlIdentifier(fieldName)) {
+            log.debug("Invalid identifier detected: table={}, field={}", tableName, fieldName);
+            return null;
+        }
+        
+        // Build database-specific query using utility
+        String query = DatabaseQueryUtils.buildSampleValueQuery(asset.getDatabaseType(), tableName, fieldName);
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            // Set query timeout to prevent long-running queries
+            stmt.setQueryTimeout(timeoutMs / 1000); // Convert to seconds
             
-            // Build query with validated and escaped identifiers
-            // Since we cannot parameterize table/column names in SQL, we use validated and escaped identifiers
-            String escapedDatabase = CommonUtils.escapeSqlIdentifier(database);
-            String escapedTable = CommonUtils.escapeSqlIdentifier(tableName);
-            String escapedField = CommonUtils.escapeSqlIdentifier(fieldName);
-            
-            // Safe: All identifiers are validated and escaped via CommonUtils.escapeSqlIdentifier()
-            // This prevents SQL injection while allowing dynamic table/column name queries
-            String query = String.format("SELECT `%s` FROM `%s`.`%s` WHERE `%s` IS NOT NULL LIMIT 1", 
-                escapedField, escapedDatabase, escapedTable, escapedField); // NOSONAR java:S2077 - identifiers are validated and safely escaped
-            
-            try (PreparedStatement stmt = connection.prepareStatement(query);
-                 ResultSet rs = stmt.executeQuery()) {
-                
+            try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String value = rs.getString(1);
                     return anonymizeSampleValue(value);
                 }
             }
         } catch (SQLException e) {
-            log.error("Database error getting sample value for {}.{}: {}", tableName, fieldName, e.getMessage());
-            throw new DatabaseAccessException("Failed to get sample value for " + tableName + "." + fieldName, e);
+            // Log as debug instead of error since this is now optional
+            log.debug("Database error getting sample value for {}.{}: {}", tableName, fieldName, e.getMessage());
+            return null;
         } catch (Exception e) {
-            log.error("Unexpected error getting sample value for {}.{}: {}", tableName, fieldName, e.getMessage());
-            throw new DatabaseAccessException("Unexpected error getting sample value for " + tableName + "." + fieldName, e);
+            log.debug("Unexpected error getting sample value for {}.{}: {}", tableName, fieldName, e.getMessage());
+            return null;
         }
         
         return null;
     }
-    
 
-    
     /**
      * Anonymize sample values for AI analysis
      */

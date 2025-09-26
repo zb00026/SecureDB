@@ -2,7 +2,6 @@ package com.verlake.dam.controller.asset_owner;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.ai.AIMaskingPolicy;
 import com.verlake.dam.entity.ai.FieldSuggestion;
 import com.verlake.dam.entity.ai.MaskingIntent;
@@ -18,6 +17,7 @@ import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -338,7 +338,7 @@ public class OwnerMaskingPolicyController {
      * Delete masking policy
      */
     @DeleteMapping("/masking-policies/{policyId}")
-    public ResponseEntity<Void> deleteMaskingPolicy(@PathVariable Long policyId) {
+    public ResponseEntity<Map<String, Object>> deleteMaskingPolicy(@PathVariable Long policyId) {
         try {
             User curUser = userService.getCurrentUser();
 
@@ -347,16 +347,19 @@ public class OwnerMaskingPolicyController {
                             && policy.getCreatedBy().getId().equals(curUser.getId()))
                     .map(policy -> {
                         aiMaskingPolicyRepository.delete(policy);
-                        return ResponseEntity.ok().<Void>build();
+                        return CommonUtils.getSuccessResponse();
                     })
-                    .orElse(ResponseEntity.notFound().build());
+                    .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Policy not found")));
 
         } catch (AIMaskingPolicyException e) {
             log.error("AI Masking Policy error deleting policy {}: {}", policyId, e.getMessage(), e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, e.getMessage()));
         } catch (Exception e) {
             log.error("Unexpected error deleting masking policy {}: {}", policyId, e.getMessage(), e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Failed to delete masking policy"));
         }
     }
 

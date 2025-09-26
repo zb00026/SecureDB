@@ -19,10 +19,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.verlake.dam.service.assets.AccessRequestService;
-import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.assets.QueryExecutionService;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.ai.DataMaskingService;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,24 +34,21 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 @Slf4j
 public class AccessRequestController extends BaseAssetAccessController {
 
-    private final AssetQueryChangeRequestService assetQueryChangeRequestService;
     private final AccessRequestService accessRequestService;
     private final AccessLevelService accessLevelService;
     private final UserService userService;
-    private final DataMaskingService dataMaskingService;
+    private final QueryExecutionService queryExecutionService;
 
     public AccessRequestController(AssetService assetService, 
-                                 AssetQueryChangeRequestService assetQueryChangeRequestService,
                                  AccessRequestService accessRequestService,
                                  AccessLevelService accessLevelService,
                                  UserService userService,
-                                 DataMaskingService dataMaskingService) {
+                                 QueryExecutionService queryExecutionService) {
         super(assetService);
-        this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.accessRequestService = accessRequestService;
         this.accessLevelService = accessLevelService;
         this.userService = userService;
-        this.dataMaskingService = dataMaskingService;
+        this.queryExecutionService = queryExecutionService;
     }
 
     @GetMapping
@@ -198,49 +194,24 @@ public class AccessRequestController extends BaseAssetAccessController {
 
     @PostMapping("/run_query")
     public ResponseEntity<Map<String, Object>> runAssetQuery(@RequestBody AccessQueryDTO queryDto) {
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        log.info("Developer {} executing query on asset ID: {} via access request: {}", 
+                currentUserEmail, queryDto.getAssetId(), queryDto.getRequestId());
+        
         try {
-            // Get raw query results
-            Map<String, Object> queryResult = assetQueryChangeRequestService.runQueryFromDeveloper(queryDto);
-            
-            // Extract results list from the query result structure
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> resultsList = (List<Map<String, Object>>) queryResult.get("results");
-            
-            if (resultsList != null && !resultsList.isEmpty()) {
-                // Apply masking to each result in the list
-                String userEmail = CommonUtils.getEmailFromSession();
-                User user = userService.findByEmail(userEmail);
-                
-                // Get primary role name from user's roles
-                String userRole = user.getRoles().isEmpty() ? "Developer" : 
-                                user.getRoles().iterator().next().getName(); // Use first role
-                
-                // Get asset to check for masking policies
-                Asset asset = assetService.findById(queryDto.getAssetId());
-                
-                // Process each result in the list
-                for (Map<String, Object> result : resultsList) {
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get("data");
-                    
-                    if (rawResults != null && !rawResults.isEmpty()) {
-                        List<Map<String, Object>> maskedResults = dataMaskingService.maskQueryResults(
-                            asset, userRole, userEmail, rawResults);
-                        
-                        // Update the data in the result
-                        result.put("data", maskedResults);
-                        result.put("maskingApplied", !maskedResults.equals(rawResults));
-                    }
-                }
-            }
+            // Use the shared query execution service
+            Map<String, Object> queryResult = queryExecutionService.executeQueryForDeveloper(queryDto);
             
             Map<String, Object> response = new LinkedHashMap<>();
             response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
             response.put("results", queryResult);
             
+            log.info("Developer {} successfully executed query via access request: {} - results returned", 
+                    currentUserEmail, queryDto.getRequestId());
+            
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error running query: {}", e.getMessage(), e);
+            log.error("Error running query for developer {}: {}", currentUserEmail, e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

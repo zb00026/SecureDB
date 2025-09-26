@@ -7,6 +7,7 @@ import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.entity.terminal.TerminalSession;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.SSHCommandUtils;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.service.assets.AssetService;
@@ -19,8 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-
+import java.util.List;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -61,42 +61,6 @@ public class TerminalService {
     
     // Track current command being typed for keyboard events
     private final ConcurrentMap<String, StringBuilder> currentCommandBuffers = new ConcurrentHashMap<>();
-
-    /**
-     * Create a new terminal session for a Unix server
-     */
-    public TerminalSession createSession(Long assetId, String host, int port) {
-        log.info("Creating terminal session for asset ID: {} to {}:{}", assetId, host, port);
-
-        Asset asset = assetRepository.findByIdAndDeletedFalse(assetId)
-                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
-
-        if (asset.getType() != com.verlake.dam.enums.AssetType.UNIX_SERVER) {
-            throw new IllegalArgumentException("Asset must be of type UNIX_SERVER");
-        }
-
-        User currentUser = userService.getCurrentUser();
-
-        // Get SSH credentials for this user and asset
-        AssetCredential sshCredential = assetService.getSSHCredentialsForAsset(assetId, currentUser);
-        if (sshCredential == null) {
-            throw new SecurityException("No SSH credentials found for this asset");
-        }
-
-        // Create terminal session using builder pattern
-        TerminalSession session = TerminalSession.builder()
-                .assetId(assetId)
-                .host(host)
-                .port(port)
-                .sshCredential(sshCredential)
-                .createdAt(System.currentTimeMillis())
-                .build();
-        String sessionId = session.getSessionId(); // Use TerminalSession's session ID
-        activeSessions.put(sessionId, session);
-
-        log.info("Terminal session created successfully. Session ID: {}", sessionId);
-        return session;
-    }
 
     /**
      * Create a new terminal session for a Unix server with JWT token authentication
@@ -169,6 +133,33 @@ public class TerminalService {
      */
     public TerminalSession getSession(String sessionId) {
         return activeSessions.get(sessionId);
+    }
+
+    /**
+     * Find an active terminal session for a specific asset
+     */
+    public String findActiveSessionForAsset(Long assetId) {
+        return activeSessions.entrySet().stream()
+                .filter(entry -> {
+                    TerminalSession session = entry.getValue();
+                    return session.getAssetId().equals(assetId) && session.isConnected();
+                })
+                .map(entry -> entry.getKey())
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Get all active sessions for a specific asset
+     */
+    public List<String> getActiveSessionsForAsset(Long assetId) {
+        return activeSessions.entrySet().stream()
+                .filter(entry -> {
+                    TerminalSession session = entry.getValue();
+                    return session.getAssetId().equals(assetId) && session.isConnected();
+                })
+                .map(entry -> entry.getKey())
+                .toList();
     }
 
     /**
@@ -539,6 +530,87 @@ public class TerminalService {
     }
 
     /**
+     * Execute a command on an existing terminal session and return the output
+     * This method is used by Unix group services to reuse existing SSH connections
+     */
+    public String executeCommandOnSession(String sessionId, String command) throws IOException {
+        TerminalSession session = activeSessions.get(sessionId);
+        if (session == null) {
+            throw new IOException("Terminal session not found: " + sessionId);
+        }
+
+        if (!session.isConnected()) {
+            throw new IOException("Terminal session not connected: " + sessionId);
+        }
+
+        SSHConnectionService.SSHConnection sshConnection = (SSHConnectionService.SSHConnection) session.getSSHConnection();
+        if (sshConnection == null) {
+            throw new IOException("SSH connection not available in session: " + sessionId);
+        }
+
+        log.debug("Executing command on session {}: {}", sessionId, command);
+
+        StringBuilder output = new StringBuilder();
+        boolean commandCompleted = false;
+        int timeoutMs = 10000; // 10 second timeout
+        int checkIntervalMs = 100; // Check every 100ms
+        int elapsedMs = 0;
+
+        // Set up a temporary output reader for this command
+        sshConnection.startOutputReader(data -> {
+            synchronized (output) {
+                output.append(data);
+            }
+        });
+
+        try {
+            // Send the command
+            sshConnection.sendInput(command + "\n");
+
+            // Wait for command completion with timeout
+            while (!commandCompleted && elapsedMs < timeoutMs) {
+                Thread.sleep(checkIntervalMs);
+                elapsedMs += checkIntervalMs;
+
+                synchronized (output) {
+                    String currentOutput = output.toString();
+                    
+                    // Check if we have a prompt after the command (indicating completion)
+                    if (currentOutput.contains(command) && 
+                        (currentOutput.contains("$ ") || currentOutput.contains("# ") || 
+                         currentOutput.contains("~$") || currentOutput.contains("~#"))) {
+                        commandCompleted = true;
+                    }
+                }
+            }
+
+            if (!commandCompleted) {
+                log.warn("Command execution timed out after {}ms", timeoutMs);
+            }
+
+            // Extract only the command output (between command and next prompt)
+            synchronized (output) {
+                String fullOutput = output.toString();
+                return extractCommandOutput(fullOutput, command);
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Command execution interrupted", e);
+        } catch (Exception e) {
+            log.error("Command execution failed: {}", command, e);
+            throw new IOException("Command execution failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Extract only the command output from the full terminal output
+     */
+    private String extractCommandOutput(String fullOutput, String command) {
+        return SSHCommandUtils.extractCommandOutput(fullOutput, command);
+    }
+
+    /**
      * Authenticate user from JWT token using AuthService
      */
     private User authenticateUserFromToken(String token, AuthProvider authProvider) {
@@ -700,100 +772,14 @@ public class TerminalService {
      * Clean up command result by removing command echo and final prompt
      */
     private String cleanCommandResult(String result) {
-        if (result == null || result.trim().isEmpty()) {
-            return result;
-        }
-        
-        log.trace("cleanCommandResult - input: [{}]", result.replace(Constants.REGEX_CRLF_PATTERN, Constants.REGEX_CRLF_ESCAPE));
-        
-        // First, remove ANSI escape sequences using bounded quantifiers for security
-        String cleanResult = result.replaceAll("\\x1b\\[[0-9;]{0,50}[a-zA-Z]", "").replaceAll("\\x1b\\[\\?[0-9;]{0,50}[a-zA-Z]", "");
-        
-        log.trace("cleanCommandResult - after ANSI cleanup: [{}]", cleanResult.replaceAll(Constants.REGEX_NEWLINE_PATTERN, Constants.REGEX_NEWLINE_ESCAPE));
-        
-        // Remove trailing prompt patterns (but preserve the command output)
-        // Using secure regex patterns following OWASP guidelines to prevent ReDoS attacks
-        // Use possessive quantifiers and bounded quantifiers for security
-        cleanResult = cleanResult.replaceAll("\\$\\s*+$", "");
-        cleanResult = cleanResult.replaceAll("#\\s*+$", "");
-        cleanResult = cleanResult.replaceAll(">\\s*+$", "");
-        
-        // Use possessive quantifiers and bounded quantifiers for user@host patterns
-        // Limit path matching to reasonable length to prevent exponential backtracking
-        cleanResult = cleanResult.replaceAll("\\w++@\\w++:[\\S]{0,200}\\$\\s*+$", "");
-        cleanResult = cleanResult.replaceAll("\\w++@\\w++:[\\S]{0,200}#\\s*+$", "");
-        cleanResult = cleanResult.replaceAll("\\[\\w++@\\w++\\s++\\w++\\]\\$\\s*+$", "");
-        cleanResult = cleanResult.replaceAll("\\[\\w++@\\w++\\s++\\w++\\]#\\s*+$", "");
-        
-        // Remove command echo (the command itself being displayed at the beginning)
-        // Split into lines and remove the first line if it's just the command
-        String[] lines = cleanResult.split("\n");
-        if (lines.length > 1) {
-            String firstLine = lines[0].trim();
-            // If the first line is just a simple command (no prompt), remove it
-            if (firstLine.matches("^[a-zA-Z0-9_\\-\\./]+$") && !firstLine.contains("@") && !firstLine.contains("$") && !firstLine.contains("#")) {
-                // Remove the first line (command echo)
-                cleanResult = String.join("\n", Arrays.copyOfRange(lines, 1, lines.length));
-                log.trace("cleanCommandResult - removed command echo: [{}]", firstLine);
-            }
-        }
-        
-        // Trim whitespace
-        cleanResult = cleanResult.trim();
-        
-        log.trace("cleanCommandResult - final result: [{}]", cleanResult.replaceAll(Constants.REGEX_NEWLINE_PATTERN, Constants.REGEX_NEWLINE_ESCAPE));
-        
-        return cleanResult;
+        return SSHCommandUtils.cleanCommandResult(result);
     }
     
     /**
      * Detect if output contains a shell prompt (indicating command completion)
      */
     private boolean isPromptDetected(String output) {
-        if (output == null || output.trim().isEmpty()) {
-            return false;
-        }
-        
-        // Remove ANSI escape sequences for cleaner pattern matching using bounded quantifiers
-        String cleanOutput = output.replaceAll("\\x1b\\[[0-9;]{0,50}[a-zA-Z]", "").replaceAll("\\x1b\\[\\?[0-9;]{0,50}[a-zA-Z]", "");
-        
-        log.trace("isPromptDetected - original length: {} clean length: {}", output.length(), cleanOutput.length());
-        log.trace("isPromptDetected - original: [{}] clean: [{}]", 
-                 output.replaceAll(Constants.REGEX_NEWLINE_PATTERN, Constants.REGEX_NEWLINE_ESCAPE), 
-                 cleanOutput.replaceAll(Constants.REGEX_NEWLINE_PATTERN, Constants.REGEX_NEWLINE_ESCAPE));
-        
-        // Common prompt patterns using secure regex patterns following OWASP guidelines
-        // Use possessive quantifiers and bounded quantifiers to prevent ReDoS attacks
-        String[] promptPatterns = {
-            "\\$\\s*+$",                    // $ at end of line (possessive)
-            "#\\s*+$",                      // # at end of line (root prompt, possessive)
-            ">\\s*+$",                      // > at end of line (possessive)
-            "\\w++@\\w++:[\\S]{0,200}\\$\\s*+$",      // user@host:path$ pattern (bounded, possessive)
-            "\\w++@\\w++:[\\S]{0,200}#\\s*+$",       // user@host:path# pattern (root, bounded, possessive)
-            "\\[\\w++@\\w++\\s++\\w++\\]\\$\\s*+$", // [user@host dir]$ pattern (possessive)
-            "\\[\\w++@\\w++\\s++\\w++\\]#\\s*+$",    // [user@host dir]# pattern (root, possessive)
-            "\\w++@\\w++\\$\\s*+$",           // user@host$ pattern (no path, possessive)
-            "\\w++@\\w++#\\s*+$"              // user@host# pattern (root, no path, possessive)
-        };
-        
-        // Check each pattern using secure approach with possessive quantifiers
-        for (String pattern : promptPatterns) {
-            // Use direct pattern matching with possessive quantifiers for security
-            if (cleanOutput.matches(pattern)) {
-                log.debug("✅ Prompt detected with pattern: {} in output: [{}]", pattern, cleanOutput.replaceAll(Constants.REGEX_NEWLINE_PATTERN, Constants.REGEX_NEWLINE_ESCAPE));
-                return true;
-            }
-        }
-        
-        // Additional check: look for prompt at the end of the output
-        String lastLine = cleanOutput.trim();
-        if (lastLine.endsWith("$") || lastLine.endsWith("#") || lastLine.endsWith(">")) {
-            log.debug("✅ Prompt detected at end of output: [{}]", lastLine);
-            return true;
-        }
-        
-        log.trace("❌ No prompt detected in output: [{}]", cleanOutput.replaceAll(Constants.REGEX_NEWLINE_PATTERN, Constants.REGEX_NEWLINE_ESCAPE));
-        return false;
+        return SSHCommandUtils.isPromptDetected(output);
     }
 
 }

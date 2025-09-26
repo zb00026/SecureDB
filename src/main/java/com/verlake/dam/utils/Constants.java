@@ -106,6 +106,12 @@ public class Constants {
     public static final String AUDIT_ACTION_APPROVE = "APPROVE";
     public static final String AUDIT_ACTION_REJECT = "REJECT";
     public static final String AUDIT_ACTION_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
+    public static final String AUDIT_ACTION_DEVELOPER_QUERY_EXECUTION = "DEVELOPER_QUERY_EXECUTION";
+    public static final String AUDIT_ACTION_ASSET_OWNER_QUERY_EXECUTION = "ASSET_OWNER_QUERY_EXECUTION";
+
+    // Query execution types
+    public static final String QUERY_EXECUTION_TYPE_DEVELOPER = "DEVELOPER";
+    public static final String QUERY_EXECUTION_TYPE_ASSET_OWNER = "ASSET_OWNER";
 
     // AI Chat constants
     public static final String AI_SENDER = "ai";
@@ -643,6 +649,23 @@ public class Constants {
         return I18nUtils.getTechnicalPropertyAsInt(key, defaultValue);
     }
 
+    /**
+     * Get a boolean technical property value with default
+     * @param key the property key
+     * @param defaultValue the default value
+     * @return the boolean property value or default
+     */
+    public static boolean getTechnicalPropertyAsBoolean(String key, boolean defaultValue) {
+        try {
+            String value = getTechnicalProperty(key, String.valueOf(defaultValue));
+            return Boolean.parseBoolean(value);
+        } catch (Exception e) {
+            // Log debug message for configuration issues but don't throw exception
+            // This allows the application to continue with default values
+            return defaultValue;
+        }
+    }
+
     // ===== TERMINAL WEBSOCKET CONSTANTS =====
     
     // Terminal field names
@@ -681,6 +704,7 @@ public class Constants {
     // TERMINAL_ACTION_INPUT and TERMINAL_ACTION_COMMAND removed - now using TERMINAL_ACTION_KEYBOARD_EVENT
     public static final String TERMINAL_ACTION_RESIZE = "resize";
     public static final String TERMINAL_ACTION_DISCONNECT = "disconnect";
+    public static final String TERMINAL_ACTION_GET_FOLDER_SUGGESTIONS = "get_folder_suggestions";
     public static final String TERMINAL_ACTION_INTERRUPT = "interrupt";
     public static final String TERMINAL_ACTION_KEYBOARD_EVENT = "keyboard_event";
     public static final String TERMINAL_ACTION_AUTHENTICATION_SUCCESS = "authentication_success";
@@ -733,4 +757,30 @@ public class Constants {
     public static final String MSG_FAILED_TO_SEND_INPUT = "Failed to send input to SSH session: ";
     public static final String MSG_FAILED_TO_PROCESS_MESSAGE = "Failed to process message: ";
     public static final String MSG_INVALID_AUTH_PROVIDER = "Invalid auth provider: ";
+    
+    // Common JSON field names
+    public static final String JSON_FIELD_STATUS = "status";
+    public static final String JSON_FIELD_ERROR = "error";
+    public static final String JSON_FIELD_MESSAGE = "message";
+    
+    // Terminal connection types
+    public static final String CONNECTION_TYPE_UNIX_GROUPS = "unix-groups";
+    public static final String CONNECTION_TYPE_TERMINAL = "terminal";
+    public static final String CONNECTION_TYPE_FIELD = "connectionType";
+    
+    // Terminal log messages
+    public static final String LOG_SESSION_ID = "Session ID: {}";
+    
+    // AI intent types
+    public static final String AI_INTENT_TYPE_CUSTOM = "custom";
+    
+    // Session metadata field names
+    public static final String SESSION_METADATA_CLIENT_IP = "clientIp";
+    public static final String SESSION_METADATA_USER_AGENT = "userAgent";
+    
+    // Unix command constants
+    public static final String UNIX_FIND_COMPATIBILITY_TEST_COMMAND = "find --version 2>/dev/null || find -version 2>/dev/null || echo 'find_available'";
+    
+    // Logging configuration constants
+    public static final String LOGGING_DETAILED_REQUEST_RESPONSE_ENABLED = "logging.detailed.request.response.enabled";
 }

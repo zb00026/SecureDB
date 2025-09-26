@@ -4,11 +4,10 @@ package com.verlake.dam.controller.ai;
 import com.verlake.dam.entity.ai.ChatMessage;
 import com.verlake.dam.entity.ai.ChatMessageRequest;
 import com.verlake.dam.entity.ai.ApplyPolicyRequest;
-import com.verlake.dam.entity.ai.FieldSuggestion;
-import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.exception.AIChatException;
 import com.verlake.dam.service.ai.AIChatService;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/ai/chat")
@@ -130,16 +130,18 @@ public class AIChatController {
      * End chat session
      */
     @DeleteMapping("/session/{sessionId}")
-    public ResponseEntity<Void> endChatSession(@PathVariable String sessionId) {
+    public ResponseEntity<Map<String, Object>> endChatSession(@PathVariable String sessionId) {
         try {
             aiChatService.endChatSession(sessionId);
-            return ResponseEntity.ok().build();
+            return CommonUtils.getSuccessResponse();
         } catch (AIChatException e) {
             log.error("AI Chat error ending chat session {}: {}", sessionId, e.getMessage(), e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, e.getMessage()));
         } catch (Exception e) {
             log.error("Unexpected error ending chat session {}: {}", sessionId, e.getMessage(), e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Failed to end chat session"));
         }
     }
 

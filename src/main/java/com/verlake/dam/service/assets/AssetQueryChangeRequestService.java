@@ -1,7 +1,6 @@
 package com.verlake.dam.service.assets;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.cloud.storage.Acl;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.user.User;
@@ -34,7 +33,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -287,7 +285,7 @@ public class AssetQueryChangeRequestService {
             Map<String, Object> result = executeQueryWithMasking(accessQueryDTO, accessRequest, devCredential);
             
             if (accessQueryDTO.isChangeRequest()) {
-                createChangeRequest(accessQueryDTO, accessRequest);
+                createChangeRequestForDeveloper(accessQueryDTO, accessRequest);
             }
 
             createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, true, null, result, startTime);
@@ -300,7 +298,7 @@ public class AssetQueryChangeRequestService {
             throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * Validate access request
      */
@@ -379,9 +377,9 @@ public class AssetQueryChangeRequestService {
     }
     
     /**
-     * Create change request
+     * Create change request for Developer
      */
-    private void createChangeRequest(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
+    public void createChangeRequestForDeveloper(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
         AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
         changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
         changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
@@ -703,5 +701,21 @@ public class AssetQueryChangeRequestService {
         notificationTaskRepository.save(task);
         
         log.debug("Created approval notification task for asset query change request to user: {}", receiver.getEmail());
+    }
+
+    
+    /**
+     * Create change request for Asset Owner
+     */
+    public void createChangeRequestForAssetOwner(AccessQueryDTO accessQueryDTO, Asset asset) {
+        AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
+        changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
+        changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
+        changeRequest.setQuery(accessQueryDTO.getQuery());
+
+        User currentUser = userService.getCurrentUser();
+        
+        // Asset Owner creates change request for their own asset
+        saveChangeRequestWithNotifications(changeRequest, asset, currentUser);
     }
 }

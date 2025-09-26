@@ -3,6 +3,8 @@ package com.verlake.dam.controller.admin;
 import com.verlake.dam.entity.ai.AIPrompt;
 import com.verlake.dam.exception.AIPromptException;
 import com.verlake.dam.service.ai.AIPromptService;
+import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -183,19 +185,22 @@ public class AIPromptController {
      * Delete prompt (soft delete)
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePrompt(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deletePrompt(@PathVariable Long id) {
         try {
             promptService.deletePrompt(id);
-            return ResponseEntity.noContent().build();
+            return CommonUtils.getSuccessResponse();
         } catch (IllegalArgumentException e) {
             log.error("Prompt not found for id {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Prompt not found"));
         } catch (AIPromptException e) {
             log.error("AI Prompt error deleting prompt with id {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, e.getMessage()));
         } catch (Exception e) {
             log.error("Unexpected error deleting prompt with id {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Failed to delete prompt"));
         }
     }
     

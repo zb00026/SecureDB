@@ -227,8 +227,8 @@ public class GeminiAIService {
             String response = generateResponse(prompt);
             
             if (isAiServiceNotAvailable(response)) {
-                log.warn("AI service not available in current region, using fallback intent");
-                return createFallbackIntent(userRequest);
+                log.warn("AI service not available in current region, using location restriction fallback intent");
+                return createLocationRestrictionFallbackIntent(userRequest);
             }
             
             response = handleEmptyResponse(response, userRequest, attempt, maxAttempts);
@@ -718,14 +718,33 @@ public class GeminiAIService {
      */
     private MaskingIntent createFallbackIntent(String userRequest) {
         return MaskingIntent.builder()
-            .intentType("custom")
+            .intentType(Constants.AI_INTENT_TYPE_CUSTOM)
             .targetFields(new ArrayList<>())
             .targetTables(new ArrayList<>())
             .maskingStrategy(Constants.GEMINI_STRATEGY_PARTIAL)
             .userRole("all")
-            .confidence(0.3)
+            .confidence(0.3) // Low confidence to indicate AI service issues
             .originalRequest(userRequest)
             .reasoning("Could not parse request - manual configuration needed")
+            .requiresConfirmation(true)
+            .hasAmbiguity(true)
+            .clarificationNeeded("Could you please rephrase your masking requirements?")
+            .build();
+    }
+    
+    /**
+     * Create fallback intent specifically for location restriction errors
+     */
+    private MaskingIntent createLocationRestrictionFallbackIntent(String userRequest) {
+        return MaskingIntent.builder()
+            .intentType(Constants.AI_INTENT_TYPE_CUSTOM)
+            .targetFields(new ArrayList<>())
+            .targetTables(new ArrayList<>())
+            .maskingStrategy(Constants.GEMINI_STRATEGY_PARTIAL)
+            .userRole("all")
+            .confidence(0.05) // Very low confidence to indicate AI service unavailability
+            .originalRequest(userRequest)
+            .reasoning("AI service not available in your region - manual configuration needed")
             .requiresConfirmation(true)
             .hasAmbiguity(true)
             .clarificationNeeded("Could you please rephrase your masking requirements?")
@@ -768,7 +787,7 @@ public class GeminiAIService {
      */
     private IntentAnalysis analyzeIntentFromKeywords(String lowerRequest) {
         IntentAnalysis analysis = new IntentAnalysis();
-        analysis.intentType = "custom";
+        analysis.intentType = Constants.AI_INTENT_TYPE_CUSTOM;
         analysis.strategy = Constants.GEMINI_STRATEGY_PARTIAL;
         analysis.confidence = 0.4;
         

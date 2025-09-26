@@ -8,6 +8,7 @@
     <!-- Include common changelogs that work across all databases FIRST -->
     <include file="db/changelog/common/db.000-changelog-create-user-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.001-changelog-create-roles-table.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.002-changelog-create-permissions-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.003-changelog-create-s3-settings-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.004-changelog-create-audit-trails-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.005-changelog-create-assets-table.xml" relativeToChangelogFile="false"/>
@@ -34,6 +35,7 @@
     <include file="db/changelog/common/db.032-changelog-create-ai-categories-table.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.033-changelog-add-unix-server-support.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.034-changelog-terminal-audit.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.035-changelog-unix-groups.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

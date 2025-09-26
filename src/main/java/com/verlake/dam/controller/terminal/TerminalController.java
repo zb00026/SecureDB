@@ -1,8 +1,12 @@
 package com.verlake.dam.controller.terminal;
 
 import com.verlake.dam.service.terminal.TerminalService;
+import com.verlake.dam.service.unix.UnixGroupService;
 import com.verlake.dam.entity.terminal.TerminalSession;
-import lombok.RequiredArgsConstructor;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.dto.unix.UnixFolderSuggestion;
+import com.verlake.dam.entity.dto.unix.FolderAccessRequestDTO;
+import com.verlake.dam.service.assets.AssetService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
@@ -19,11 +23,21 @@ import com.verlake.dam.enums.AuthProvider;
 
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class TerminalController extends TextWebSocketHandler {
     
     private final TerminalService terminalService;
+    private final UnixGroupService unixGroupService;
+    private final AssetService assetService;
     private final ObjectMapper objectMapper;
+    
+    // Constructor logging to verify the component is loaded
+    public TerminalController(TerminalService terminalService, UnixGroupService unixGroupService, AssetService assetService, ObjectMapper objectMapper) {
+        this.terminalService = terminalService;
+        this.unixGroupService = unixGroupService;
+        this.assetService = assetService;
+        this.objectMapper = objectMapper;
+        log.info("TerminalController initialized successfully");
+    }
     
     // Store WebSocket sessions mapped to terminal sessions
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -33,17 +47,17 @@ public class TerminalController extends TextWebSocketHandler {
     
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        log.info("=== WebSocket connection attempt ===");
-        log.info("Session ID: {}", session.getId());
+        log.info("=== WebSocket connection established successfully ===");
+        log.info(Constants.LOG_SESSION_ID, session.getId());
         log.info("URI: {}", session.getUri());
-        log.info("Query: {}", session.getUri().getQuery());
+        log.info("Remote Address: {}", session.getRemoteAddress());
         
         String sessionId = session.getId();
         sessions.put(sessionId, session);
         
-        // Extract parameters from query string
-        String query = session.getUri().getQuery();
-        Map<String, String> params = parseQueryString(query);
+        // Determine connection type based on URL path
+        String path = session.getUri().getPath();
+        boolean isUnixGroupConnection = path.contains("/unix-groups");
         
         // Get client IP address from WebSocket session
         String clientIp = getClientIpFromWebSocketSession(session);
@@ -51,9 +65,77 @@ public class TerminalController extends TextWebSocketHandler {
         
         // Store client information in session metadata
         Map<String, String> metadata = new ConcurrentHashMap<>();
-        metadata.put("clientIp", clientIp);
-        metadata.put("userAgent", userAgent);
+        metadata.put(Constants.SESSION_METADATA_CLIENT_IP, clientIp);
+        metadata.put(Constants.SESSION_METADATA_USER_AGENT, userAgent);
+        metadata.put(Constants.CONNECTION_TYPE_FIELD, isUnixGroupConnection ? Constants.CONNECTION_TYPE_UNIX_GROUPS : Constants.CONNECTION_TYPE_TERMINAL);
         sessionMetadata.put(sessionId, metadata);
+        
+        if (isUnixGroupConnection) {
+            // Handle Unix group connection
+            handleUnixGroupConnection(session);
+        } else {
+            // Handle terminal connection (existing logic)
+            handleTerminalConnection(session);
+        }
+    }
+    
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        try {
+            String payload = message.getPayload();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = objectMapper.readValue(payload, Map.class);
+            
+            // Get connection type from session metadata
+            Map<String, String> metadata = sessionMetadata.get(session.getId());
+            String connectionType = metadata != null ? metadata.get(Constants.CONNECTION_TYPE_FIELD) : Constants.CONNECTION_TYPE_TERMINAL;
+            
+            // Check for action type
+            String action = (String) data.get(TERMINAL_ACTION);
+            if (action != null) {
+                if (Constants.CONNECTION_TYPE_UNIX_GROUPS.equals(connectionType)) {
+                    // Handle Unix group actions
+                    handleUnixGroupAction(session, action, data);
+                } else {
+                    // Handle terminal actions (existing logic)
+                    handleTerminalAction(session, action, data);
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Error handling WebSocket message", e);
+            
+            Map<String, Object> errorResponse = Map.of(
+                "type", "error",
+                Constants.JSON_FIELD_MESSAGE, "Failed to process message: " + e.getMessage()
+            );
+            
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorResponse)));
+        }
+    }
+    
+    /**
+     * Handle Unix group connection establishment
+     */
+    private void handleUnixGroupConnection(WebSocketSession session) throws Exception {
+        log.info("Unix Group WebSocket connection established");
+
+        // Send connection ready message (assetId will be provided in first message)
+        Map<String, Object> response = Map.of(
+                "type", "connection_ready",
+                Constants.JSON_FIELD_MESSAGE, "Unix Group WebSocket connection ready. Please authenticate with assetId."
+        );
+
+        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+    }
+
+    /**
+     * Handle terminal connection establishment (existing logic)
+     */
+    private void handleTerminalConnection(WebSocketSession session) throws Exception {
+        // Extract parameters from query string
+        String query = session.getUri().getQuery();
+        Map<String, String> params = parseQueryString(query);
         
         // Validate required parameters
         if (!params.containsKey(TERMINAL_ASSET_ID) || !params.containsKey(TERMINAL_TOKEN) ||
@@ -82,7 +164,7 @@ public class TerminalController extends TextWebSocketHandler {
             return;
         }
         
-        log.info("WebSocket connection established for asset ID: {}", assetId);
+        log.info("Terminal WebSocket connection established for asset ID: {}", assetId);
         
         // Send connection ready message - session will be created when AUTHENTICATE action is received
         Map<String, Object> response = Map.of(
@@ -92,47 +174,52 @@ public class TerminalController extends TextWebSocketHandler {
         
         session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
     }
-    
-    @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        try {
-            String payload = message.getPayload();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = objectMapper.readValue(payload, Map.class);
-            
-            // Check for action type
-            String action = (String) data.get(TERMINAL_ACTION);
-            if (action != null) {
-                switch (action) {
-                    case TERMINAL_ACTION_AUTHENTICATE:
-                        handleAuthentication(session, data);
-                        break;
-                    case TERMINAL_ACTION_RESIZE:
-                        handleTerminalResize(session, data);
-                        break;
-                    case TERMINAL_ACTION_KEYBOARD_EVENT:
-                        handleKeyboardEvent(session, data);
-                        break;
-                    case TERMINAL_ACTION_DISCONNECT:
-                        handleTerminalDisconnect(session);
-                        break;
-                    default:
-                        log.warn("Unknown action: {}", action);
-                }
-            }
-            
-        } catch (Exception e) {
-            log.error("Error handling WebSocket message", e);
-            
-            Map<String, Object> errorResponse = Map.of(
-                TERMINAL_TYPE, TERMINAL_TYPE_ERROR,
-                TERMINAL_MESSAGE, MSG_FAILED_TO_PROCESS_MESSAGE + e.getMessage()
-            );
-            
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorResponse)));
+
+    /**
+     * Handle Unix group actions
+     */
+    private void handleUnixGroupAction(WebSocketSession session, String action, Map<String, Object> data) {
+        switch (action) {
+            case "authenticate":
+                handleAuthentication(session, data);
+                break;
+            case "get_folder_suggestions":
+                handleFolderSuggestions(session, data);
+                break;
+            case "apply_folder_permissions":
+                handleApplyFolderPermissions(session, data);
+                break;
+            case "disconnect":
+                handleTerminalDisconnect(session);
+                break;
+            default:
+                log.warn("Unknown Unix group action: {}", action);
+                sendErrorResponse(session, "Unknown action: " + action);
         }
     }
-    
+
+    /**
+     * Handle terminal actions (existing logic)
+     */
+    private void handleTerminalAction(WebSocketSession session, String action, Map<String, Object> data) {
+        switch (action) {
+            case TERMINAL_ACTION_AUTHENTICATE:
+                handleAuthentication(session, data);
+                break;
+            case TERMINAL_ACTION_RESIZE:
+                handleTerminalResize(session, data);
+                break;
+            case TERMINAL_ACTION_KEYBOARD_EVENT:
+                handleKeyboardEvent(session, data);
+                break;
+            case TERMINAL_ACTION_DISCONNECT:
+                handleTerminalDisconnect(session);
+                break;
+            default:
+                log.warn("Unknown terminal action: {}", action);
+        }
+    }
+
     // handleTerminalInput method removed - now using handleKeyboardEvent for all input
     
     private void handleTerminalResize(WebSocketSession session, Map<String, Object> data) {
@@ -246,10 +333,23 @@ public class TerminalController extends TextWebSocketHandler {
      */
     private void sendErrorResponse(WebSocketSession session, String message) {
         try {
-            Map<String, Object> errorResponse = Map.of(
-                TERMINAL_ACTION, TERMINAL_TYPE_ERROR,
-                TERMINAL_MESSAGE, message
-            );
+            // Get connection type to determine error response format
+            Map<String, String> metadata = sessionMetadata.get(session.getId());
+            String connectionType = metadata != null ? metadata.get(Constants.CONNECTION_TYPE_FIELD) : Constants.CONNECTION_TYPE_TERMINAL;
+            
+            Map<String, Object> errorResponse;
+            if (Constants.CONNECTION_TYPE_UNIX_GROUPS.equals(connectionType)) {
+                errorResponse = Map.of(
+                    "type", "error",
+                    Constants.JSON_FIELD_MESSAGE, message
+                );
+            } else {
+                errorResponse = Map.of(
+                    TERMINAL_ACTION, TERMINAL_TYPE_ERROR,
+                    TERMINAL_MESSAGE, message
+                );
+            }
+            
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorResponse)));
         } catch (Exception e) {
             log.error("Failed to send error response", e);
@@ -259,6 +359,10 @@ public class TerminalController extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String sessionId = session.getId();
+        
+        log.info("=== WebSocket connection closed ===");
+        log.info(Constants.LOG_SESSION_ID, sessionId);
+        log.info("Close Status: {} - {}", status.getCode(), status.getReason());
         
         // Get the terminal session ID from metadata before cleaning up
         Map<String, String> metadata = sessionMetadata.get(sessionId);
@@ -283,7 +387,15 @@ public class TerminalController extends TextWebSocketHandler {
             }
         }
         
-        log.info("WebSocket connection closed: {} (Status: {})", sessionId, status);
+        log.info("WebSocket connection cleanup completed for session: {}", sessionId);
+    }
+    
+    @Override
+    public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+        log.error("=== WebSocket transport error ===");
+        log.error(Constants.LOG_SESSION_ID, session.getId());
+        log.error("Error: ", exception);
+        super.handleTransportError(session, exception);
     }
     
     private Map<String, String> parseQueryString(String query) {
@@ -308,67 +420,132 @@ public class TerminalController extends TextWebSocketHandler {
     private void createAuthenticatedTerminalSession(WebSocketSession session, Long assetId, String token, String authProviderStr) {
         try {
             AuthProvider authProvider = AuthProvider.valueOf(authProviderStr.toUpperCase());
+            Map<String, String> metadata = getSessionMetadata(session);
             
-            // Get client information from session metadata
-            Map<String, String> metadata = sessionMetadata.get(session.getId());
-            String clientIp = metadata != null ? metadata.get("clientIp") : Constants.UNKNOWN_VALUE;
-            String userAgent = metadata != null ? metadata.get("userAgent") : Constants.UNKNOWN_VALUE;
+            TerminalSession terminalSession = terminalService.createSessionWithToken(
+                assetId, token, authProvider, 
+                metadata.get(Constants.SESSION_METADATA_CLIENT_IP), 
+                metadata.get(Constants.SESSION_METADATA_USER_AGENT)
+            );
             
-            TerminalSession terminalSession = terminalService.createSessionWithToken(assetId, token, authProvider, clientIp, userAgent);
+            updateSessionMetadata(session, assetId, terminalSession);
+            sendAuthenticationSuccessResponse(session, terminalSession);
             
-            // Store session info for later use - THIS WAS MISSING!
-            sessionMetadata.put(session.getId(), Map.of(
-                TERMINAL_ASSET_ID, assetId.toString(),
-                TERMINAL_SESSION_ID, terminalSession.getSessionId()
-            ));
+            establishSSHConnectionAsync(session, terminalSession, metadata.get(Constants.CONNECTION_TYPE_FIELD));
             
-            // Send authentication success response
+        } catch (Exception e) {
+            log.error("Authentication failed for asset: {}", assetId, e);
+            sendErrorResponse(session, MSG_AUTHENTICATION_FAILED + e.getMessage());
+        }
+    }
+    
+    /**
+     * Get session metadata with default values
+     */
+    private Map<String, String> getSessionMetadata(WebSocketSession session) {
+        Map<String, String> metadata = sessionMetadata.get(session.getId());
+        if (metadata == null) {
+            metadata = new ConcurrentHashMap<>();
+        }
+        
+        metadata.putIfAbsent(Constants.SESSION_METADATA_CLIENT_IP, Constants.UNKNOWN_VALUE);
+        metadata.putIfAbsent(Constants.SESSION_METADATA_USER_AGENT, Constants.UNKNOWN_VALUE);
+        metadata.putIfAbsent(Constants.CONNECTION_TYPE_FIELD, Constants.CONNECTION_TYPE_TERMINAL);
+        
+        return metadata;
+    }
+    
+    /**
+     * Update session metadata with terminal session information
+     */
+    private void updateSessionMetadata(WebSocketSession session, Long assetId, TerminalSession terminalSession) {
+        Map<String, String> existingMetadata = sessionMetadata.get(session.getId());
+        if (existingMetadata != null) {
+            existingMetadata.put(TERMINAL_ASSET_ID, assetId.toString());
+            existingMetadata.put(TERMINAL_SESSION_ID, terminalSession.getSessionId());
+        } else {
+            // Fallback if metadata doesn't exist (shouldn't happen)
+            Map<String, String> newMetadata = new ConcurrentHashMap<>();
+            newMetadata.put(TERMINAL_ASSET_ID, assetId.toString());
+            newMetadata.put(TERMINAL_SESSION_ID, terminalSession.getSessionId());
+            sessionMetadata.put(session.getId(), newMetadata);
+        }
+    }
+    
+    /**
+     * Send authentication success response to client
+     */
+    private void sendAuthenticationSuccessResponse(WebSocketSession session, TerminalSession terminalSession) {
+        try {
             Map<String, Object> response = Map.of(
-                TERMINAL_ACTION, TERMINAL_ACTION_AUTHENTICATION_SUCCESS,
+                TERMINAL_TYPE, TERMINAL_ACTION_AUTHENTICATION_SUCCESS,
                 TERMINAL_SESSION_ID, terminalSession.getSessionId(),
                 TERMINAL_MESSAGE, MSG_TERMINAL_SESSION_AUTHENTICATED
             );
             
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
-            log.info("Authentication successful for asset: {}", assetId);
-            
-            // Establish SSH connection asynchronously - THIS WAS ALSO MISSING!
-            new Thread(() -> {
-                try {
-                    // Send connection progress message
-                    sendMessage(session, TERMINAL_TYPE_CONNECTION_PROGRESS, MSG_CONNECTING_TO_SSH, "");
-                    
-                    // Get the correct session ID from metadata
-                    Map<String, String> sessionMeta = sessionMetadata.get(session.getId());
-                    String sessionId = sessionMeta != null ? sessionMeta.get(TERMINAL_SESSION_ID) : terminalSession.getSessionId();
-                    
-                    // Establish SSH connection with output callback that forwards to WebSocket
-                    terminalService.establishSSHConnection(sessionId, (output) -> {
-                        try {
-                            log.debug("SSH output callback received: {}", output.replaceAll(SSH_REGEX_NEWLINE, SSH_NEWLINE_ESCAPE));
-                            // Forward SSH output to WebSocket client
-                            sendMessage(session, TERMINAL_TYPE_OUTPUT, "", output);
-                        } catch (Exception e) {
-                            log.error("Error forwarding SSH output to WebSocket", e);
-                        }
-                    });
-                    
-                    // Send connection success message
-                    sendMessage(session, TERMINAL_TYPE_SSH_CONNECTED, MSG_SSH_CONNECTION_ESTABLISHED, "");
-                    
-                } catch (Exception e) {
-                    log.error("Failed to establish SSH connection", e);
-                    try {
-                        sendMessage(session, TERMINAL_TYPE_SSH_ERROR, MSG_FAILED_TO_ESTABLISH_SSH + e.getMessage(), "");
-                    } catch (Exception ex) {
-                        log.error("Error sending SSH error message", ex);
-                    }
-                }
-            }).start();
-            
+            log.info("Authentication successful for asset: {}", terminalSession.getAssetId());
         } catch (Exception e) {
-            log.error("Authentication failed for asset: {}", assetId, e);
-            sendErrorResponse(session, MSG_AUTHENTICATION_FAILED + e.getMessage());
+            log.error("Error sending authentication success response", e);
+        }
+    }
+    
+    /**
+     * Establish SSH connection asynchronously
+     */
+    private void establishSSHConnectionAsync(WebSocketSession session, TerminalSession terminalSession, String connectionType) {
+        new Thread(() -> {
+            try {
+                sendMessage(session, TERMINAL_TYPE_CONNECTION_PROGRESS, MSG_CONNECTING_TO_SSH, "");
+                
+                String sessionId = getTerminalSessionId(session, terminalSession);
+                establishSSHConnectionWithCallback(session, sessionId, connectionType);
+                
+                sendMessage(session, TERMINAL_TYPE_SSH_CONNECTED, MSG_SSH_CONNECTION_ESTABLISHED, "");
+                
+            } catch (Exception e) {
+                handleSSHConnectionError(session, e);
+            }
+        }).start();
+    }
+    
+    /**
+     * Get terminal session ID from metadata or fallback to terminal session
+     */
+    private String getTerminalSessionId(WebSocketSession session, TerminalSession terminalSession) {
+        Map<String, String> sessionMeta = sessionMetadata.get(session.getId());
+        return sessionMeta != null ? sessionMeta.get(TERMINAL_SESSION_ID) : terminalSession.getSessionId();
+    }
+    
+    /**
+     * Establish SSH connection with output callback
+     */
+    private void establishSSHConnectionWithCallback(WebSocketSession session, String sessionId, String connectionType) {
+        try {
+            terminalService.establishSSHConnection(sessionId, (output) -> {
+                try {
+                    log.debug("SSH output callback received: {}", output.replaceAll(SSH_REGEX_NEWLINE, SSH_NEWLINE_ESCAPE));
+                    if (Constants.CONNECTION_TYPE_TERMINAL.equals(connectionType)) {
+                        sendMessage(session, TERMINAL_TYPE_OUTPUT, "", output);
+                    }
+                } catch (Exception e) {
+                    log.error("Error forwarding SSH output to WebSocket", e);
+                }
+            });
+        } catch (Exception e) {
+            log.error("Error establishing SSH connection", e);
+        }
+    }
+    
+    /**
+     * Handle SSH connection errors
+     */
+    private void handleSSHConnectionError(WebSocketSession session, Exception e) {
+        log.error("Failed to establish SSH connection", e);
+        try {
+            sendMessage(session, TERMINAL_TYPE_SSH_ERROR, MSG_FAILED_TO_ESTABLISH_SSH + e.getMessage(), "");
+        } catch (Exception ex) {
+            log.error("Error sending SSH error message", ex);
         }
     }
     
@@ -577,5 +754,151 @@ public class TerminalController extends TextWebSocketHandler {
         }
         return null;
     }
+
+    /**
+     * Handle folder suggestions for terminal (reuse existing SSH connection)
+     */
+    private void handleFolderSuggestions(WebSocketSession session, Map<String, Object> data) {
+        try {
+            String path = (String) data.get("path");
+            if (path == null || path.trim().isEmpty()) {
+                path = "/";
+            }
+
+            // Get session metadata to find the asset ID and terminal session
+            Map<String, String> metadata = sessionMetadata.get(session.getId());
+            if (metadata == null) {
+                sendErrorResponse(session, "Session not authenticated");
+                return;
+            }
+
+            String assetIdStr = metadata.get(TERMINAL_ASSET_ID);
+            if (assetIdStr == null) {
+                sendErrorResponse(session, "Asset ID not found in session");
+                return;
+            }
+
+            Long assetId = Long.valueOf(assetIdStr);
+            Asset asset = assetService.findById(assetId);
+            if (asset == null) {
+                sendErrorResponse(session, "Asset not found: " + assetId);
+                return;
+            }
+
+            log.debug("Getting terminal folder suggestions for asset: {} and path: {}", assetId, path);
+
+            // Get terminal session ID from metadata for direct WebSocket SSH reuse
+            String terminalSessionId = metadata.get(TERMINAL_SESSION_ID);
+            log.debug("Using terminal session ID: {} for folder suggestions", terminalSessionId);
+
+            // Get folder suggestions using existing WebSocket SSH connection with session ID
+            List<UnixFolderSuggestion> suggestions = unixGroupService.getDetailedFolderSuggestions(asset, path, terminalSessionId);
+
+            // Filter suggestions based on the typed path
+            List<UnixFolderSuggestion> filteredSuggestions = filterSuggestionsByPath(suggestions, path);
+
+            // Send suggestions back to client in terminal format
+            Map<String, Object> response = Map.of(
+                    "type", "folder_suggestions",
+                    "suggestions", filteredSuggestions,
+                    "path", path,
+                    "action", "get_folder_suggestions"
+            );
+
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+            log.debug("Sent {} terminal folder suggestions for path: {}", filteredSuggestions.size(), path);
+
+        } catch (Exception e) {
+            log.error("Error getting terminal folder suggestions", e);
+            sendErrorResponse(session, "Failed to get folder suggestions: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Filter folder suggestions based on the typed path
+     */
+    private List<UnixFolderSuggestion> filterSuggestionsByPath(List<UnixFolderSuggestion> suggestions, String typedPath) {
+        if (typedPath == null || typedPath.equals("/")) {
+            // Return all root level suggestions
+            return suggestions.stream()
+                    .filter(s -> s.isDirectory())
+                    .toList();
+        }
+
+        return suggestions.stream()
+                .filter(s -> s.isDirectory())
+                .filter(s -> {
+                    return s.getPath().startsWith(typedPath.toLowerCase());
+                })
+                .limit(20) // Limit to 20 suggestions for performance
+                .toList();
+    }
+
+    /**
+     * Handle folder permissions application
+     */
+    private void handleApplyFolderPermissions(WebSocketSession session, Map<String, Object> data) {
+        try {
+            // Extract permission data
+            String folderPath = (String) data.get("folderPath");
+            Boolean readPermission = (Boolean) data.get("readPermission");
+            Boolean writePermission = (Boolean) data.get("writePermission");
+            Boolean executePermission = (Boolean) data.get("executePermission");
+            Boolean recursive = (Boolean) data.get("recursive");
+            Long groupId = data.get("groupId") != null ? Long.valueOf(data.get("groupId").toString()) : null;
+
+            // Get asset ID from session metadata
+            Map<String, String> metadata = sessionMetadata.get(session.getId());
+            if (metadata == null) {
+                sendErrorResponse(session, "Session not authenticated");
+                return;
+            }
+
+            String assetIdStr = metadata.get(TERMINAL_ASSET_ID);
+            if (assetIdStr == null) {
+                sendErrorResponse(session, "Asset ID not found in session");
+                return;
+            }
+
+            Long assetId = Long.valueOf(assetIdStr);
+
+            // Validate required fields
+            if (folderPath == null || groupId == null || readPermission == null || 
+                writePermission == null || executePermission == null) {
+                sendErrorResponse(session, "Missing required permission fields");
+                return;
+            }
+
+            // Create folder access request
+            FolderAccessRequestDTO request = new FolderAccessRequestDTO();
+            request.setFolderPath(folderPath);
+            request.setReadPermission(readPermission);
+            request.setWritePermission(writePermission);
+            request.setExecutePermission(executePermission);
+            request.setRecursive(recursive != null && recursive);
+            request.setGroupId(groupId);
+            request.setAssetId(assetId);
+
+            log.debug("Applying folder permissions: {}", request);
+
+            // Apply permissions using existing WebSocket SSH connection
+            unixGroupService.applyFolderAccessPermissions(request);
+
+            // Send success response
+            Map<String, Object> response = Map.of(
+                    "type", "permissions_applied",
+                    Constants.JSON_FIELD_MESSAGE, "Folder permissions applied successfully",
+                    "folderPath", folderPath
+            );
+
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+            log.info("Applied folder permissions for group {} on path {}", groupId, folderPath);
+
+        } catch (Exception e) {
+            log.error("Error applying folder permissions", e);
+            sendErrorResponse(session, "Failed to apply folder permissions: " + e.getMessage());
+        }
+    }
+
 }
 

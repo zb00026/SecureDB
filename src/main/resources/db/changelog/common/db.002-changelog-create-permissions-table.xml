@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <changeSet id="002-create-permissions-table" author="system">
+        <comment>Create permissions table for managing system permissions</comment>
+        <createTable tableName="permissions">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="VARCHAR(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="002-create-role-permissions-table" author="system">
+        <comment>Create role_permissions table for linking roles to permissions</comment>
+        <createTable tableName="role_permissions">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="role_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="permission_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="002-add-role-permissions-foreign-keys" author="system">
+        <comment>Add foreign key constraints to role_permissions table</comment>
+        <addForeignKeyConstraint
+                baseTableName="role_permissions"
+                baseColumnNames="role_id"
+                constraintName="fk_role_permissions_role"
+                referencedTableName="roles"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+                baseTableName="role_permissions"
+                baseColumnNames="permission_id"
+                constraintName="fk_role_permissions_permission"
+                referencedTableName="permissions"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+    </changeSet>
+
+    <changeSet id="002-add-role-permissions-unique-constraint" author="system">
+        <comment>Add unique constraint to role_permissions table</comment>
+        <addUniqueConstraint 
+                tableName="role_permissions" 
+                constraintName="uk_role_permissions_role_permission" 
+                columnNames="role_id,permission_id"/>
+    </changeSet>
+
+    <changeSet id="002-add-role-permissions-indexes" author="system">
+        <comment>Add indexes to role_permissions table</comment>
+        <createIndex tableName="role_permissions" indexName="idx_role_permissions_role_id">
+            <column name="role_id"/>
+        </createIndex>
+
+        <createIndex tableName="role_permissions" indexName="idx_role_permissions_permission_id">
+            <column name="permission_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="002-insert-basic-permissions" author="system">
+        <comment>Insert basic system permissions</comment>
+        <insert tableName="permissions">
+            <column name="name" value="USER_READ"/>
+            <column name="description" value="Read user information"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="USER_WRITE"/>
+            <column name="description" value="Create and modify users"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="USER_DELETE"/>
+            <column name="description" value="Delete users"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="ASSET_READ"/>
+            <column name="description" value="Read asset information"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="ASSET_WRITE"/>
+            <column name="description" value="Create and modify assets"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="ASSET_DELETE"/>
+            <column name="description" value="Delete assets"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="ASSET_OWNER"/>
+            <column name="description" value="Asset ownership permissions"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="ADMIN"/>
+            <column name="description" value="Administrative permissions"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="AUDITOR"/>
+            <column name="description" value="Audit trail access"/>
+        </insert>
+        <insert tableName="permissions">
+            <column name="name" value="APPROVER"/>
+            <column name="description" value="Approval permissions"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="002-grant-basic-permissions" author="system">
+        <comment>Grant basic permissions to roles</comment>
+        <sql>
+            -- Grant all permissions to Admin role
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r, permissions p
+            WHERE r.name = 'Admin';
+        </sql>
+        
+        <sql>
+            -- Grant asset permissions to Asset Owner role
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r, permissions p
+            WHERE r.name = 'Asset Owner'
+            AND p.name IN ('ASSET_READ', 'ASSET_WRITE', 'ASSET_OWNER');
+        </sql>
+        
+        <sql>
+            -- Grant read permissions to Developer role
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r, permissions p
+            WHERE r.name = 'Developer'
+            AND p.name IN ('USER_READ', 'ASSET_READ');
+        </sql>
+        
+        <sql>
+            -- Grant audit permissions to Auditor role
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r, permissions p
+            WHERE r.name = 'Auditor'
+            AND p.name IN ('AUDITOR', 'ASSET_READ', 'USER_READ');
+        </sql>
+        
+        <sql>
+            -- Grant approval permissions to Approver role
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r, permissions p
+            WHERE r.name = 'Approver'
+            AND p.name IN ('APPROVER', 'ASSET_READ', 'USER_READ');
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

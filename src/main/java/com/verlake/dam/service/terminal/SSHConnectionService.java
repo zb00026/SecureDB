@@ -1,9 +1,14 @@
 package com.verlake.dam.service.terminal;
 
 import com.jcraft.jsch.*;
+import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.SSHCommandUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,13 +34,14 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class SSHConnectionService {
 
+    private final AssetService assetService;
+    private final UserService userService;
     private final KeycloakService keycloakService;
 
     /**
      * SSH connection wrapper to encapsulate JSch objects
      */
     public static class SSHConnection {
-        private final JSch jsch;
         private final Session session;
         private final ChannelShell channelShell;
         private final InputStream inputStream;
@@ -44,9 +50,8 @@ public class SSHConnectionService {
         private Future<?> outputReaderTask;
         private boolean isConnected = false;
 
-        public SSHConnection(JSch jsch, Session session, ChannelShell channelShell,
+        public SSHConnection(Session session, ChannelShell channelShell,
                 InputStream inputStream, OutputStream outputStream) {
-            this.jsch = jsch;
             this.session = session;
             this.channelShell = channelShell;
             this.inputStream = inputStream;
@@ -259,7 +264,7 @@ public class SSHConnectionService {
 
             log.info("SSH connection established successfully to {}:{}", host, port);
 
-            return new SSHConnection(jsch, session, channelShell, inputStream, outputStream);
+            return new SSHConnection(session, channelShell, inputStream, outputStream);
 
         } catch (Exception e) {
             // Cleanup on failure
@@ -417,5 +422,183 @@ public class SSHConnectionService {
             log.debug("Unknown private key format: {}",
                     decryptedSSHKey.substring(0, Math.min(50, decryptedSSHKey.length())));
         }
+    }
+
+    /**
+     * Execute SSH command on an asset (for Unix group operations)
+     * This method provides a simple command execution interface for non-terminal
+     * operations
+     */
+    public String executeCommand(Asset asset, String command) throws IOException {
+        log.debug("Executing SSH command on asset {}: {}", asset.getId(), command);
+
+        try {
+            // Get asset credentials
+            User currentUser = userService.getCurrentUser();
+            AssetCredential sshCredential = assetService.getSSHCredentialsForAsset(asset.getId(), currentUser);
+            if (sshCredential == null) {
+                throw new IOException("No SSH credentials found for asset: " + asset.getId());
+            }
+            String userKey = keycloakService.getUserKey();
+
+            // Create SSH connection
+            SSHConnection connection = createSSHConnection(
+                    asset.getHostAddress(),
+                    asset.getPortNumber() != null ? Integer.parseInt(asset.getPortNumber()) : 22,
+                    sshCredential,
+                    userKey // User key not needed for simple command execution
+            );
+
+            try {
+                // Execute the command
+                return executeCommandOnConnection(connection, command);
+            } finally {
+                // Always disconnect
+                connection.disconnect();
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to execute SSH command on asset {}: {}", asset.getId(), command, e);
+            throw new IOException("Failed to execute SSH command: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute SSH command and return only the command result (no connection messages)
+     * This method establishes a clean SSH session, waits for prompt, executes command,
+     * and returns only the command output without connection banners or prompts.
+     */
+    public String executeCommandWithCleanOutput(Asset asset, String command) throws IOException {
+        log.debug("Executing clean SSH command on asset {}: {}", asset.getId(), command);
+
+        try {
+            // Get asset credentials
+            User currentUser = userService.getCurrentUser();
+            AssetCredential sshCredential = assetService.getSSHCredentialsForAsset(asset.getId(), currentUser);
+            if (sshCredential == null) {
+                throw new IOException("No SSH credentials found for asset: " + asset.getId());
+            }
+            String userKey = keycloakService.getUserKey();
+
+            // Create SSH connection
+            SSHConnection connection = createSSHConnection(
+                    asset.getHostAddress(),
+                    asset.getPortNumber() != null ? Integer.parseInt(asset.getPortNumber()) : 22,
+                    sshCredential,
+                    userKey
+            );
+
+            try {
+                // Execute the command with clean output
+                return executeCommandWithCleanOutputOnConnection(connection, command);
+            } finally {
+                // Always disconnect
+                connection.disconnect();
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to execute clean SSH command on asset {}: {}", asset.getId(), command, e);
+            throw new IOException("Failed to execute clean SSH command: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute a command on an existing SSH connection
+     */
+    private String executeCommandOnConnection(SSHConnection connection, String command) throws IOException {
+        StringBuilder output = new StringBuilder();
+
+        // Start output reader
+        connection.startOutputReader(output::append);
+
+        // Send the command
+        connection.sendInput(command + "\n");
+
+        // Wait for command completion (simple implementation)
+        try {
+            Thread.sleep(2000); // Wait 2 seconds for command to complete
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Command execution interrupted", e);
+        }
+
+        return output.toString();
+    }
+
+    /**
+     * Execute a command on an existing SSH connection and return only the command result
+     * This method waits for the shell prompt, executes the command, and captures only
+     * the command output without connection messages or prompts.
+     */
+    private String executeCommandWithCleanOutputOnConnection(SSHConnection connection, String command) throws IOException {
+        StringBuilder output = new StringBuilder();
+        StringBuilder commandOutput = new StringBuilder();
+        boolean commandCompleted = false;
+        int timeoutMs = 10000; // 10 second timeout
+        int checkIntervalMs = 100; // Check every 100ms
+        int elapsedMs = 0;
+
+        // Start output reader
+        connection.startOutputReader(data -> {
+            synchronized (output) {
+                output.append(data);
+            }
+        });
+
+        // Wait for initial prompt (connection established)
+        log.debug("Waiting for SSH prompt...");
+        try {
+            Thread.sleep(1000); // Wait 1 second for initial connection
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Connection wait interrupted", e);
+        }
+
+        // Send the command
+        log.debug("Sending command: {}", command);
+        connection.sendInput(command + "\n");
+
+        // Wait for command completion with timeout
+        while (!commandCompleted && elapsedMs < timeoutMs) {
+            try {
+                Thread.sleep(checkIntervalMs);
+                elapsedMs += checkIntervalMs;
+
+                synchronized (output) {
+                    String currentOutput = output.toString();
+                    
+                    // Check if we have a prompt after the command (indicating completion)
+                    if (currentOutput.contains(command) && 
+                        (currentOutput.contains("$ ") || currentOutput.contains("# ") || 
+                         currentOutput.contains("~$") || currentOutput.contains("~#"))) {
+                        commandCompleted = true;
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Command execution interrupted", e);
+            }
+        }
+
+        if (!commandCompleted) {
+            log.warn("Command execution timed out after {}ms", timeoutMs);
+        }
+
+        // Extract only the command output (between command and next prompt)
+        synchronized (output) {
+            String fullOutput = output.toString();
+            commandOutput = extractCommandOutput(fullOutput, command);
+        }
+
+        log.debug("Extracted command output: {}", commandOutput.toString());
+        return commandOutput.toString();
+    }
+
+    /**
+     * Extract only the command output from the full terminal output
+     */
+    private StringBuilder extractCommandOutput(String fullOutput, String command) {
+        String result = SSHCommandUtils.extractCommandOutput(fullOutput, command);
+        return new StringBuilder(result);
     }
 }

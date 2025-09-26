@@ -82,35 +82,53 @@ public class UserService {
     }
 
     public User findByEmail(String email) {
-        log.info("=== UserService.findByEmail START ===");
-        log.info("Looking up user by email: {}", email);
+        boolean detailedLogging = Constants.getTechnicalPropertyAsBoolean(Constants.LOGGING_DETAILED_REQUEST_RESPONSE_ENABLED, false);
+        
+        if (detailedLogging) {
+            log.info("=== UserService.findByEmail START ===");
+            log.info("Looking up user by email: {}", email);
+        } else {
+            log.info("Looking up user by email: {}", email);
+        }
         
         try {
             Optional<User> userOptional = userRepository.findByEmail(email);
             
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
-                log.info("User found in database:");
-                log.info("  - ID: {}", user.getId());
-                log.info("  - Email: {}", user.getEmail());
-                log.info("  - First Name: {}", user.getFirstName());
-                log.info("  - Last Name: {}", user.getLastName());
-                log.info("  - Is Active: {}", user.getIsActive());
-                log.info("  - Invite Code: {}", user.getInviteCode());
-                log.info("  - Roles: {}", user.getRoles().stream().map(role -> role.getName()).toList());
-                log.info("=== UserService.findByEmail SUCCESS ===");
+                if (detailedLogging) {
+                    log.info("User found in database:");
+                    log.info("  - ID: {}", user.getId());
+                    log.info("  - Email: {}", user.getEmail());
+                    log.info("  - First Name: {}", user.getFirstName());
+                    log.info("  - Last Name: {}", user.getLastName());
+                    log.info("  - Is Active: {}", user.getIsActive());
+                    log.info("  - Invite Code: {}", user.getInviteCode());
+                    log.info("  - Roles: {}", user.getRoles().stream().map(role -> role.getName()).toList());
+                    log.info("=== UserService.findByEmail SUCCESS ===");
+                } else {
+                    log.info("User found: {} (ID: {})", user.getEmail(), user.getId());
+                }
                 return user;
             } else {
-                log.error("User NOT FOUND in database for email: {}", email);
-                log.error("This will likely result in a 403 FORBIDDEN response");
-                log.info("=== UserService.findByEmail NOT FOUND ===");
+                if (detailedLogging) {
+                    log.error("User NOT FOUND in database for email: {}", email);
+                    log.error("This will likely result in a 403 FORBIDDEN response");
+                    log.info("=== UserService.findByEmail NOT FOUND ===");
+                } else {
+                    log.warn("User not found for email: {}", email);
+                }
                 return null;
             }
         } catch (Exception e) {
-            log.error("=== UserService.findByEmail FAILED ===");
-            log.error("Exception during user lookup: {}", e.getMessage());
-            log.error("Exception type: {}", e.getClass().getSimpleName());
-            log.error("Full stack trace: ", e);
+            if (detailedLogging) {
+                log.error("=== UserService.findByEmail FAILED ===");
+                log.error("Exception during user lookup: {}", e.getMessage());
+                log.error("Exception type: {}", e.getClass().getSimpleName());
+                log.error("Full stack trace: ", e);
+            } else {
+                log.error("User lookup failed for email: {} - {}", email, e.getMessage());
+            }
             return null;
         }
     }

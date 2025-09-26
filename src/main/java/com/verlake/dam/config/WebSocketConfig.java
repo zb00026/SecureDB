@@ -1,30 +1,38 @@
 package com.verlake.dam.config;
 
 import com.verlake.dam.controller.terminal.TerminalController;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+/**
+ * WebSocket configuration for both terminal and Unix group operations
+ */
 @Configuration
 @EnableWebSocket
+@RequiredArgsConstructor
+@Slf4j
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private static final Logger logger = LoggerFactory.getLogger(WebSocketConfig.class);
     private final TerminalController terminalController;
-
-    public WebSocketConfig(TerminalController terminalController) {
-        this.terminalController = terminalController;
-        logger.info("WebSocketConfig initialized with TerminalController: {}", terminalController.getClass().getSimpleName());
-    }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        logger.info("Registering WebSocket handler for /api/terminal/connect");
-        registry.addHandler(terminalController, "/api/terminal/connect")
-                .setAllowedOriginPatterns("*");
-        logger.info("WebSocket handler registered successfully");
+        log.info("Registering WebSocket handlers...");
+        
+        // Register terminal WebSocket handler (without SockJS for now)
+        registry.addHandler(terminalController, "/ws/terminal/connect")
+                .setAllowedOrigins("*");
+        
+        // Register Unix group WebSocket handler
+        registry.addHandler(terminalController, "/ws/unix-groups")
+                .setAllowedOrigins("*");
+                
+        log.info("WebSocket handlers registered successfully");
+        log.info("Terminal WebSocket available at: /ws/terminal/connect");
+        log.info("Unix Groups WebSocket available at: /ws/unix-groups");
     }
 }

@@ -4,12 +4,15 @@ import com.verlake.dam.entity.ai.AISensitivePattern;
 import com.verlake.dam.exception.AISensitivePatternException;
 import com.verlake.dam.service.ai.AISensitivePatternService;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/ai-patterns")
@@ -208,19 +211,22 @@ public class AISensitivePatternController {
      * Delete pattern (soft delete)
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePattern(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deletePattern(@PathVariable Long id) {
         try {
             patternService.deletePattern(id);
-            return ResponseEntity.ok().build();
+            return CommonUtils.getSuccessResponse();
         } catch (IllegalArgumentException e) {
             log.error(Constants.ERROR_PATTERN_NOT_FOUND_FOR_ID, id, e.getMessage(), e);
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Pattern not found"));
         } catch (AISensitivePatternException e) {
             log.error("AI Sensitive Pattern error deleting pattern with id {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, e.getMessage()));
         } catch (Exception e) {
             log.error("Unexpected error deleting pattern with id {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(Constants.JSON_FIELD_STATUS, Constants.JSON_FIELD_ERROR, Constants.JSON_FIELD_MESSAGE, "Failed to delete pattern"));
         }
     }
     
