@@ -9,6 +9,7 @@ import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.assets.dto.UserAccessDTO;
 import com.verlake.dam.entity.assets.dto.PermissionDTO;
+import com.verlake.dam.entity.assets.dto.PermissionValidationResult;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
@@ -67,6 +68,24 @@ public class DatabaseAccessService {
     }
 
     public void updateAssetObjects(AssetCredential credential) throws SQLException {
+        // Check if this is an Asset Owner credential
+        if (credential.getUserAccessType() != null && 
+            credential.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
+            
+            // Validate Asset Owner permissions before proceeding
+            PermissionValidationResult validationResult = validateAssetOwnerPermissions(credential);
+            
+            if (!validationResult.isSufficient()) {
+                log.warn("Asset Owner {} has insufficient permissions for asset {}: {}", 
+                        credential.getUsername(), credential.getAsset().getId(), validationResult.getWarningMessage());
+                
+                // Store the warning in the asset object for UI display
+                String objectsJsonWithWarning = createObjectsJsonWithWarning(validationResult);
+                saveAssetObjectWithWarning(credential, objectsJsonWithWarning, validationResult);
+                return;
+            }
+        }
+        
         String objectsJson = fetchDatabaseObjects(credential);
 
         AssetObject assetObject = assetObjectRepository.findByAssetCredential(credential)
@@ -1810,6 +1829,661 @@ public class DatabaseAccessService {
         }
     }
     
+    /**
+     * Validate Asset Owner permissions to ensure they have sufficient access to grant permissions to others
+     */
+    private PermissionValidationResult validateAssetOwnerPermissions(AssetCredential credential) {
+        try {
+            // Test basic connectivity and permissions
+            List<String> missingPermissions = new ArrayList<>();
+            List<String> warnings = new ArrayList<>();
+            List<String> existingPermissions = new ArrayList<>();
+            List<String> grantablePermissions = new ArrayList<>();
+            
+            // Test 1: Can connect to the database and perform permission analysis
+            return performPermissionValidation(credential, missingPermissions, warnings, existingPermissions, grantablePermissions);
+            
+        } catch (Exception e) {
+            log.error("Error validating Asset Owner permissions: {}", e.getMessage(), e);
+            return new PermissionValidationResult(false, 
+                "Permission validation failed: " + e.getMessage(), 
+                new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Perform permission validation tests on the database connection
+     */
+    private PermissionValidationResult performPermissionValidation(AssetCredential credential, 
+                                                                   List<String> missingPermissions, 
+                                                                   List<String> warnings, 
+                                                                   List<String> existingPermissions, 
+                                                                   List<String> grantablePermissions) {
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
+            if (connection == null) {
+                return new PermissionValidationResult(false, 
+                    "Cannot establish database connection. Please verify credentials.", 
+                    new ArrayList<>());
+            }
+            
+            // Test 2: Check if user can see information_schema (basic metadata access)
+            if (!canAccessInformationSchema(connection)) {
+                missingPermissions.add("INFORMATION_SCHEMA access");
+                warnings.add("Cannot access database metadata - may not be able to see available tables/views");
+            } else {
+                existingPermissions.add("INFORMATION_SCHEMA access");
+            }
+            
+            // Test 3: Analyze existing permissions and what can be granted
+            PermissionAnalysisResult permissionAnalysis = analyzeExistingPermissions(connection, credential.getAsset().getDatabaseType(), credential.getUsername());
+            existingPermissions.addAll(permissionAnalysis.getExistingPermissions());
+            grantablePermissions.addAll(permissionAnalysis.getGrantablePermissions());
+            
+            // Test 4: Check if user can grant permissions (varies by database type)
+            if (!canGrantPermissions(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
+                missingPermissions.add("GRANT permissions");
+                warnings.add("Cannot grant permissions to other users - may not be able to approve access requests");
+            } else {
+                existingPermissions.add("GRANT permissions");
+            }
+            
+            // Test 5: Check if user can create/modify users (for some database types)
+            if (!canManageUsers(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
+                missingPermissions.add("User management permissions");
+                warnings.add("Cannot create or modify database users - may limit access management capabilities");
+            } else {
+                existingPermissions.add("User management permissions");
+            }
+            
+            // Test 6: Check if user has administrative privileges
+            if (!hasAdministrativePrivileges(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
+                warnings.add("Limited administrative privileges - some advanced access management features may not be available");
+            } else {
+                existingPermissions.add("Administrative privileges");
+            }
+            
+            // Test 7: Analyze specific table/view permissions
+            TablePermissionAnalysis tableAnalysis = analyzeTablePermissions(connection, credential.getAsset().getDatabaseType(), credential.getUsername());
+            existingPermissions.addAll(tableAnalysis.getAccessibleTables());
+            grantablePermissions.addAll(tableAnalysis.getGrantableTables());
+            
+            // Add warnings based on permission analysis
+            addPermissionAnalysisWarnings(warnings, existingPermissions, grantablePermissions, tableAnalysis);
+            
+            // Determine if permissions are sufficient
+            boolean isSufficient = missingPermissions.isEmpty() && !grantablePermissions.isEmpty();
+            String warningMessage = buildEnhancedWarningMessage(missingPermissions, warnings, existingPermissions, grantablePermissions);
+            
+            return new PermissionValidationResult(isSufficient, warningMessage, warnings);
+            
+        } catch (SQLException e) {
+            return new PermissionValidationResult(false, 
+                "Database connection failed: " + e.getMessage(), 
+                new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Check if user can access information_schema
+     */
+    private boolean canAccessInformationSchema(Connection connection) {
+        try {
+            String query = "SELECT COUNT(*) FROM information_schema.tables LIMIT 1";
+            try (PreparedStatement stmt = connection.prepareStatement(query);
+                 ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            log.debug("Cannot access information_schema: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Check if user can grant permissions
+     */
+    private boolean canGrantPermissions(Connection connection, DatabaseType databaseType, String username) {
+        try {
+            switch (databaseType) {
+                case MYSQL:
+                    return checkMySQLGrantPermissions(connection, username);
+                case POSTGRESQL:
+                    return checkPostgreSQLGrantPermissions(connection, username);
+                case ORACLE:
+                    return checkOracleGrantPermissions(connection, username);
+                case SQLSERVER:
+                    return checkSQLServerGrantPermissions(connection, username);
+                default:
+                    return true; // Assume sufficient for unknown types
+            }
+        } catch (SQLException e) {
+            log.debug("Cannot verify grant permissions for user {}: {}", username, e.getMessage());
+        }
+        return false;
+    }
+    
+    /**
+     * Check MySQL grant permissions
+     */
+    private boolean checkMySQLGrantPermissions(Connection connection, String username) throws SQLException {
+        // For MySQL, check both user_privileges and table_privileges with flexible grantee matching
+        String query = "SELECT COUNT(*) FROM (" +
+                       "SELECT IS_GRANTABLE FROM information_schema.user_privileges " +
+                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND IS_GRANTABLE = 'YES' " +
+                       "UNION ALL " +
+                       "SELECT IS_GRANTABLE FROM information_schema.table_privileges " +
+                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND IS_GRANTABLE = 'YES' LIMIT 1" +
+                       ") AS grant_check";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            stmt.setString(2, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+    
+    /**
+     * Check PostgreSQL grant permissions
+     */
+    private boolean checkPostgreSQLGrantPermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT COUNT(*) FROM information_schema.table_privileges WHERE grantee = ? AND is_grantable = 'YES' LIMIT 1";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+    
+    /**
+     * Check Oracle grant permissions
+     */
+    private boolean checkOracleGrantPermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT COUNT(*) FROM dba_tab_privs WHERE grantee = UPPER(?) AND grantable = 'YES' AND rownum = 1";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+    
+    /**
+     * Check SQL Server grant permissions
+     */
+    private boolean checkSQLServerGrantPermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT COUNT(*) FROM sys.database_permissions p JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id WHERE pr.name = ? AND p.state_desc = 'GRANT_WITH_GRANT_OPTION'";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+    
+    /**
+     * Check if user can manage users
+     */
+    private boolean canManageUsers(Connection connection, DatabaseType databaseType, String username) {
+        return executePermissionCheck(connection, databaseType, username, "user management");
+    }
+    
+    /**
+     * Check if user has administrative privileges
+     */
+    private boolean hasAdministrativePrivileges(Connection connection, DatabaseType databaseType, String username) {
+        return executePermissionCheck(connection, databaseType, username, "administrative");
+    }
+    
+    /**
+     * Generic method to execute permission checks with different privilege criteria
+     */
+    private boolean executePermissionCheck(Connection connection, DatabaseType databaseType, String username, String checkType) {
+        try {
+            String query = Constants.SQL_QUERY_SELECT_ZERO; // Default fallback query
+            switch (databaseType) {
+                case MYSQL:
+                    if (Constants.PERMISSION_CHECK_TYPE_USER_MANAGEMENT.equals(checkType)) {
+                        query = "SELECT COUNT(*) FROM information_schema.user_privileges " +
+                               "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND PRIVILEGE_TYPE IN ('CREATE USER', 'SUPER') LIMIT 1";
+                    } else { // administrative
+                        query = "SELECT COUNT(*) FROM information_schema.user_privileges " +
+                               "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND PRIVILEGE_TYPE IN ('SUPER', 'ALL PRIVILEGES') LIMIT 1";
+                    }
+                    break;
+                case POSTGRESQL, ORACLE, SQLSERVER:
+                    if (Constants.PERMISSION_CHECK_TYPE_USER_MANAGEMENT.equals(checkType)) {
+                        switch (databaseType) {
+                            case POSTGRESQL:
+                                query = "SELECT CASE WHEN rolcreaterole = true THEN 1 ELSE 0 END FROM pg_roles WHERE rolname = ?";
+                                break;
+                            case ORACLE:
+                                query = "SELECT COUNT(*) FROM dba_role_privs WHERE grantee = UPPER(?) AND granted_role IN ('DBA', 'RESOURCE') AND rownum = 1";
+                                break;
+                            case SQLSERVER:
+                                query = "SELECT COUNT(*) FROM sys.database_role_members rm " +
+                                       "JOIN sys.database_principals rp ON rm.role_principal_id = rp.principal_id " +
+                                       "JOIN sys.database_principals mp ON rm.member_principal_id = mp.principal_id " +
+                                       "WHERE mp.name = ? AND rp.name IN ('db_securityadmin', 'db_owner')";
+                                break;
+                            default:
+                                query = Constants.SQL_QUERY_SELECT_ZERO; // Fallback query
+                                break;
+                        }
+                    } else { // administrative
+                        switch (databaseType) {
+                            case POSTGRESQL:
+                                query = "SELECT CASE WHEN rolsuper = true THEN 1 ELSE 0 END FROM pg_roles WHERE rolname = ?";
+                                break;
+                            case ORACLE:
+                                query = "SELECT COUNT(*) FROM dba_role_privs WHERE grantee = UPPER(?) AND granted_role = 'DBA' AND rownum = 1";
+                                break;
+                            case SQLSERVER:
+                                query = "SELECT COUNT(*) FROM sys.server_role_members rm " +
+                                       "JOIN sys.server_principals rp ON rm.role_principal_id = rp.principal_id " +
+                                       "JOIN sys.server_principals mp ON rm.member_principal_id = mp.principal_id " +
+                                       "WHERE mp.name = ? AND rp.name = 'sysadmin'";
+                                break;
+                            default:
+                                query = Constants.SQL_QUERY_SELECT_ZERO; // Fallback query
+                                break;
+                        }
+                    }
+                    break;
+                default:
+                    return true; // Assume sufficient for unknown types
+            }
+            
+            try (PreparedStatement stmt = connection.prepareStatement(query)) {
+                stmt.setString(1, username);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getInt(1) > 0;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            log.debug("Cannot verify {} permissions for user {}: {}", checkType, username, e.getMessage());
+        }
+        return false;
+    }
+    
+    /**
+     * Analyze existing permissions and what can be granted to others
+     */
+    private PermissionAnalysisResult analyzeExistingPermissions(Connection connection, DatabaseType databaseType, String username) {
+        try {
+            switch (databaseType) {
+                case MYSQL:
+                    return analyzeMySQLPermissions(connection, username);
+                case POSTGRESQL:
+                    return analyzePostgreSQLPermissions(connection, username);
+                case ORACLE:
+                    return analyzeOraclePermissions(connection, username);
+                case SQLSERVER:
+                    return analyzeSQLServerPermissions(connection, username);
+                default:
+                    return new PermissionAnalysisResult(new ArrayList<>(), new ArrayList<>());
+            }
+        } catch (SQLException e) {
+            log.debug("Cannot analyze existing permissions for user {}: {}", username, e.getMessage());
+            return new PermissionAnalysisResult(new ArrayList<>(), new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Analyze MySQL permissions
+     */
+    private PermissionAnalysisResult analyzeMySQLPermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, 'GLOBAL' as scope FROM information_schema.user_privileges " +
+                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
+                       "UNION ALL " +
+                       "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, CONCAT(TABLE_SCHEMA, '.', TABLE_NAME) as scope FROM information_schema.table_privileges " +
+                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
+                       "UNION ALL " +
+                       "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, TABLE_SCHEMA as scope FROM information_schema.schema_privileges " +
+                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%')";
+        
+        return executePermissionQuery(connection, query, username, 3, false);
+    }
+    
+    /**
+     * Analyze PostgreSQL permissions
+     */
+    private PermissionAnalysisResult analyzePostgreSQLPermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT privilege_type, is_grantable, CONCAT(table_schema, '.', table_name) as scope " +
+                       "FROM information_schema.table_privileges WHERE grantee = ? " +
+                       "UNION ALL " +
+                       "SELECT privilege_type, is_grantable, schema_name as scope " +
+                       "FROM information_schema.usage_privileges WHERE grantee = ?";
+        
+        return executePermissionQuery(connection, query, username, 2, false);
+    }
+    
+    /**
+     * Analyze Oracle permissions
+     */
+    private PermissionAnalysisResult analyzeOraclePermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT privilege, grantable, CONCAT(owner, '.', table_name) as scope " +
+                       "FROM dba_tab_privs WHERE grantee = UPPER(?) " +
+                       "UNION ALL " +
+                       "SELECT privilege, grantable, 'SYSTEM' as scope " +
+                       "FROM dba_sys_privs WHERE grantee = UPPER(?)";
+        
+        return executePermissionQuery(connection, query, username, 2, false);
+    }
+    
+    /**
+     * Analyze SQL Server permissions
+     */
+    private PermissionAnalysisResult analyzeSQLServerPermissions(Connection connection, String username) throws SQLException {
+        String query = "SELECT p.permission_name, p.state_desc, CONCAT(SCHEMA_NAME(t.schema_id), '.', t.name) as scope " +
+                       "FROM sys.database_permissions p " +
+                       "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
+                       "LEFT JOIN sys.tables t ON p.major_id = t.object_id " +
+                       "WHERE pr.name = ? AND t.name IS NOT NULL " +
+                       "UNION ALL " +
+                       "SELECT p.permission_name, p.state_desc, 'DATABASE' as scope " +
+                       "FROM sys.database_permissions p " +
+                       "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
+                       "WHERE pr.name = ? AND p.major_id = 0";
+        
+        return executePermissionQuery(connection, query, username, 2, true);
+    }
+    
+    /**
+     * Execute permission analysis query (common logic for all database types)
+     */
+    private PermissionAnalysisResult executePermissionQuery(Connection connection, String query, 
+                                                           String username, int parameterCount, 
+                                                           boolean isSQLServer) throws SQLException {
+        List<String> existingPermissions = new ArrayList<>();
+        List<String> grantablePermissions = new ArrayList<>();
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            // Set username parameter for each placeholder
+            for (int i = 1; i <= parameterCount; i++) {
+                stmt.setString(i, username);
+            }
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    processPermissionRow(rs, existingPermissions, grantablePermissions, isSQLServer);
+                }
+            }
+        }
+        
+        return new PermissionAnalysisResult(existingPermissions, grantablePermissions);
+    }
+    
+    /**
+     * Process a permission result set row
+     */
+    private void processPermissionRow(ResultSet rs, List<String> existingPermissions, 
+                                     List<String> grantablePermissions, boolean isSQLServer) throws SQLException {
+        String privilege = rs.getString(1);
+        String scope = rs.getString(3);
+        
+        boolean isGrantable;
+        if (isSQLServer) {
+            isGrantable = "GRANT_WITH_GRANT_OPTION".equals(rs.getString(2)) || "GRANT".equals(rs.getString(2));
+        } else {
+            String grantableValue = rs.getString(2);
+            isGrantable = "YES".equalsIgnoreCase(grantableValue) || "true".equalsIgnoreCase(grantableValue);
+        }
+        
+        // Create detailed permission string with scope
+        String detailedPermission = privilege + " ON " + scope;
+        existingPermissions.add(detailedPermission);
+        if (isGrantable) {
+            grantablePermissions.add(detailedPermission);
+        }
+    }
+    
+    /**
+     * Analyze table-level permissions
+     */
+    private TablePermissionAnalysis analyzeTablePermissions(Connection connection, DatabaseType databaseType, String username) {
+        List<String> accessibleTables = new ArrayList<>();
+        List<String> grantableTables = new ArrayList<>();
+        
+        try {
+            String query;
+            switch (databaseType) {
+                case MYSQL:
+                    query = "SELECT CONCAT(TABLE_SCHEMA, '.', TABLE_NAME) as full_table_name, " +
+                           "GROUP_CONCAT(DISTINCT PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE SEPARATOR ', ') as privileges, " +
+                           "MAX(CASE WHEN IS_GRANTABLE = 'YES' THEN 1 ELSE 0 END) as can_grant " +
+                           "FROM information_schema.table_privileges " +
+                           "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
+                           "GROUP BY TABLE_SCHEMA, TABLE_NAME";
+                    break;
+                case POSTGRESQL:
+                    query = "SELECT CONCAT(table_schema, '.', table_name) as full_table_name, " +
+                           "STRING_AGG(DISTINCT privilege_type, ', ' ORDER BY privilege_type) as privileges, " +
+                           "MAX(CASE WHEN is_grantable = 'YES' THEN 1 ELSE 0 END) as can_grant " +
+                           "FROM information_schema.table_privileges " +
+                           "WHERE grantee = ? " +
+                           "GROUP BY table_schema, table_name";
+                    break;
+                case ORACLE:
+                    query = "SELECT CONCAT(owner, '.', table_name) as full_table_name, " +
+                           "LISTAGG(DISTINCT privilege, ', ') WITHIN GROUP (ORDER BY privilege) as privileges, " +
+                           "MAX(CASE WHEN grantable = 'YES' THEN 1 ELSE 0 END) as can_grant " +
+                           "FROM dba_tab_privs " +
+                           "WHERE grantee = UPPER(?) " +
+                           "GROUP BY owner, table_name";
+                    break;
+                case SQLSERVER:
+                    query = "SELECT CONCAT(SCHEMA_NAME(t.schema_id), '.', t.name) as full_table_name, " +
+                           "STRING_AGG(DISTINCT p.permission_name, ', ') WITHIN GROUP (ORDER BY p.permission_name) as privileges, " +
+                           "MAX(CASE WHEN p.state_desc = 'GRANT_WITH_GRANT_OPTION' THEN 1 ELSE 0 END) as can_grant " +
+                           "FROM sys.tables t " +
+                           "JOIN sys.database_permissions p ON t.object_id = p.major_id " +
+                           "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
+                           "WHERE pr.name = ? " +
+                           "GROUP BY t.schema_id, t.name";
+                    break;
+                default:
+                    return new TablePermissionAnalysis(new ArrayList<>(), new ArrayList<>());
+            }
+            
+            try (PreparedStatement stmt = connection.prepareStatement(query)) {
+                stmt.setString(1, username);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    
+                    while (rs.next()) {
+                        String fullTableName = rs.getString(1);
+                        String privileges = rs.getString(2);
+                        boolean canGrant = rs.getInt(3) > 0;
+                        
+                        // Create detailed table permission string
+                        String detailedTableAccess = fullTableName + " (" + privileges + ")";
+                        accessibleTables.add(detailedTableAccess);
+                        
+                        if (canGrant) {
+                            grantableTables.add(detailedTableAccess);
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            log.debug("Cannot analyze table permissions for user {}: {}", username, e.getMessage());
+        }
+        
+        return new TablePermissionAnalysis(accessibleTables, grantableTables);
+    }
+    
+    /**
+     * Add warnings based on permission analysis
+     */
+    private void addPermissionAnalysisWarnings(List<String> warnings, List<String> existingPermissions, 
+                                             List<String> grantablePermissions, 
+                                             TablePermissionAnalysis tableAnalysis) {
+        
+        // Check if user has very limited permissions
+        if (existingPermissions.size() < 3) {
+            warnings.add("Very limited database permissions detected - may not be able to effectively manage access");
+        }
+        
+        // Check if user can grant any permissions
+        if (grantablePermissions.isEmpty()) {
+            warnings.add("Cannot grant any permissions to other users - will not be able to approve access requests");
+        } else if (grantablePermissions.size() < 3) {
+            warnings.add("Limited grant permissions - may not be able to provide full access to developers");
+        }
+        
+        // Check table access
+        if (tableAnalysis.getAccessibleTables().isEmpty()) {
+            warnings.add("No table access detected - cannot provide database access to developers");
+        } else if (tableAnalysis.getGrantableTables().isEmpty()) {
+            warnings.add("Cannot grant table access to other users - limited access management capabilities");
+        }
+        
+        // Check for critical missing permissions
+        List<String> criticalPermissions = Arrays.asList("SELECT", "INSERT", "UPDATE", "DELETE");
+        List<String> missingCritical = criticalPermissions.stream()
+                .filter(perm -> !existingPermissions.contains(perm))
+                .toList();
+        
+        if (!missingCritical.isEmpty()) {
+            warnings.add("Missing critical permissions: " + String.join(", ", missingCritical) + 
+                        " - may not be able to provide complete database access");
+        }
+    }
+    
+    /**
+     * Build enhanced warning message with permission analysis
+     */
+    private String buildEnhancedWarningMessage(List<String> missingPermissions, List<String> warnings, 
+                                             List<String> existingPermissions, List<String> grantablePermissions) {
+        StringBuilder message = new StringBuilder();
+        
+        if (!missingPermissions.isEmpty()) {
+            message.append("Access level is insufficient to be an asset owner. Missing permissions: ");
+            message.append(String.join(", ", missingPermissions));
+            message.append(". You may not be able to grant all kinds of permission to others.");
+        }
+        
+        if (!existingPermissions.isEmpty()) {
+            if (!message.isEmpty()) {
+                message.append(" ");
+            }
+            message.append("Current permissions: ").append(String.join(", ", existingPermissions));
+        }
+        
+        if (!grantablePermissions.isEmpty()) {
+            if (!message.isEmpty()) {
+                message.append(" ");
+            }
+            message.append("Can grant: ").append(String.join(", ", grantablePermissions));
+        }
+        
+        if (!warnings.isEmpty()) {
+            if (!message.isEmpty()) {
+                message.append(" ");
+            }
+            message.append("Additional warnings: ");
+            message.append(String.join("; ", warnings));
+        }
+        
+        return message.toString();
+    }
+    
+    /**
+     * Create objects JSON with warning information
+     */
+    private String createObjectsJsonWithWarning(PermissionValidationResult validationResult) {
+        try {
+            Map<String, Object> objectsData = new HashMap<>();
+            objectsData.put("tables", new ArrayList<>());
+            objectsData.put("views", new ArrayList<>());
+            objectsData.put("procedures", new ArrayList<>());
+            objectsData.put("permission_warning", validationResult.getWarningMessage());
+            objectsData.put("permission_sufficient", validationResult.isSufficient());
+            objectsData.put("warnings", validationResult.getWarnings());
+            
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.writeValueAsString(objectsData);
+        } catch (Exception e) {
+            log.error("Failed to create objects JSON with warning: {}", e.getMessage());
+            return "{\"error\": \"Failed to process database objects due to permission issues\"}";
+        }
+    }
+    
+    /**
+     * Save asset object with warning information
+     */
+    private void saveAssetObjectWithWarning(AssetCredential credential, String objectsJsonWithWarning, PermissionValidationResult validationResult) {
+        try {
+            AssetObject assetObject = assetObjectRepository.findByAssetCredential(credential)
+                    .orElse(new AssetObject());
 
+            assetObject.setAssetCredential(credential);
+            assetObject.setAsset(credential.getAsset());
+            assetObject.setObjectsJson(objectsJsonWithWarning);
+            
+            // Add metadata about permission issues
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("permission_validation_failed", true);
+            metadata.put("validation_timestamp", System.currentTimeMillis());
+            metadata.put("missing_permissions", validationResult.getWarnings());
+            
+            assetObjectRepository.save(assetObject);
+            
+            log.warn("Saved asset object with permission warning for Asset Owner {} on asset {}", 
+                    credential.getUsername(), credential.getAsset().getId());
+                    
+        } catch (Exception e) {
+            log.error("Failed to save asset object with warning: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Result class for permission analysis
+     */
+    private static class PermissionAnalysisResult {
+        private final List<String> existingPermissions;
+        private final List<String> grantablePermissions;
+        
+        public PermissionAnalysisResult(List<String> existingPermissions, List<String> grantablePermissions) {
+            this.existingPermissions = existingPermissions;
+            this.grantablePermissions = grantablePermissions;
+        }
+        
+        public List<String> getExistingPermissions() {
+            return existingPermissions;
+        }
+        
+        public List<String> getGrantablePermissions() {
+            return grantablePermissions;
+        }
+    }
+    
+    /**
+     * Result class for table permission analysis
+     */
+    private static class TablePermissionAnalysis {
+        private final List<String> accessibleTables;
+        private final List<String> grantableTables;
+        
+        public TablePermissionAnalysis(List<String> accessibleTables, List<String> grantableTables) {
+            this.accessibleTables = accessibleTables;
+            this.grantableTables = grantableTables;
+        }
+        
+        public List<String> getAccessibleTables() {
+            return accessibleTables;
+        }
+        
+        public List<String> getGrantableTables() {
+            return grantableTables;
+        }
+    }
 
 }

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="036-add-unix-fields-to-access-requests" author="admin">
+        <!-- Add Unix access request fields to existing access_requests table -->
+        <addColumn tableName="access_requests">
+            <column name="requested_username" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <addColumn tableName="access_requests">
+            <column name="public_key" type="text">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <addColumn tableName="access_requests">
+            <column name="encrypted_private_key" type="text">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <addColumn tableName="access_requests">
+            <column name="approved_time" type="timestamp">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <addColumn tableName="access_requests">
+            <column name="approved_by_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <!-- Add foreign key for approved_by_id -->
+        <addForeignKeyConstraint 
+            baseTableName="access_requests" 
+            baseColumnNames="approved_by_id" 
+            constraintName="fk_access_requests_approved_by" 
+            referencedTableName="users"
+            referencedColumnNames="id"
+            onDelete="SET NULL"/>
+    </changeSet>
+
+    <changeSet id="036-create-unix-group-memberships-table" author="admin">
+        <createTable tableName="unix_group_memberships">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="access_request_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="unix_group_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="approved" type="tinyint(1)" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Add foreign keys -->
+        <addForeignKeyConstraint 
+            baseTableName="unix_group_memberships" 
+            baseColumnNames="access_request_id" 
+            constraintName="fk_unix_group_memberships_access_request" 
+            referencedTableName="access_requests"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint 
+            baseTableName="unix_group_memberships" 
+            baseColumnNames="unix_group_id" 
+            constraintName="fk_unix_group_memberships_group" 
+            referencedTableName="unix_groups"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+
+        <!-- Create indexes -->
+        <createIndex indexName="idx_unix_group_memberships_access_request" tableName="unix_group_memberships">
+            <column name="access_request_id"/>
+        </createIndex>
+
+        <createIndex indexName="idx_unix_group_memberships_group" tableName="unix_group_memberships">
+            <column name="unix_group_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
+

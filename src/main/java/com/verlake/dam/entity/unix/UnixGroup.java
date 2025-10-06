@@ -2,6 +2,7 @@ package com.verlake.dam.entity.unix;
 
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -33,6 +34,7 @@ public class UnixGroup {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "asset_id", nullable = false, foreignKey = @ForeignKey(name = "fk_unix_groups_asset"))
+    @JsonIgnoreProperties({"credentials", "assetObjects", "accessRequests", "unixGroups"})
     private Asset asset;
 
     @Column(name = "group_name", nullable = false, length = 255)
@@ -50,6 +52,7 @@ public class UnixGroup {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false, foreignKey = @ForeignKey(name = "fk_unix_groups_created_by"))
+    @JsonIgnoreProperties({"password", "userKey", "credentials", "accessRequests", "createdGroups"})
     private User createdBy;
 
     @CreationTimestamp
@@ -64,6 +67,7 @@ public class UnixGroup {
     private LocalDateTime lastSyncedAt;
 
     @OneToMany(mappedBy = "unixGroup", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @JsonIgnoreProperties({"unixGroup"})
     @Builder.Default
     private List<UnixGroupFolderAccess> folderAccesses = new ArrayList<>();
 

@@ -28,6 +28,9 @@ import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.service.unix.UnixAccessApprovalService;
+import com.verlake.dam.service.unix.UnixAccessRequestService;
+import com.verlake.dam.entity.dto.unix.UnixAccessApprovalDTO;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 
@@ -51,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @RestController
 @RequestMapping("/api/asset_owner/assets")
@@ -88,6 +93,12 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private QueryExecutionService queryExecutionService;
+
+    @Autowired
+    private UnixAccessRequestService unixAccessRequestService;
+
+    @Autowired
+    private UnixAccessApprovalService unixAccessApprovalService;
 
     /**
      * Constructor for OwnerAssetController.
@@ -206,6 +217,70 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @GetMapping("/approvals")
     public ResponseEntity<List<AccessRequest>> getMyAssetApprovals() {
         return ResponseEntity.ok(accessRequestService.getAssetRequestApprovals());
+    }
+
+    // Unix Access Request Management
+
+    /**
+     * Get pending Unix access requests for my assets
+     */
+    @GetMapping("/unix-requests/pending")
+    public ResponseEntity<List<AccessRequest>> getPendingUnixRequests() {
+        logger.info("Getting pending Unix access requests for my assets");
+        List<AccessRequest> requests = unixAccessRequestService.getPendingRequestsForMyAssets();
+        return ResponseEntity.ok(requests);
+    }
+
+    /**
+     * Get all Unix access requests for a specific asset
+     */
+    @GetMapping("/{assetId}/unix-requests")
+    public ResponseEntity<Page<AccessRequest>> getUnixRequestsForAsset(
+            @PathVariable Long assetId,
+            Pageable pageable) {
+        logger.info("Getting Unix access requests for asset: {}", assetId);
+        Page<AccessRequest> requests = unixAccessRequestService.getAccessRequestsForAsset(assetId, pageable);
+        return ResponseEntity.ok(requests);
+    }
+
+    /**
+     * Get a specific Unix access request by ID
+     */
+    @GetMapping("/unix-requests/{requestId}")
+    public ResponseEntity<AccessRequest> getUnixAccessRequest(@PathVariable Long requestId) {
+        logger.info("Getting Unix access request: {}", requestId);
+        AccessRequest request = unixAccessRequestService.getAccessRequestById(requestId);
+        return ResponseEntity.ok(request);
+    }
+
+    /**
+     * Approve a Unix access request
+     */
+    @PostMapping("/unix-requests/{requestId}/approve")
+    public ResponseEntity<Map<String, Object>> approveUnixAccessRequest(
+            @PathVariable Long requestId,
+            @RequestBody UnixAccessApprovalDTO approvalDTO) {
+        logger.info("Approving Unix access request: {}", requestId);
+        
+        if (approvalDTO.getApprovedGroupIds() == null || approvalDTO.getApprovedGroupIds().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one group must be approved");
+        }
+        
+        unixAccessApprovalService.approveAccessRequest(requestId, approvalDTO.getApprovedGroupIds());
+        return CommonUtils.getSuccessResponse();
+    }
+
+    /**
+     * Reject a Unix access request
+     */
+    @PostMapping("/unix-requests/{requestId}/reject")
+    public ResponseEntity<Map<String, Object>> rejectUnixAccessRequest(
+            @PathVariable Long requestId,
+            @RequestBody UnixAccessApprovalDTO rejectionDTO) {
+        logger.info("Rejecting Unix access request: {}", requestId);
+        
+        unixAccessApprovalService.rejectAccessRequest(requestId, rejectionDTO.getRejectReason());
+        return CommonUtils.getSuccessResponse();
     }
 
     @GetMapping("/change_requests")

@@ -1,6 +1,7 @@
 package com.verlake.dam.entity.dto.unix;
 
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.unix.UnixGroup;
 import com.verlake.dam.entity.unix.UnixGroupFolderAccess;
 import com.verlake.dam.entity.user.User;
@@ -35,7 +36,7 @@ public class UnixGroupDTO {
     @NotNull(message = "Asset ID is required", groups = {CreateGroup.class, UpdateGroup.class})
     private Long assetId;
     
-    private Asset asset;
+    private AssetDTO asset;
     
     @NotBlank(message = "Group name is required", groups = {CreateGroup.class, UpdateGroup.class})
     @Size(min = 1, max = 255, message = "Group name must be between 1 and 255 characters", groups = {CreateGroup.class, UpdateGroup.class})
@@ -78,7 +79,7 @@ public class UnixGroupDTO {
         return UnixGroupDTO.builder()
                 .id(unixGroup.getId())
                 .assetId(unixGroup.getAsset() != null ? unixGroup.getAsset().getId() : null)
-                .asset(unixGroup.getAsset())
+                .asset(AssetDTO.fromEntity(unixGroup.getAsset()))
                 .groupName(unixGroup.getGroupName())
                 .groupId(unixGroup.getGroupId())
                 .description(unixGroup.getDescription())
@@ -91,20 +92,6 @@ public class UnixGroupDTO {
                     unixGroup.getFolderAccesses().stream()
                         .map(FolderAccessDTO::fromEntity)
                         .collect(Collectors.toList()) : null)
-                .build();
-    }
-
-    /**
-     * Convert DTO to entity (for updates)
-     */
-    public UnixGroup toEntity() {
-        return UnixGroup.builder()
-                .id(this.id)
-                .groupName(this.groupName)
-                .groupId(this.groupId)
-                .asset(this.asset)
-                .description(this.description)
-                .isSystemGroup(this.isSystemGroup)
                 .build();
     }
 

@@ -5,6 +5,8 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.listener.AuditEntityListener;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
+import com.verlake.dam.entity.unix.UnixGroupMembership;
+
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.OnDelete;
@@ -67,5 +69,25 @@ public class AccessRequest {
 
     @Column(name = "expiry_date")
     private LocalDateTime expiryDate;
+    
+    // Unix access request fields
+    @Column(name = "requested_username")
+    private String requestedUsername;
+    
+    @Column(name = "public_key", columnDefinition = "text")
+    private String publicKey;
+    
+    @Column(name = "encrypted_private_key", columnDefinition = "text")
+    private String encryptedPrivateKey;
+    
+    @Column(name = "approved_time")
+    private LocalDateTime approvedTime;
+    
+    @ManyToOne
+    @JoinColumn(name = "approved_by_id")
+    private User approvedBy;
+    
+    @OneToMany(mappedBy = "accessRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<UnixGroupMembership> groupMemberships;
 
 } 

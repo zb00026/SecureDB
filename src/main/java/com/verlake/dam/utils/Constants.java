@@ -112,6 +112,9 @@ public class Constants {
     // Query execution types
     public static final String QUERY_EXECUTION_TYPE_DEVELOPER = "DEVELOPER";
     public static final String QUERY_EXECUTION_TYPE_ASSET_OWNER = "ASSET_OWNER";
+    
+    // Permission check types
+    public static final String PERMISSION_CHECK_TYPE_USER_MANAGEMENT = "user management";
 
     // AI Chat constants
     public static final String AI_SENDER = "ai";
@@ -254,6 +257,7 @@ public class Constants {
     public static final String MYSQL_QUERY_EXPLAIN = "EXPLAIN";
     public static final String MYSQL_QUERY_DESC = "DESC";
     public static final String MYSQL_QUERY_EXECUTE = "EXECUTE";
+    public static final String SQL_QUERY_SELECT_ZERO = "SELECT 0";
 
     // SQL template placeholders
     public static final String SQL_TEMPLATE_ON_SCHEMA = "ON $SCHEMA";

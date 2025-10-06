@@ -15,5 +15,9 @@ public class AccessRequestDTO {
     private String rejectReason;
     private AccessRequest accessRequest;
     private Integer expirationHours;
+    
+    // Unix access request fields
+    private String requestedUsername;
+    private List<Long> requestedGroupIds;
 
 } 

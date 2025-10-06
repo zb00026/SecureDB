@@ -108,6 +108,44 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
            "WHERE ar.asset = :asset")
     List<AccessRequest> findByAssetWithFetch(@Param("asset") Asset asset);
 
+    // Unix access request queries
+    @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
+           "LEFT JOIN FETCH ar.groupMemberships gm " +
+           "LEFT JOIN FETCH gm.unixGroup " +
+           "WHERE ar.asset.id IN :assetIds " +
+           "AND ar.assetApproverStatus = :status " +
+           "AND ar.requestedUsername IS NOT NULL " +
+           "ORDER BY ar.requestTime DESC")
+    List<AccessRequest> findPendingUnixRequestsForAssets(
+            @Param("assetIds") List<Long> assetIds, 
+            @Param("status") ApprovalStatus status);
     
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset " +
+           "AND ar.requestor = :requestor " +
+           "AND ar.assetApproverStatus IN :statuses " +
+           "AND ar.requestedUsername IS NOT NULL")
+    java.util.Optional<AccessRequest> findActiveUnixRequestByAssetAndRequestor(
+            @Param("asset") Asset asset, 
+            @Param("requestor") User requestor, 
+            @Param("statuses") List<ApprovalStatus> statuses);
+    
+    @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
+           "LEFT JOIN FETCH ar.groupMemberships gm " +
+           "LEFT JOIN FETCH gm.unixGroup " +
+           "WHERE ar.asset = :asset " +
+           "AND ar.requestedUsername IS NOT NULL " +
+           "ORDER BY ar.requestTime DESC")
+    Page<AccessRequest> findUnixRequestsByAssetOrderByRequestTimeDesc(
+            @Param("asset") Asset asset, 
+            Pageable pageable);
+    
+    @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
+           "LEFT JOIN FETCH ar.groupMemberships gm " +
+           "LEFT JOIN FETCH gm.unixGroup " +
+           "WHERE ar.requestor = :requestor " +
+           "AND ar.requestedUsername IS NOT NULL " +
+           "ORDER BY ar.requestTime DESC")
+    List<AccessRequest> findUnixRequestsByRequestorOrderByRequestTimeDesc(
+            @Param("requestor") User requestor);
 
 } 

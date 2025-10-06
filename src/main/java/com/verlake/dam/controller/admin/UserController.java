@@ -86,8 +86,7 @@ public class UserController {
                     Constants.getMessage("user.email.already.exists", user.getEmail()));
         }
         
-        // Validate name uniqueness
-        validateUserNames(user.getFirstName(), user.getLastName());
+        // Note: Names can be duplicated, only email must be unique
 
         // Generate temporary password if not provided
         if (user.getPassword() == null || user.getPassword().isEmpty()) {
@@ -121,8 +120,7 @@ public class UserController {
                     Constants.getMessage("user.email.already.exists", user.getEmail()));
         }
         
-        // Validate name uniqueness
-        validateUserNames(user.getFirstName(), user.getLastName());
+        // Note: Names can be duplicated, only email must be unique
 
         // Check password complexity
         if (user.getPassword() != null && !user.getPassword().isEmpty()) {
@@ -145,11 +143,7 @@ public class UserController {
     public User updateUser(@PathVariable Long id, @RequestBody User userDetails) {
         return userRepository.findById(id)
                 .map(user -> {
-                    // Validate name uniqueness only if names are being changed
-                    if (!user.getFirstName().equals(userDetails.getFirstName()) || 
-                        !user.getLastName().equals(userDetails.getLastName())) {
-                        validateUserNamesForUpdate(userDetails.getFirstName(), userDetails.getLastName(), id);
-                    }
+                    // Note: Names can be duplicated, only email must be unique
                     
                     user.setFirstName(userDetails.getFirstName());
                     user.setLastName(userDetails.getLastName());
@@ -292,54 +286,6 @@ public class UserController {
         }
     }
 
-    /**
-     * Validates that user names are unique to prevent confusion
-     */
-    private void validateUserNames(String firstName, String lastName) {
-        // Check for duplicate first name
-        if (userRepository.existsByFirstNameIgnoreCase(firstName)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.first.name.already.exists", firstName));
-        }
-        
-        // Check for duplicate last name
-        if (userRepository.existsByLastNameIgnoreCase(lastName)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.last.name.already.exists", lastName));
-        }
-        
-        // Check for duplicate first name and last name combination
-        if (userRepository.existsByFirstNameIgnoreCaseAndLastNameIgnoreCase(firstName, lastName)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.name.combination.already.exists", firstName, lastName));
-        }
-    }
-    
-    /**
-     * Validates that user names are unique when updating (excludes current user)
-     */
-    private void validateUserNamesForUpdate(String firstName, String lastName, Long currentUserId) {
-        // Check for duplicate first name (excluding current user)
-        List<User> usersWithSameFirstName = userRepository.findByFirstNameIgnoreCase(firstName);
-        if (usersWithSameFirstName.stream().anyMatch(u -> !u.getId().equals(currentUserId))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.first.name.already.exists", firstName));
-        }
-        
-        // Check for duplicate last name (excluding current user)
-        List<User> usersWithSameLastName = userRepository.findByLastNameIgnoreCase(lastName);
-        if (usersWithSameLastName.stream().anyMatch(u -> !u.getId().equals(currentUserId))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.last.name.already.exists", lastName));
-        }
-        
-        // Check for duplicate first name and last name combination (excluding current user)
-        List<User> usersWithSameName = userRepository.findByFirstNameAndLastNameIgnoreCase(firstName, lastName);
-        if (usersWithSameName.stream().anyMatch(u -> !u.getId().equals(currentUserId))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.name.combination.already.exists", firstName, lastName));
-        }
-    }
 
     /**
      * Helper method to build ResponseEntity with consistent JSON headers

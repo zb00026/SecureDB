@@ -370,18 +370,41 @@ public class AccessRequestService {
 
 
     public List<AccessRequest> getAssetRequestApprovals() {
-
         User currentUser = userService.getCurrentUser();
         List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserId(currentUser.getId());
+        
         return assetCredentials.stream()
                 .map(credential -> {
-                    List<AccessRequest> lstAccessRequest = accessRequestRepository.findPendingsByAsset(credential.getAsset());
+                    // Use different queries based on asset type
+                    List<AccessRequest> lstAccessRequest;
+                    if (credential.getAsset().getType() == com.verlake.dam.enums.AssetType.UNIX_SERVER) {
+                        // For Unix assets, use the Unix-specific query that fetches group memberships
+                        lstAccessRequest = accessRequestRepository.findPendingUnixRequestsForAssets(
+                                List.of(credential.getAsset().getId()), 
+                                com.verlake.dam.enums.ApprovalStatus.PENDING);
+                    } else {
+                        // For database assets, use the regular query
+                        lstAccessRequest = accessRequestRepository.findPendingsByAsset(credential.getAsset());
+                    }
+                    
                     Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
                             .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.asset.not.found.msg")));
+                    
                     lstAccessRequest.forEach(request -> {
                         AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
                         request.setAssetDTO(assetDTO);
+                        
+                        // Mask sensitive Unix data if this is a Unix access request
+                        if (request.getRequestedUsername() != null) {
+                            if (request.getPublicKey() != null) {
+                                request.setPublicKey(null);
+                            }
+                            if (request.getEncryptedPrivateKey() != null) {
+                                request.setEncryptedPrivateKey(null);
+                            }
+                        }
                     });
+                    
                     return lstAccessRequest;
                 })
                 .flatMap(List::stream)
