@@ -122,4 +122,35 @@ This project is a Spring Boot application that demonstrates:
    `MAIL_SENDER=your_email;MYSQL_PASSWORD=your_mysql_db_password;GOOGLE_ISSUE_URI=https://accounts.google.com;KEYCLOAK_REALM_NAME=DAM;MYSQL_URL=jdbc:mysql://localhost:3306/dam;spring-boot.run.profiles=dev;MYSQL_USERNAME=root;AUTH_PROVIDER=keycloak;GOOGLE_JWKS_URI=https://www.googleapis.com/oauth2/v3/certs;HOST_DOMAIN_URI=http://localhost:5173;KEYCLOAK_URL=http://localhost:8081`
 
    3. Run
-   
+
+---
+
+## Security Configuration
+
+### Multi-Factor Authentication (MFA)
+
+For enhanced security, we highly recommend enabling MFA in Keycloak. This protects your system even if the database is compromised.
+
+**Quick Setup (5 minutes):**
+1. Access Keycloak Admin Console → Authentication → Flows
+2. Change "Browser - Conditional OTP" to **REQUIRED**
+3. Change "Direct Grant - Conditional OTP" to **REQUIRED**
+4. Enable "Configure OTP" in Required Actions
+
+**📚 Complete Guide:** See [docs/KEYCLOAK_MFA_SETUP.md](docs/KEYCLOAK_MFA_SETUP.md)
+
+**Benefits:**
+- ✅ Protects against database breaches
+- ✅ Requires physical device for authentication
+- ✅ Easy for users to set up (2 minutes)
+- ✅ Industry-standard security practice
+
+---
+
+## Documentation
+
+### **Security & Authentication:**
+- **[Keycloak MFA Complete Guide](docs/README_KEYCLOAK_MFA.md)** - Complete MFA setup, user guide, and admin reference
+- **[Keycloak External Identity Provider SSO](docs/KEYCLOAK_EXTERNAL_IDENTITY_PROVIDER_SSO.md)** - Use Keycloak with Google/Microsoft for modern SSO authentication
+
+---

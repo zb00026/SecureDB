@@ -409,6 +409,7 @@
           "view-realm",
           "manage-realm",
           "query-users",
+          "view-identity-providers",
           "manage-users",
           "manage-clients",
           "view-clients"
@@ -772,19 +773,19 @@
       "clientId": "frontend-client",
       "name": "Frontend Client",
       "description": "",
-      "rootUrl": "https://qa.hagrids.com/",
-      "adminUrl": "https://qa.hagrids.com/",
+      "rootUrl": "https://ami.hagrids.com/",
+      "adminUrl": "https://ami.hagrids.com/",
       "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://qa.hagrids.com/*",
-        "http://localhost:5173/*"
+        "http://localhost:5173/*",
+        "https://ami.hagrids.com/*"
       ],
       "webOrigins": [
-        "https://qa.hagrids.com",
+        "https://ami.hagrids.com",
         "http://localhost:5173"
       ],
       "notBefore": 0,
@@ -1699,7 +1700,7 @@
     "referrerPolicy": "no-referrer",
     "xRobotsTag": "none",
     "xFrameOptions": "SAMEORIGIN",
-    "contentSecurityPolicy": "frame-ancestors 'self' http://localhost:5173 https://qa.hagrids.com/",
+    "contentSecurityPolicy": "frame-ancestors 'self' http://localhost:5173 https://ami.hagrids.com/",
     "xXSSProtection": "1; mode=block",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
@@ -1711,8 +1712,77 @@
   "enabledEventTypes": [],
   "adminEventsEnabled": false,
   "adminEventsDetailsEnabled": false,
-  "identityProviders": [],
-  "identityProviderMappers": [],
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google Sign In",
+      "internalId": "9135ed9d-86e0-4949-b912-a6ad367c6b42",
+      "providerId": "google",
+      "enabled": true,
+      "updateProfileFirstLoginMode": "on",
+      "trustEmail": false,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "hideOnLogin": false,
+      "config": {
+        "clientId": "172937358724-1e9tspeuoc55acd53rvi1jmkd8551uqs.apps.googleusercontent.com",
+        "acceptsPromptNoneForwardFromClient": "false",
+        "disableUserInfo": "false",
+        "syncMode": "LEGACY",
+        "filteredByClaim": "false",
+        "clientSecret": "**********",
+        "caseSensitiveOriginalUsername": "false"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "id": "91e96696-55d5-4e9a-8e1d-54ffcb570c40",
+      "name": "Google Username",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "userAttribute": "username",
+        "jsonField": "email"
+      }
+    },
+    {
+      "id": "01953110-5dec-40ce-99c7-f566c8ff7644",
+      "name": "Google Email",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "userAttribute": "email",
+        "jsonField": "email"
+      }
+    },
+    {
+      "id": "6213c57e-df28-40b9-afc1-5f1dae16ffda",
+      "name": "Google First Name",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "userAttribute": "firstName",
+        "jsonField": "given_name"
+      }
+    },
+    {
+      "id": "fb27995b-84ef-492d-85fe-b9e34fe8f0c0",
+      "name": "Google Last Name",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "hardcoded-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.value": "Last",
+        "attribute": "lastName"
+      }
+    }
+  ],
   "components": {
     "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy": [
       {
@@ -1778,14 +1848,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-property-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
-            "oidc-usermodel-attribute-mapper",
-            "saml-role-list-mapper",
             "oidc-full-name-mapper",
-            "saml-user-attribute-mapper",
             "saml-user-property-mapper",
-            "oidc-address-mapper"
+            "oidc-address-mapper",
+            "oidc-usermodel-property-mapper",
+            "oidc-usermodel-attribute-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "saml-role-list-mapper",
+            "saml-user-attribute-mapper"
           ]
         }
       },
@@ -1797,14 +1867,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-address-mapper",
-            "saml-user-attribute-mapper",
             "saml-user-property-mapper",
-            "saml-role-list-mapper",
-            "oidc-full-name-mapper",
             "oidc-usermodel-attribute-mapper",
+            "oidc-address-mapper",
             "oidc-sha256-pairwise-sub-mapper",
-            "oidc-usermodel-property-mapper"
+            "saml-user-attribute-mapper",
+            "oidc-full-name-mapper",
+            "oidc-usermodel-property-mapper",
+            "saml-role-list-mapper"
           ]
         }
       },

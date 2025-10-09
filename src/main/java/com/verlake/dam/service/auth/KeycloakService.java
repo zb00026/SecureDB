@@ -40,6 +40,9 @@ public class KeycloakService {
     private final String clientId;
     private final String clientSecret;
     private final String realmName;
+    
+    // Cache SSO status to avoid repeated API calls
+    private Boolean ssoEnabled = null;
 
     public KeycloakService(@Value("${keycloak.auth-server-url}") String keycloakAuthServerUrl,
                            @Value("${spring.security.oauth2.client.registration.keycloak.client-id}") String clientId,
@@ -49,6 +52,49 @@ public class KeycloakService {
         this.authServerUrl = keycloakAuthServerUrl;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+    }
+    
+    /**
+     * Check if SSO is enabled in Keycloak by checking for identity providers
+     */
+    public boolean isSSOEnabled() {
+        if (ssoEnabled != null) {
+            return ssoEnabled;
+        }
+        
+        try {
+            log.debug("Checking if SSO is enabled in Keycloak");
+            RealmResource realmResource = getRealmInstance();
+            
+            // Check for identity providers
+            var identityProviders = realmResource.identityProviders().findAll();
+            
+            ssoEnabled = identityProviders != null && !identityProviders.isEmpty();
+            log.info("SSO status: {} (Identity providers found: {})", 
+                ssoEnabled, identityProviders != null ? identityProviders.size() : 0);
+            
+            return ssoEnabled;
+            
+        } catch (Exception e) {
+            log.warn("Error checking SSO status in Keycloak (likely missing view-identity-providers role): {}", e.getMessage());
+            log.debug("Full error details:", e);
+            ssoEnabled = false;
+            return false;
+        }
+    }
+    
+    /**
+     * Get the appropriate email template for Keycloak users
+     * Returns "sso-invite" if SSO is enabled, "keycloak-invite" otherwise
+     */
+    public String getEmailTemplateForKeycloakUser() {
+        if (isSSOEnabled()) {
+            log.debug("Using SSO email template (Keycloak has identity providers)");
+            return "sso-invite";
+        } else {
+            log.debug("Using standard Keycloak email template");
+            return "keycloak-invite";
+        }
     }
 
     public RealmResource getRealmInstance() {

@@ -9,6 +9,7 @@ import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.auth.GlobalAuthProviderService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserCsvService;
 import com.verlake.dam.service.users.UserService;
@@ -50,6 +51,9 @@ public class UserController {
     private KeycloakService keycloakService;
 
     @Autowired
+    private GlobalAuthProviderService globalAuthProviderService;
+
+    @Autowired
     private EmailService emailService;
 
     @Value("${auth.provider}")
@@ -88,26 +92,50 @@ public class UserController {
         
         // Note: Names can be duplicated, only email must be unique
 
-        // Generate temporary password if not provided
-        if (user.getPassword() == null || user.getPassword().isEmpty()) {
-            user.setPassword(userService.generateSecureTemporaryPassword());
+        // Handle password generation based on global auth provider
+        boolean shouldCreateWithoutPasswords = globalAuthProviderService.shouldCreateUsersWithoutPasswords();
+        boolean isSSOProvider = globalAuthProviderService.isSSOProvider();
+        
+        // Additional safety check: if auth provider is SSO but shouldCreateUsersWithoutPasswords returns false,
+        // it means there was an error checking SSO status, so we should still treat it as SSO
+        if (isSSOProvider || shouldCreateWithoutPasswords) {
+            // SSO users don't need passwords
+            user.setPassword(null);
+            user.setIsActive(true); // SSO users are active by default
+            log.info("Creating user without password (SSO mode)");
+        } else {
+            // Generate temporary password for non-SSO users
+            if (user.getPassword() == null || user.getPassword().isEmpty()) {
+                user.setPassword(userService.generateSecureTemporaryPassword());
+            }
+            // Check password complexity for non-SSO users
+            userService.checkPasswordComplexity(user.getPassword());
+            user.setIsActive(false);
+            log.info("Creating user with temporary password (non-SSO mode)");
         }
 
-        // Check password complexity
-        userService.checkPasswordComplexity(user.getPassword());
-
-        if (userAuthProvider == AuthProvider.KEYCLOAK) {
-            keycloakService.saveUser(user.getEmail(), user.getEmail(),
-                    user.getFirstName(),
-                    user.getLastName(),
-                    user.getPassword(), false); // Set as temporary password
+        // Handle Keycloak user creation
+        if (userAuthProvider == AuthProvider.KEYCLOAK && keycloakService != null) {
+            // Check if SSO is enabled in Keycloak (has identity providers)
+            boolean isSSOEnabled = keycloakService.isSSOEnabled();
+            
+            if (isSSOEnabled) {
+                // For Keycloak SSO, don't create user in Keycloak or set password
+                // Users will authenticate through identity providers
+                log.info("Keycloak SSO is enabled - skipping Keycloak user creation for: {}", user.getEmail());
+            } else {
+                // Regular Keycloak users get created with password
+                keycloakService.saveUser(user.getEmail(), user.getEmail(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        user.getPassword(), false); // Set as temporary password
+            }
         }
-        user.setIsActive(false);
+        
         userRepository.save(user);
-        String emailTmplFile = Constants.EMAIL_TEMPLATE_GOOGLE_INVITE;
-        if (userAuthProvider == AuthProvider.KEYCLOAK) {
-            emailTmplFile = Constants.EMAIL_TEMPLATE_KEYCLOAK_INVITE;
-        }
+        
+        // Select appropriate email template based on global auth provider
+        String emailTmplFile = globalAuthProviderService.getEmailTemplate();
         emailService.sendInvitationEmail(user, emailTmplFile);
         return ResponseEntity.status(HttpStatus.OK).body(user);
     }

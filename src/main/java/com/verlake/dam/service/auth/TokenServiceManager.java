@@ -49,7 +49,22 @@ public class TokenServiceManager {
     }
 
     public boolean isProviderActive(AuthProvider provider) {
-        return activeProviders.contains(provider.name().toLowerCase());
+        String providerName = provider.name().toLowerCase();
+        
+        // Check if the provider name directly matches
+        if (activeProviders.contains(providerName)) {
+            return true;
+        }
+        
+        // Handle keycloak_sso variant for KEYCLOAK provider
+        if (provider == AuthProvider.KEYCLOAK) {
+            return activeProviders.stream()
+                    .anyMatch(active -> active.equals("keycloak_sso") || 
+                                       active.equals("keycloak-sso") ||
+                                       active.equals("keycloak"));
+        }
+        
+        return false;
     }
 
     public List<TokenService> getActiveServices() {

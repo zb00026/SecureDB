@@ -5,5 +5,6 @@ public enum AuthProvider {
     GOOGLE,
     FACEBOOK,
     GITHUB,
-    APPLE
+    APPLE,
+    KEYCLOAK_SSO
 }

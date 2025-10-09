@@ -484,16 +484,22 @@ public class NotificationJobConfig {
         // Extract auth provider from notification data
         String authProvider = dataNode.has("authProvider") ? dataNode.get("authProvider").asText() : "GOOGLE";
         String tempPassword = dataNode.has("tempPassword") ? dataNode.get("tempPassword").asText() : "";
-        if (tempPassword.isEmpty()) {
-            throw new EmailException("Password can not be empty");
+        
+        // For SSO users, password is not required
+        if (!"SSO".equalsIgnoreCase(authProvider) && tempPassword.isEmpty()) {
+            throw new EmailException("Password can not be empty for non-SSO users");
         }
+        
         // Determine email template based on auth provider
         String emailTmplFile = Constants.EMAIL_TEMPLATE_GOOGLE_INVITE;
         if ("KEYCLOAK".equalsIgnoreCase(authProvider)) {
             emailTmplFile = Constants.EMAIL_TEMPLATE_KEYCLOAK_INVITE;
+        } else if ("SSO".equalsIgnoreCase(authProvider)) {
+            emailTmplFile = Constants.EMAIL_TEMPLATE_SSO_INVITE;
         }
+        
         User user = task.getReceiver();
-        if (user != null) {
+        if (user != null && !tempPassword.isEmpty()) {
             user.setPassword(tempPassword);
         }
 

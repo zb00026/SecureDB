@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSO Invitation</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+<div style="background-color: #f7f7f7; padding: 20px;">
+    <h2 style="color: #4CAF50;">Welcome to Our DAM System!</h2>
+    <p>Dear <strong th:text="${userName}"></strong>,</p>
+    <p>You have been invited to join our Digital Asset Management system. Since you're using Single Sign-On (SSO), you can access the system directly through your organization's SSO provider.</p>
+    
+    <div style="margin: 20px 0; padding: 15px; background-color: #e8f5e8; border: 1px solid #4CAF50; border-radius: 5px;">
+        <h3 style="color: #2e7d32; margin-top: 0;">How to Access:</h3>
+        <ol style="color: #2e7d32;">
+            <li>Click the activation link below</li>
+            <li>You'll be redirected to your organization's SSO login</li>
+            <li>Sign in with your corporate credentials</li>
+            <li>You'll be automatically logged into the DAM system</li>
+        </ol>
+    </div>
+    
+    <div style="text-align: center; margin: 20px 0;">
+        <a th:href="@{${redirectLink}}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Activate Account & Sign In</a>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background-color: #fff; border: 1px solid #ddd; border-radius: 5px;">
+        <h4 style="color: #2e7d32; margin-top: 0;">SSO Benefits:</h4>
+        <ul style="color: #666; margin-bottom: 0;">
+            <li>No need to remember another password</li>
+            <li>Secure authentication through your organization</li>
+            <li>Automatic session management</li>
+            <li>Enhanced security with your existing credentials</li>
+        </ul>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
+        <p style="margin: 0; color: #856404;"><strong>Note:</strong> If you don't have access to your organization's SSO system, please contact your IT administrator for assistance.</p>
+    </div>
+    
+    <p style="margin-top: 20px; color: #a0a0a0;">If you didn't request this invitation, please ignore this email.</p>
+    <p style="margin-top: 10px;">Best Regards, <br> The DAM Team</p>
+</div>
+</body>
+</html>

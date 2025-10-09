@@ -203,7 +203,11 @@ public class EmailService {
             // Prepare Thymeleaf context for email content
             Context context = new Context();
             context.setVariable(Constants.EMAIL_VAR_USER_NAME, user.getFirstName() + " " + user.getLastName());
-            context.setVariable(Constants.EMAIL_VAR_TEMP_PASSWORD, user.getPassword());
+            
+            // Only set password for non-SSO users
+            if (user.getPassword() != null) {
+                context.setVariable(Constants.EMAIL_VAR_TEMP_PASSWORD, user.getPassword());
+            }
 
             // Generate email content using Thymeleaf template
             String inviteCode = CommonUtils.generateInviteCode(Constants.INVITE_CODE_LENGTH);
@@ -217,8 +221,10 @@ public class EmailService {
             user.setInviteCode(inviteCode);
             userRepository.save(user);
             
-            // Add password guidelines to email context
-            context.setVariable("passwordGuidelines", getPasswordGuidelines());
+            // Add password guidelines to email context only for non-SSO users
+            if (user.getPassword() != null) {
+                context.setVariable("passwordGuidelines", getPasswordGuidelines());
+            }
 
             String emailSubject = "Invitation to Join Our DAM System";
             ObjectMapper objectMapper = new ObjectMapper();

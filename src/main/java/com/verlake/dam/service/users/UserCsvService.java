@@ -403,7 +403,12 @@ public class UserCsvService {
         ObjectNode notificationData = objectMapper.createObjectNode();
         ObjectNode dataNode = objectMapper.createObjectNode();
         dataNode.put("authProvider", userAuthProvider.toString());
-        dataNode.put("tempPassword", user.getPassword());
+        
+        // Only include password for non-SSO users
+        if (user.getPassword() != null) {
+            dataNode.put("tempPassword", user.getPassword());
+        }
+        
         notificationData.set(Constants.ACCESS_OBJECT_ATTR_DATA, dataNode);
         
         // Create the notification task

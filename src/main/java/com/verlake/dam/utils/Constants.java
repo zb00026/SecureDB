@@ -167,6 +167,7 @@ public class Constants {
     // Email template names
     public static final String EMAIL_TEMPLATE_GOOGLE_INVITE = "google-invite";
     public static final String EMAIL_TEMPLATE_KEYCLOAK_INVITE = "keycloak-invite";
+    public static final String EMAIL_TEMPLATE_SSO_INVITE = "sso-invite";
 
     // Password generation character sets
     public static final String PSSWD_LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
