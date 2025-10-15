@@ -69,7 +69,7 @@ public class GlobalAuthProviderService {
      * Check if the current auth provider is Keycloak
      */
     public boolean isKeycloakProvider() {
-        return getCurrentAuthProvider() == AuthProvider.KEYCLOAK;
+        return getCurrentAuthProvider() == AuthProvider.KEYCLOAK || getCurrentAuthProvider() == AuthProvider.KEYCLOAK_SSO;
     }
 
     /**

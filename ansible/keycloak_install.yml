@@ -273,7 +273,7 @@
           \"enabled\": true, \
           \"firstName\": \"Admin\", \
           \"lastName\": \"Admin\", \
-          \"email\": \"chuc06872@gmail.com\", \
+          \"email\": \"{{ lookup('env', 'KEYCLOAK_ADMIN_EMAIL_ADDR') }}\", \
           \"credentials\": [{ \
             \"type\":\"password\", \
             \"value\":\"{{ lookup('env', 'KEYCLOAK_ADMIN_USER_PASSWORD') }}\", \

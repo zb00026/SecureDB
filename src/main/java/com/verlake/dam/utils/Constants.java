@@ -788,4 +788,35 @@ public class Constants {
     
     // Logging configuration constants
     public static final String LOGGING_DETAILED_REQUEST_RESPONSE_ENABLED = "logging.detailed.request.response.enabled";
+    
+    // Keycloak authentication flow constants
+    public static final String KEYCLOAK_FLOW_BROWSER = "browser";
+    public static final String KEYCLOAK_FLOW_DIRECT_GRANT = "direct grant";
+    
+    // Keycloak identity provider constants
+    public static final String KEYCLOAK_IDP_GOOGLE = "google";
+    public static final String KEYCLOAK_IDP_MAPPER_OIDC_USER_ATTRIBUTE = "oidc-user-attribute-idp-mapper";
+    public static final String KEYCLOAK_IDP_MAPPER_HARDCODED_ATTRIBUTE = "hardcoded-attribute-idp-mapper";
+    
+    // Keycloak mapper configuration constants
+    public static final String KEYCLOAK_MAPPER_SYNC_MODE_INHERIT = "INHERIT";
+    public static final String KEYCLOAK_MAPPER_SYNC_MODE = "syncMode";
+    public static final String KEYCLOAK_MAPPER_CLAIM = "claim";
+    public static final String KEYCLOAK_MAPPER_USER_ATTRIBUTE = "user.attribute";
+    public static final String KEYCLOAK_MAPPER_ATTRIBUTE_VALUE = "attribute.value";
+    public static final String KEYCLOAK_MAPPER_ATTRIBUTE = "attribute";
+    public static final String KEYCLOAK_MAPPER_EMAIL = "email";
+    public static final String KEYCLOAK_MAPPER_GIVEN_NAME = "given_name";
+    public static final String KEYCLOAK_MAPPER_FIRST_NAME = "firstName";
+    public static final String KEYCLOAK_MAPPER_LAST_NAME = "lastName";
+    public static final String KEYCLOAK_MAPPER_USERNAME = "username";
+    public static final String KEYCLOAK_MAPPER_LAST_NAME_DEFAULT = "Last";
+    
+    // Keycloak authentication execution names
+    public static final String KEYCLOAK_EXECUTION_DIRECT_GRANT_CONDITIONAL_OTP = "Direct Grant - Conditional OTP";
+    public static final String KEYCLOAK_EXECUTION_BROWSER_CONDITIONAL_OTP = "Browser - Conditional OTP";
+    
+    // Keycloak requirement levels
+    public static final String KEYCLOAK_REQUIREMENT_REQUIRED = "REQUIRED";
+    public static final String KEYCLOAK_REQUIREMENT_CONDITIONAL = "CONDITIONAL";
 }

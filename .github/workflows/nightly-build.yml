@@ -59,7 +59,8 @@ jobs:
           echo "BACKEND_ARTIFACT_PREFIX=$BACKEND_ARTIFACT_PREFIX" >> $GITHUB_ENV
           echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV          
+          echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "GOOGLE_SIGN_IN_CLIENT_SECRET=${{ secrets.GOOGLE_SIGN_IN_CLIENT_SECRET }}" >> $GITHUB_ENV
 
       - name: Set timestamp variable
         id: timestamp
@@ -119,6 +120,18 @@ jobs:
 
           echo "Successfully retrieved Keycloak admin token."
 
+          # Copy appropriate realm export file based on AUTH_PROVIDER
+          if [ "${{ env.AUTH_PROVIDER }}" = "keycloak_sso" ]; then
+            echo "AUTH_PROVIDER is keycloak_sso, using realm-export-only-sso.json"
+            cp src/main/resources/keycloak/realm-export-only-sso.json src/main/resources/keycloak/realm-export.json
+            # Substitute environment variables in the realm export file
+            envsubst < src/main/resources/keycloak/realm-export.json > src/main/resources/keycloak/realm-export-temp.json
+            mv src/main/resources/keycloak/realm-export-temp.json src/main/resources/keycloak/realm-export.json
+          else
+            echo "AUTH_PROVIDER is not keycloak_sso, using realm-export-no-sso.json"
+            cp src/main/resources/keycloak/realm-export-no-sso.json src/main/resources/keycloak/realm-export.json
+          fi
+
           # Create Keycloak realm
           echo "Setting up Keycloak realm..."
           curl -s -X POST ${{ env.KEYCLOAK_URL }}/admin/realms \
@@ -172,8 +185,17 @@ jobs:
           cp .env build/libs/
           # Copy ansible folder to build/libs/ so it's included in the ZIP at root level
           cp -r ansible build/libs/
-          # Copy realm-export.json to build/libs/ so it's included in the ZIP
-          cp src/main/resources/keycloak/realm-export.json build/libs/
+          # Copy appropriate realm export file based on AUTH_PROVIDER
+          if [ "${{ env.AUTH_PROVIDER }}" = "keycloak_sso" ]; then
+            echo "AUTH_PROVIDER is keycloak_sso, copying realm-export-only-sso.json as realm-export.json"
+            cp src/main/resources/keycloak/realm-export-only-sso.json build/libs/realm-export.json
+            # Substitute environment variables in the realm export file
+            envsubst < build/libs/realm-export.json > build/libs/realm-export-temp.json
+            mv build/libs/realm-export-temp.json build/libs/realm-export.json
+          else
+            echo "AUTH_PROVIDER is not keycloak_sso, copying realm-export-no-sso.json as realm-export.json"
+            cp src/main/resources/keycloak/realm-export-no-sso.json build/libs/realm-export.json
+          fi
           # Generate and copy logstash.conf to build/libs/
           export ELASTICSEARCH_URL=${{ env.ELASTICSEARCH_URL }}
           export ELASTIC_PASSWORD=${{ env.ELASTIC_PASSWORD }}

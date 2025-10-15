@@ -793,7 +793,7 @@
       "consentRequired": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "publicClient": true,
       "frontchannelLogout": true,
@@ -804,6 +804,7 @@
         "client.secret.creation.time": "1736594810",
         "backchannel.logout.session.required": "true",
         "post.logout.redirect.uris": "+",
+        "frontchannel.logout.session.required": "true",
         "oauth2.device.authorization.grant.enabled": "false",
         "display.on.consent.screen": "false",
         "backchannel.logout.revoke.offline.tokens": "false"
@@ -1705,6 +1706,10 @@
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
   "smtpServer": {},
+  "loginTheme": "",
+  "accountTheme": "",
+  "adminTheme": "",
+  "emailTheme": "",
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"
@@ -1732,7 +1737,7 @@
         "disableUserInfo": "false",
         "syncMode": "LEGACY",
         "filteredByClaim": "false",
-        "clientSecret": "**********",
+        "clientSecret": "${GOOGLE_SIGN_IN_CLIENT_SECRET}",
         "caseSensitiveOriginalUsername": "false"
       }
     }
@@ -2038,6 +2043,32 @@
       ]
     },
     {
+      "id": "fa4496a4-8007-400d-8940-358a14f3e890",
+      "alias": "Deny user/pass",
+      "description": "",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "deny-access-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "conditional-user-role",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 1,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
       "id": "800f4057-9e09-4866-88c5-1c6229b40ce4",
       "alias": "Direct Grant - Conditional OTP",
       "description": "Flow to determine if the OTP is required for the authentication",
@@ -2180,6 +2211,159 @@
           "requirement": "REQUIRED",
           "priority": 20,
           "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "02f62284-da0d-4ff0-9974-eb70c5a8657b",
+      "alias": "SSO Only",
+      "description": "Browser based authentication",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-spnego",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 25,
+          "autheticatorFlow": true,
+          "flowAlias": "SSO Only Organization",
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 26,
+          "autheticatorFlow": true,
+          "flowAlias": "SSO Only forms",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "1be64c79-9991-42ac-8454-cf626aebdcb2",
+      "alias": "SSO Only Browser - Conditional OTP",
+      "description": "Flow to determine if the OTP is required for the authentication",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "b8c389a1-1ec4-4254-842f-18bd11d54ee8",
+      "alias": "SSO Only Browser - Conditional Organization",
+      "description": "Flow to determine if the organization identity-first login is to be used",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "organization",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "43e7e0f6-3218-4e47-802d-4ed71ccc04fc",
+      "alias": "SSO Only Organization",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "autheticatorFlow": true,
+          "flowAlias": "SSO Only Browser - Conditional Organization",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "6b0d2c47-fa6b-44f7-b92a-28df8458254f",
+      "alias": "SSO Only forms",
+      "description": "Username, password, otp and other auth forms.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 21,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 23,
+          "autheticatorFlow": true,
+          "flowAlias": "SSO Only Browser - Conditional OTP",
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 24,
+          "autheticatorFlow": true,
+          "flowAlias": "Deny user/pass",
           "userSetupAllowed": false
         }
       ]
@@ -2585,7 +2769,7 @@
       "alias": "CONFIGURE_TOTP",
       "name": "Configure OTP",
       "providerId": "CONFIGURE_TOTP",
-      "enabled": true,
+      "enabled": false,
       "defaultAction": true,
       "priority": 10,
       "config": {}
@@ -2681,7 +2865,7 @@
       "config": {}
     }
   ],
-  "browserFlow": "browser",
+  "browserFlow": "SSO Only",
   "registrationFlow": "registration",
   "directGrantFlow": "direct grant",
   "resetCredentialsFlow": "reset credentials",
@@ -2702,7 +2886,8 @@
     "parRequestUriLifespan": "60",
     "clientSessionMaxLifespan": "0",
     "frontendUrl": "",
-    "acr.loa.map": "{}"
+    "acr.loa.map": "{}",
+    "darkMode": "true"
   },
   "keycloakVersion": "26.1.2",
   "userManagedAccessAllowed": false,

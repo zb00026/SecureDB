@@ -38,7 +38,7 @@ public class InitialE2ETest {
                     "TRUNCATE TABLE asset_credentials",
                     "TRUNCATE TABLE s3_bucket_settings",
                     "SET FOREIGN_KEY_CHECKS = 1",
-                    "INSERT INTO users (email, first_name, last_name, is_active) VALUES ('chuc06872@gmail.com', 'E2E', 'Admin', true)",
+                    "INSERT INTO users (email, first_name, last_name, is_active) VALUES ('" + System.getProperty("KEYCLOAK_ADMIN_EMAIL_ADDR") + "', 'E2E', 'Admin', true)",
                     "INSERT INTO user_roles (user_id, role_id) VALUES (1, 1)"
                 };
 

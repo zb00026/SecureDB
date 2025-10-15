@@ -48,9 +48,14 @@ This project is a Spring Boot application that demonstrates:
    - Access admin console at http://localhost:8081
    - Login with admin/admin
    - Click on "Create Realm"
-   - Click "Browse" and select the realm configuration file from:
-     `src/main/resources/keycloak/realm-export.json`
+   - Click "Browse" and select the realm configuration file:
+     - **For SSO setup**: `src/main/resources/keycloak/realm-export-only-sso.json`
+     - **For non-SSO setup**: `src/main/resources/keycloak/realm-export-no-sso.json`
    - Click "Create"
+
+**Note**: The appropriate realm configuration is automatically selected based on the `AUTH_PROVIDER` environment variable:
+- If `AUTH_PROVIDER=keycloak_sso`, the SSO-enabled configuration is used
+- Otherwise, the standard configuration is used
 
 ### Option 2: Manual Configuration
 1. Create New Realm
