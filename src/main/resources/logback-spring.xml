@@ -27,29 +27,7 @@
         </encoder>
     </appender>
 
-    <!-- Elastic appender using JSON format for sending logs to Logstash -->
-    <appender name="ElasticAppender" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
-        <destination>${HOST_IP_ADDRESS}:12324</destination> <!-- Logstash endpoint -->
-        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
-            <providers>
-                <mdc /> <!-- Add MDC (Mapped Diagnostic Context) values to the log -->
-                <pattern>
-                    {"@timestamp":"%date{ISO8601}","@version":"1","DAM-Hagrid-message":"%msg","logger":"%logger","level":"%level","thread":"%thread"}
-                </pattern>
-                <!-- Stack trace conversion for better handling of exceptions -->
-                <stackTrace>
-                    <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
-                        <maxDepthPerThrowable>30</maxDepthPerThrowable>
-                        <maxLength>2048</maxLength>
-                        <shortenedClassNameLength>20</shortenedClassNameLength>
-                        <exclude>^sun\.reflect\..*\.invoke</exclude>
-                        <exclude>^net\.sf\.cglib\.proxy\.MethodProxy\.invoke</exclude>
-                    </throwableConverter>
-                </stackTrace>
-            </providers>
-        </encoder>
-    </appender>
-
+    
     <!-- Root logger configuration -->
     <root level="INFO">
         <appender-ref ref="consoleLog" />
@@ -61,7 +39,6 @@
     <logger name="com.verlake.dam" level="DEBUG" additivity="false">
         <appender-ref ref="consoleLog" />
         <appender-ref ref="fileLog" />
-        <appender-ref ref="ElasticAppender" />
     </logger>
 
     <!-- Logger for elastic apm -->
