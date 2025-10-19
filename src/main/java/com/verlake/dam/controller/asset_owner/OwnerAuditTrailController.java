@@ -2,6 +2,7 @@ package com.verlake.dam.controller.asset_owner;
 
 import com.verlake.dam.controller.common.BaseAuditTrailController;
 import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
+import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -13,8 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/asset_owner/audit-trails")
 public class OwnerAuditTrailController extends BaseAuditTrailController {
     
-    public OwnerAuditTrailController(RoleBasedAuditTrailService roleBasedAuditTrailService) {
-        super(roleBasedAuditTrailService);
+    public OwnerAuditTrailController(RoleBasedAuditTrailService roleBasedAuditTrailService,
+                                   AuditTrailCsvExportService csvExportService) {
+        super(roleBasedAuditTrailService, csvExportService);
     }
 
     @Override

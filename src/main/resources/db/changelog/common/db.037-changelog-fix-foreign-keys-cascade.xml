@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="fix-foreign-keys-cascade-delete" author="admin">
+        <!-- Drop and recreate asset_objects foreign key constraint with CASCADE DELETE -->
+        <dropForeignKeyConstraint 
+            baseTableName="asset_objects" 
+            constraintName="fk_asset_objects_credential"/>
+        
+        <addForeignKeyConstraint 
+            baseTableName="asset_objects" 
+            baseColumnNames="credential_id" 
+            constraintName="fk_asset_objects_credential" 
+            referencedTableName="asset_credentials"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+            
+        <!-- Drop and recreate terminal_command_audit foreign key constraint with CASCADE DELETE -->
+        <dropForeignKeyConstraint 
+            baseTableName="terminal_command_audit" 
+            constraintName="fk_command_audit_user"/>
+        
+        <addForeignKeyConstraint 
+            baseTableName="terminal_command_audit" 
+            baseColumnNames="user_id" 
+            constraintName="fk_command_audit_user" 
+            referencedTableName="users"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+            
+        <!-- Drop and recreate terminal_session_recordings foreign key constraint with CASCADE DELETE -->
+        <dropForeignKeyConstraint 
+            baseTableName="terminal_session_recordings" 
+            constraintName="fk_terminal_session_user"/>
+        
+        <addForeignKeyConstraint 
+            baseTableName="terminal_session_recordings" 
+            baseColumnNames="user_id" 
+            constraintName="fk_terminal_session_user" 
+            referencedTableName="users"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+            
+        <!-- Drop and recreate unix_groups foreign key constraint with CASCADE DELETE -->
+        <dropForeignKeyConstraint 
+            baseTableName="unix_groups" 
+            constraintName="fk_unix_groups_created_by"/>
+        
+        <addForeignKeyConstraint 
+            baseTableName="unix_groups" 
+            baseColumnNames="created_by" 
+            constraintName="fk_unix_groups_created_by" 
+            referencedTableName="users"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+            
+        <!-- Drop and recreate unix_group_folder_access foreign key constraint with CASCADE DELETE -->
+        <dropForeignKeyConstraint 
+            baseTableName="unix_group_folder_access" 
+            constraintName="fk_unix_group_folder_access_created_by"/>
+        
+        <addForeignKeyConstraint 
+            baseTableName="unix_group_folder_access" 
+            baseColumnNames="created_by" 
+            constraintName="fk_unix_group_folder_access_created_by" 
+            referencedTableName="users"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+</databaseChangeLog>

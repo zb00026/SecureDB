@@ -9,12 +9,11 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.AuditAction;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.utils.IpAddressUtils;
 import com.verlake.dam.utils.SpringContext;
 import jakarta.persistence.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
@@ -113,12 +112,7 @@ public class AuditEntityListener {
     }
 
     private String getCurrentIpAddress() {
-        try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-            return attributes.getRequest().getRemoteAddr();
-        } catch (Exception e) {
-            return "unknown";
-        }
+        return IpAddressUtils.getCurrentIpAddress();
     }
 
     private String getEntityId(Object target) {

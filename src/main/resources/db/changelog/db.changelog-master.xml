@@ -37,6 +37,7 @@
     <include file="db/changelog/common/db.034-changelog-terminal-audit.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.035-changelog-unix-groups.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.036-changelog-add-unix-access-requests.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.037-changelog-fix-foreign-keys-cascade.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

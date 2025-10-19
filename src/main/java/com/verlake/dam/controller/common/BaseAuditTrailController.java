@@ -4,10 +4,14 @@ import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
 import com.verlake.dam.entity.dto.AuditTrailDTO;
 import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
+import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
+import com.verlake.dam.exception.CsvExportException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 public abstract class BaseAuditTrailController {
     
     protected final RoleBasedAuditTrailService roleBasedAuditTrailService;
+    protected final AuditTrailCsvExportService csvExportService;
 
     /**
      * Get audit trails for the current user based on their role and permissions
@@ -64,6 +69,38 @@ public abstract class BaseAuditTrailController {
         
         log.info("Returning audit trail statistics for {}: {} total records", roleName.toLowerCase(), stats.getTotalCount());
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * Download audit trails as CSV file for the current user based on their role
+     * @param filter The filter containing search criteria for the export
+     * @return CSV file with audit trail data filtered by role-based access
+     */
+    @GetMapping(value = "/download", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    public ResponseEntity<byte[]> downloadAuditTrailsCsv(RoleBasedAuditTrailFilter filter) {
+        String roleName = getRoleName();
+        log.info("{} requesting CSV export of audit trails with filter: {}", roleName, filter);
+        
+        try {
+            byte[] csvContent = csvExportService.exportAuditTrailsToCsv(filter);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", 
+                    String.format("audit_trails_%s.csv", roleName.toLowerCase().replace(" ", "_")));
+            headers.setContentLength(csvContent.length);
+            
+            log.info("Generated CSV export for {}: {} bytes", roleName, csvContent.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(csvContent);
+                    
+        } catch (Exception e) {
+            log.error("Failed to generate CSV export for {}: {}", roleName, e.getMessage(), e);
+            throw new CsvExportException("Failed to generate CSV export for " + roleName, e);
+        }
     }
 
     /**

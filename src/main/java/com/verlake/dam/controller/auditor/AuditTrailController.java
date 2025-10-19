@@ -6,14 +6,19 @@ import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.entity.dto.AuditTrailDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.exception.CsvExportException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -24,6 +29,9 @@ import java.util.List;
 public class AuditTrailController {
     @Autowired
     private final AuditTrailService auditTrailService;
+    
+    @Autowired
+    private final AuditTrailCsvExportService csvExportService;
     
     @Autowired
     private final AssetService assetService;
@@ -53,5 +61,32 @@ public class AuditTrailController {
     public ResponseEntity<List<AssetDTO>> getAllAssets() {
         List<AssetDTO> assets = assetService.getAllAssets();
         return ResponseEntity.ok(assets);
+    }
+
+    /**
+     * Download audit trails as CSV file
+     * This endpoint allows downloading audit trail data in CSV format for analysis
+     * 
+     * @param filter The filter containing search criteria for the export
+     * @return CSV file with audit trail data
+     */
+    @GetMapping(value = "/download", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @PreAuthorize("hasAuthority('ROLE_AUDITOR')")
+    public ResponseEntity<byte[]> downloadAuditTrailsCsv(AuditTrailFilter filter) {
+        try {
+            byte[] csvContent = csvExportService.exportAllAuditTrailsToCsv(filter);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", "audit_trails.csv");
+            headers.setContentLength(csvContent.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(csvContent);
+                    
+        } catch (Exception e) {
+            throw new CsvExportException("Failed to generate CSV export", e);
+        }
     }
 } 

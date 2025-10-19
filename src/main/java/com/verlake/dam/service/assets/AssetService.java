@@ -116,7 +116,49 @@ public class AssetService {
                     asset.getName(), pingResult.getResponseTimeMs());
         }
 
-        return assetRepository.save(asset);
+        // Save the asset first to get the ID
+        asset = assetRepository.save(asset);
+
+        // Create asset owners if provided
+        if (assetDTO.getOwners() != null && !assetDTO.getOwners().isEmpty()) {
+            createAssetOwners(asset, assetDTO.getOwners());
+        }
+
+        // Create asset approvers if provided
+        if (assetDTO.getApprovers() != null && !assetDTO.getApprovers().isEmpty()) {
+            createAssetApprovers(asset, assetDTO.getApprovers());
+        }
+
+        return asset;
+    }
+
+    /**
+     * Create asset owners (credentials) for the given users
+     */
+    private void createAssetOwners(Asset asset, List<User> owners) {
+        for (User owner : owners) {
+            AssetCredential credentials = AssetCredential.builder()
+                    .asset(asset)
+                    .user(owner)
+                    .username(null)
+                    .password(null)
+                    .userAccessType(Roles.ASSET_OWNER.getOriginalName())
+                    .build();
+            credentialsRepository.save(credentials);
+        }
+    }
+
+    /**
+     * Create asset approvers for the given users
+     */
+    private void createAssetApprovers(Asset asset, List<User> approvers) {
+        for (User approver : approvers) {
+            AssetApprover assetApprover = AssetApprover.builder()
+                    .asset(asset)
+                    .user(approver)
+                    .build();
+            assetApproversRepository.save(assetApprover);
+        }
     }
 
     @Transactional

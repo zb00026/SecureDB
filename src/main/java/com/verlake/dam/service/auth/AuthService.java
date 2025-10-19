@@ -124,7 +124,7 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid token");
         }
         
-        if (inviteCode != null && !inviteCode.equals(user.getInviteCode())) {
+        if (user.getInviteCode() != null && inviteCode != null && !inviteCode.equals(user.getInviteCode())) {
             log.error("Invite code mismatch for user {}. Provided: {}, Stored: {}", 
                      user.getEmail(), inviteCode, user.getInviteCode());
             throw new IllegalArgumentException("Invalid invite code");

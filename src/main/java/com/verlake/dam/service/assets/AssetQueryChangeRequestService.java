@@ -17,6 +17,7 @@ import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.ai.DataMaskingService;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.IpAddressUtils;
 import com.verlake.dam.exception.AssetQueryChangeRequestNotFoundException;
 import com.verlake.dam.exception.QueryExecutionException;
 import lombok.extern.slf4j.Slf4j;
@@ -392,13 +393,7 @@ public class AssetQueryChangeRequestService {
     }
 
     private String getCurrentIpAddress() {
-        try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
-                    .currentRequestAttributes();
-            return attributes.getRequest().getRemoteAddr();
-        } catch (Exception e) {
-            return "unknown";
-        }
+        return IpAddressUtils.getCurrentIpAddress();
     }
 
     private void createQueryAuditLog(AccessQueryDTO accessQueryDTO, Asset asset,
