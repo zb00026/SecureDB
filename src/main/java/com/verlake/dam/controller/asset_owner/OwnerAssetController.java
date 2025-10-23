@@ -28,6 +28,11 @@ import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.verlake.dam.service.unix.UnixAccessApprovalService;
 import com.verlake.dam.service.unix.UnixAccessRequestService;
 import com.verlake.dam.entity.dto.unix.UnixAccessApprovalDTO;
@@ -99,6 +104,12 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private UnixAccessApprovalService unixAccessApprovalService;
+
+    @Autowired
+    private NotificationTaskRepository notificationTaskRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * Constructor for OwnerAssetController.
@@ -328,16 +339,17 @@ public class OwnerAssetController extends BaseAssetAccessController {
         });
         accessRequestRepository.deleteByAsset(existingCredential.getAsset());
         assetService.deleteAssetCredential(existingCredential);
+        // Send notifications to admins using notification job
         List<User> admins = userService.getAdminRoleUsers();
         String myEmail = CommonUtils.getEmailFromSession();
         User currentUser = userService.findByEmail(myEmail);
         if (currentUser == null) {
             throw new AccessDeniedException("Current User not found");
         }
-        String emailTmplFile = "relinquish-asset-credential";
+        
         if(admins != null) {
             for (User admin : admins) {
-                emailService.sendAssetRelinquishEmail(admin, currentUser, existingCredential, emailTmplFile);
+                createRelinquishNotificationTask(admin, currentUser, existingCredential, EmailType.RELINQUISH_ASSET_CREDENTIAL);
             }
         }
         return CommonUtils.getSuccessResponse();
@@ -388,6 +400,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
                 }
                 existingCredential.setUsername(username);
                 existingCredential.setPassword(password);
+                existingCredential.setIsTemporaryPassword(false);
                 assetService.saveCredential(existingCredential);
                 return CommonUtils.getSuccessResponse();
             } else {
@@ -481,6 +494,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
      * Delete SSH credentials
      */
     @DeleteMapping("/ssh-credentials/{id}")
+    @Transactional
     public ResponseEntity<Map<String, Object>> deleteSSHCredentials(@PathVariable Long id) {
         AssetCredential existingCredential = assetService.findCredentialById(id);
         if (existingCredential == null) {
@@ -488,6 +502,21 @@ public class OwnerAssetController extends BaseAssetAccessController {
         }
         
         assetService.deleteAssetCredential(existingCredential);
+        
+        // Send notifications to admins using notification job
+        List<User> admins = userService.getAdminRoleUsers();
+        String myEmail = CommonUtils.getEmailFromSession();
+        User currentUser = userService.findByEmail(myEmail);
+        if (currentUser == null) {
+            throw new AccessDeniedException("Current User not found");
+        }
+        
+        if(admins != null) {
+            for (User admin : admins) {
+                createRelinquishNotificationTask(admin, currentUser, existingCredential, EmailType.SSH_CREDENTIAL_RELINQUISH);
+            }
+        }
+        
         return CommonUtils.getSuccessResponse();
     }
 
@@ -541,6 +570,38 @@ public class OwnerAssetController extends BaseAssetAccessController {
             logger.error("Error running query for Asset Owner {}: {}", currentUserEmail, e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    /**
+     * Create a notification task for relinquish emails
+     */
+    private void createRelinquishNotificationTask(User admin, User currentUser, AssetCredential assetCredential, EmailType emailType) {
+        try {
+            // Create notification data
+            ObjectNode notificationData = objectMapper.createObjectNode();
+            ObjectNode dataNode = objectMapper.createObjectNode();
+            dataNode.put(Constants.EMAIL_VAR_ASSET_NAME, assetCredential.getAsset().getName());
+            dataNode.put(Constants.EMAIL_VAR_ASSET_CREDENTIAL_ID, assetCredential.getId().toString());
+            dataNode.put(Constants.EMAIL_VAR_OWNER_NAME, currentUser.getFirstName() + " " + currentUser.getLastName());
+            dataNode.put(Constants.EMAIL_VAR_ADMIN_NAME, admin.getFirstName() + " " + admin.getLastName());
+            
+            notificationData.set(Constants.ACCESS_OBJECT_ATTR_DATA, dataNode);
+            
+            // Create the notification task
+            NotificationTask task = new NotificationTask();
+            task.setReceiver(admin);
+            task.setSender(currentUser);
+            task.setAsset(assetCredential.getAsset());
+            task.setEmailType(emailType);
+            task.setNotificationMessage(objectMapper.writeValueAsString(notificationData));
+            task.setSent(false);
+            
+            // Save the notification task - it will be picked up by the batch job
+            notificationTaskRepository.save(task);
+            
+        } catch (Exception e) {
+            logger.error("Failed to create notification task for admin {}: {}", admin.getEmail(), e.getMessage(), e);
         }
     }
 }

@@ -819,4 +819,118 @@ public class Constants {
     // Keycloak requirement levels
     public static final String KEYCLOAK_REQUIREMENT_REQUIRED = "REQUIRED";
     public static final String KEYCLOAK_REQUIREMENT_CONDITIONAL = "CONDITIONAL";
+    
+    // Audit Entity Listener constants
+    public static final String AUDIT_SYSTEM_USER = "system";
+    public static final String AUDIT_UNKNOWN_ENTITY = "unknown";
+    
+    // Entity class names
+    public static final String ENTITY_CLASS_ASSET = "Asset";
+    public static final String ENTITY_CLASS_USER = "User";
+    public static final String ENTITY_CLASS_ROLE = "Role";
+    public static final String ENTITY_CLASS_ACCESS_REQUEST = "AccessRequest";
+    public static final String ENTITY_CLASS_ASSET_CREDENTIAL = "AssetCredential";
+    public static final String ENTITY_CLASS_ASSET_APPROVER = "AssetApprover";
+    public static final String ENTITY_CLASS_AI_PROMPT = "AIPrompt";
+    public static final String ENTITY_CLASS_AI_SENSITIVE_PATTERN = "AISensitivePattern";
+    public static final String ENTITY_CLASS_AI_CATEGORY = "AICategory";
+    public static final String ENTITY_CLASS_EMAIL = "Email";
+    
+    // Entity type names
+    public static final String ENTITY_TYPE_ACCESS_REQUEST = "ACCESS_REQUEST";
+    public static final String ENTITY_TYPE_ASSET = "ASSET";
+    public static final String ENTITY_TYPE_USER = "USER";
+    public static final String ENTITY_TYPE_ASSET_CREDENTIAL = "ASSET_CREDENTIAL";
+    
+    // Approval status values
+    public static final String APPROVAL_STATUS_APPROVED = "APPROVED";
+    public static final String APPROVAL_STATUS_REJECTED = "REJECTED";
+    
+    // Method names
+    public static final String METHOD_GET_ID = "getId";
+    public static final String METHOD_GET_NAME = "getName";
+    public static final String METHOD_GET_EMAIL = "getEmail";
+    public static final String METHOD_GET_PROMPT_KEY = "getPromptKey";
+    public static final String METHOD_GET_RECIPIENT_EMAIL = "getRecipientEmail";
+    public static final String METHOD_GET_DEVELOPER_APPROVER_STATUS = "getDeveloperApproverStatus";
+    public static final String METHOD_GET_ASSET_APPROVER_STATUS = "getAssetApproverStatus";
+    
+    // Default entity identifiers
+    public static final String DEFAULT_UNKNOWN_ASSET = "Unknown Asset";
+    public static final String DEFAULT_UNKNOWN_USER = "Unknown User";
+    public static final String DEFAULT_UNKNOWN_ROLE = "Unknown Role";
+    public static final String DEFAULT_UNKNOWN_PROMPT = "Unknown Prompt";
+    public static final String DEFAULT_UNKNOWN_PATTERN = "Unknown Pattern";
+    public static final String DEFAULT_UNKNOWN_CATEGORY = "Unknown Category";
+    
+    // Entity identifier prefixes
+    public static final String ENTITY_PREFIX_ASSET = "Asset-";
+    public static final String ENTITY_PREFIX_USER = "User-";
+    public static final String ENTITY_PREFIX_ROLE = "Role-";
+    public static final String ENTITY_PREFIX_ACCESS_REQUEST = "AccessRequest-";
+    public static final String ENTITY_PREFIX_ASSET_CREDENTIAL = "AssetCredential-";
+    public static final String ENTITY_PREFIX_ASSET_APPROVER = "AssetApprover-";
+    public static final String ENTITY_PREFIX_AI_PROMPT = "AIPrompt-";
+    public static final String ENTITY_PREFIX_AI_SENSITIVE_PATTERN = "AISensitivePattern-";
+    public static final String ENTITY_PREFIX_AI_CATEGORY = "AICategory-";
+    public static final String ENTITY_PREFIX_EMAIL = "Email-";
+    
+    // Entity identifier descriptions
+    public static final String ENTITY_DESC_REQUEST_FOR = "Request for ";
+    public static final String ENTITY_DESC_CREDENTIAL_FOR = "Credential for ";
+    public static final String ENTITY_DESC_APPROVER_FOR = "Approver for ";
+    public static final String ENTITY_DESC_EMAIL_TO = "Email to ";
+    
+    // Action prefixes
+    public static final String ACTION_PREFIX_CREATE = "CREATE_";
+    public static final String ACTION_PREFIX_UPDATE = "UPDATE_";
+    public static final String ACTION_PREFIX_DELETE = "DELETE_";
+    
+    // Audit Trail DTO constants
+    public static final String AUDIT_DESC_PERFORMED_ACTION_ON = "Performed action on";
+    
+    // Action descriptions
+    public static final String AUDIT_ACTION_DESC_CREATED = "Created";
+    public static final String AUDIT_ACTION_DESC_UPDATED = "Updated";
+    public static final String AUDIT_ACTION_DESC_DELETED = "Deleted";
+    public static final String AUDIT_ACTION_DESC_LOGGED_IN_TO = "Logged in to";
+    public static final String AUDIT_ACTION_DESC_LOGGED_OUT_FROM = "Logged out from";
+    public static final String AUDIT_ACTION_DESC_EXECUTED_QUERY_ON = "Executed query on";
+    public static final String AUDIT_ACTION_DESC_EXECUTED_COMMAND_ON = "Executed command on";
+    public static final String AUDIT_ACTION_DESC_APPROVED = "Approved";
+    public static final String AUDIT_ACTION_DESC_REJECTED = "Rejected";
+    public static final String AUDIT_ACTION_DESC_APPROVAL_ACTION_ON = "Approval action on";
+    public static final String AUDIT_ACTION_DESC_APPLIED_AI_MASKING_TO = "Applied AI masking to";
+    public static final String AUDIT_ACTION_DESC_DOWNLOADED_FROM = "Downloaded from";
+    public static final String AUDIT_ACTION_DESC_UPLOADED_TO = "Uploaded to";
+    
+    // Action type constants
+    public static final String AUDIT_ACTION_TYPE_CREATE = "CREATE";
+    public static final String AUDIT_ACTION_TYPE_CREATE_ASSET = "CREATE_ASSET";
+    public static final String AUDIT_ACTION_TYPE_UPDATE = "UPDATE";
+    public static final String AUDIT_ACTION_TYPE_UPDATE_ASSET = "UPDATE_ASSET";
+    public static final String AUDIT_ACTION_TYPE_DELETE = "DELETE";
+    public static final String AUDIT_ACTION_TYPE_DELETE_ASSET = "DELETE_ASSET";
+    public static final String AUDIT_ACTION_TYPE_LOGIN = "LOGIN";
+    public static final String AUDIT_ACTION_TYPE_LOGOUT = "LOGOUT";
+    public static final String AUDIT_ACTION_TYPE_QUERY = "QUERY";
+    public static final String AUDIT_ACTION_TYPE_COMMAND = "COMMAND";
+    public static final String AUDIT_ACTION_TYPE_APPROVE = "APPROVE";
+    public static final String AUDIT_ACTION_TYPE_REJECT = "REJECT";
+    public static final String AUDIT_ACTION_TYPE_APPROVAL = "APPROVAL";
+    public static final String AUDIT_ACTION_TYPE_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
+    public static final String AUDIT_ACTION_TYPE_DOWNLOAD = "DOWNLOAD";
+    public static final String AUDIT_ACTION_TYPE_UPLOAD = "UPLOAD";
+    
+    // SQL keywords
+    public static final String SQL_KEYWORD_SELECT = "SELECT";
+    public static final String SQL_KEYWORD_INSERT = "INSERT";
+    public static final String SQL_KEYWORD_UPDATE = "UPDATE";
+    public static final String SQL_KEYWORD_DELETE = "DELETE";
+    
+    // Approval context descriptions
+    public static final String AUDIT_APPROVAL_ACCESS_REQUEST_APPROVED = "Access request approved";
+    public static final String AUDIT_APPROVAL_ACCESS_REQUEST_REJECTED = "Access request rejected";
+    public static final String AUDIT_APPROVAL_STATUS_UPDATED = "Approval status updated";
+    public static final String AUDIT_APPROVAL_ACTION_PERFORMED = "Approval action performed";
 }

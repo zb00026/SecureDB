@@ -12,6 +12,7 @@ public enum EmailType {
     ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY,
     DELETE_QUERY_ALERT, //Alert when DELETE queries are executed
     FORGOT_PASSWORD, //Password reset email
+    SSH_CREDENTIAL_RELINQUISH, //SSH credential relinquishment notification
     OTHER;
     public static EmailType fromString(String value) {
         return switch (value) {
@@ -26,6 +27,7 @@ public enum EmailType {
             case "ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY" -> ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY;
             case "DELETE_QUERY_ALERT" -> DELETE_QUERY_ALERT;
             case "FORGOT_PASSWORD" -> FORGOT_PASSWORD;
+            case "SSH_CREDENTIAL_RELINQUISH" -> SSH_CREDENTIAL_RELINQUISH;
             case "OTHER" -> OTHER;
             default -> throw new IllegalArgumentException("Unknown email type: " + value);
         };

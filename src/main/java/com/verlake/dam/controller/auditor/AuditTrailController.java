@@ -4,10 +4,13 @@ package com.verlake.dam.controller.auditor;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.entity.dto.AuditTrailDTO;
+import com.verlake.dam.entity.dto.AuditStatsDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
+import com.verlake.dam.service.audit_trail.AuditStatsService;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.exception.AuditTrailException;
 import com.verlake.dam.exception.CsvExportException;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,9 @@ public class AuditTrailController {
     
     @Autowired
     private final AuditTrailCsvExportService csvExportService;
+    
+    @Autowired
+    private final AuditStatsService auditStatsService;
     
     @Autowired
     private final AssetService assetService;
@@ -87,6 +93,22 @@ public class AuditTrailController {
                     
         } catch (Exception e) {
             throw new CsvExportException("Failed to generate CSV export", e);
+        }
+    }
+
+    /**
+     * Get audit trail statistics and chart data for admin users
+     * @param filter The filter containing search criteria for the stats
+     * @return Audit statistics with chart data
+     */
+    @GetMapping("/stats/charts")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_AUDITOR')")
+    public ResponseEntity<AuditStatsDTO> getAuditStats(AuditTrailFilter filter) {
+        try {
+            AuditStatsDTO stats = auditStatsService.generateAllAuditStats(filter);
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            throw new AuditTrailException("Failed to generate audit stats", "AUDIT_STATS_GENERATION", "AuditTrailController", e);
         }
     }
 } 

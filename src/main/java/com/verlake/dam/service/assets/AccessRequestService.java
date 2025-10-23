@@ -371,7 +371,7 @@ public class AccessRequestService {
 
     public List<AccessRequest> getAssetRequestApprovals() {
         User currentUser = userService.getCurrentUser();
-        List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserId(currentUser.getId());
+        List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserAndUserAccessType(currentUser, Roles.ASSET_OWNER.getOriginalName());
         
         return assetCredentials.stream()
                 .map(credential -> {
@@ -384,7 +384,7 @@ public class AccessRequestService {
                                 com.verlake.dam.enums.ApprovalStatus.PENDING);
                     } else {
                         // For database assets, use the regular query
-                        lstAccessRequest = accessRequestRepository.findPendingsByAsset(credential.getAsset());
+                        lstAccessRequest = accessRequestRepository.findPendingRequestsByAsset(credential.getAsset());
                     }
                     
                     Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
@@ -393,6 +393,7 @@ public class AccessRequestService {
                     lstAccessRequest.forEach(request -> {
                         AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
                         request.setAssetDTO(assetDTO);
+                        request.setAssetApprovalsDTO(assetService.convertToApprovalsDTO(fullAsset));
                         
                         // Mask sensitive Unix data if this is a Unix access request
                         if (request.getRequestedUsername() != null) {

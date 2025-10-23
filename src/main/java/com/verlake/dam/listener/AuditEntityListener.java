@@ -66,20 +66,23 @@ public class AuditEntityListener {
             String username = getCurrentUsername();
             String ipAddress = getCurrentIpAddress();
             
-            // Format the instanceId as "ENTITY NAME(6)"
+            // Get special identifier for the entity
+            String specialIdentifier = getSpecialIdentifier(target);
             String entityName = audited.entity();
-            String entityId = getEntityId(target);
-            String formattedInstanceId = String.format("%s(%s)", entityName, entityId);
+            String formattedInstanceId = String.format("%s(%s)", entityName, specialIdentifier);
 
             mapper.registerModule(new JavaTimeModule());
             
             // Extract asset entity if available
             Asset assetEntity = extractAsset(target);
             
+            // Use enhanced audit action constants for better descriptions
+            String actionDescription = getEnhancedActionDescription(action, audited.entity(), target);
+            
             AuditTrail audit = AuditTrail.builder()
                 .timestamp(LocalDateTime.now())
                 .user(username)
-                .action(action.name())
+                .action(actionDescription)
                 .instanceId(formattedInstanceId)
                 .actionMetadata(audited.entity())
                 .previousValue(previousValue)
@@ -101,7 +104,7 @@ public class AuditEntityListener {
         // 1. No security context exists (e.g., background jobs, scheduled tasks)
         // 2. No authentication is present
         // 3. Principal is not a JWT token (e.g., during system initialization)
-        String username = "system";
+        String username = Constants.AUDIT_SYSTEM_USER;
         if (SecurityContextHolder.getContext().getAuthentication() != null) {
             Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             if (principal instanceof Jwt) {
@@ -117,9 +120,9 @@ public class AuditEntityListener {
 
     private String getEntityId(Object target) {
         try {
-            return target.getClass().getMethod("getId").invoke(target).toString();
+            return target.getClass().getMethod(Constants.METHOD_GET_ID).invoke(target).toString();
         } catch (Exception e) {
-            return "unknown";
+            return Constants.AUDIT_UNKNOWN_ENTITY;
         }
     }
 
@@ -166,4 +169,238 @@ public class AuditEntityListener {
             return false;
         }
     }
+
+    /**
+     * Gets a special identifier for the entity based on its type
+     */
+    private String getSpecialIdentifier(Object target) {
+        try {
+            String className = target.getClass().getSimpleName();
+            
+            switch (className) {
+                case Constants.ENTITY_CLASS_ASSET:
+                    return getAssetName(target);
+                case Constants.ENTITY_CLASS_USER:
+                    return getUserEmail(target);
+                case Constants.ENTITY_CLASS_ROLE:
+                    return getRoleName(target);
+                case Constants.ENTITY_CLASS_ACCESS_REQUEST:
+                    return getAccessRequestIdentifier(target);
+                case Constants.ENTITY_CLASS_ASSET_CREDENTIAL:
+                    return getAssetCredentialIdentifier(target);
+                case Constants.ENTITY_CLASS_ASSET_APPROVER:
+                    return getAssetApproverIdentifier(target);
+                case Constants.ENTITY_CLASS_AI_PROMPT:
+                    return getAIPromptKey(target);
+                case Constants.ENTITY_CLASS_AI_SENSITIVE_PATTERN:
+                    return getAISensitivePatternName(target);
+                case Constants.ENTITY_CLASS_AI_CATEGORY:
+                    return getAICategoryName(target);
+                case Constants.ENTITY_CLASS_EMAIL:
+                    return getEmailIdentifier(target);
+                default:
+                    // Fallback to ID for unknown entities
+                    return getEntityId(target);
+            }
+        } catch (Exception e) {
+            log.debug("Could not get special identifier for {}: {}", target.getClass().getSimpleName(), e.getMessage());
+            return getEntityId(target);
+        }
+    }
+
+    /**
+     * Gets action description using Constants.java audit action variables
+     */
+    private String getActionDescription(AuditAction action, String entityType) {
+        switch (action) {
+            case CREATE:
+                return Constants.ACTION_PREFIX_CREATE + entityType;
+            case UPDATE:
+                return Constants.ACTION_PREFIX_UPDATE + entityType;
+            case DELETE:
+                return Constants.ACTION_PREFIX_DELETE + entityType;
+            default:
+                return action.name();
+        }
+    }
+
+    /**
+     * Gets enhanced action description using specific audit action constants
+     */
+    private String getEnhancedActionDescription(AuditAction action, String entityType, Object target) {
+        try {
+            // Check for specific audit action constants based on entity type and context
+            switch (entityType) {
+                case Constants.ENTITY_TYPE_ACCESS_REQUEST:
+                    return getAccessRequestActionDescription(action, target);
+                case Constants.ENTITY_TYPE_ASSET:
+                    return getAssetActionDescription(action);
+                case Constants.ENTITY_TYPE_USER:
+                    return getUserActionDescription(action);
+                case Constants.ENTITY_TYPE_ASSET_CREDENTIAL:
+                    return getAssetCredentialActionDescription(action);
+                default:
+                    return getActionDescription(action, entityType);
+            }
+        } catch (Exception e) {
+            log.debug("Could not get enhanced action description: {}", e.getMessage());
+            return getActionDescription(action, entityType);
+        }
+    }
+
+    private String getAccessRequestActionDescription(AuditAction action, Object target) {
+        try {
+            // Check if this is an approval/rejection action
+            Object developerStatus = target.getClass().getMethod(Constants.METHOD_GET_DEVELOPER_APPROVER_STATUS).invoke(target);
+            Object assetStatus = target.getClass().getMethod(Constants.METHOD_GET_ASSET_APPROVER_STATUS).invoke(target);
+            
+            if (action == AuditAction.UPDATE) {
+                if (developerStatus != null && developerStatus.toString().equals(Constants.APPROVAL_STATUS_APPROVED)) {
+                    return Constants.AUDIT_ACTION_APPROVE;
+                } else if (developerStatus != null && developerStatus.toString().equals(Constants.APPROVAL_STATUS_REJECTED)) {
+                    return Constants.AUDIT_ACTION_REJECT;
+                } else if (assetStatus != null && assetStatus.toString().equals(Constants.APPROVAL_STATUS_APPROVED)) {
+                    return Constants.AUDIT_ACTION_APPROVE;
+                } else if (assetStatus != null && assetStatus.toString().equals(Constants.APPROVAL_STATUS_REJECTED)) {
+                    return Constants.AUDIT_ACTION_REJECT;
+                }
+            }
+            return getActionDescription(action, Constants.ENTITY_TYPE_ACCESS_REQUEST);
+        } catch (Exception e) {
+            return getActionDescription(action, Constants.ENTITY_TYPE_ACCESS_REQUEST);
+        }
+    }
+
+    private String getAssetActionDescription(AuditAction action) {
+        return getActionDescription(action, Constants.ENTITY_TYPE_ASSET);
+    }
+
+    private String getUserActionDescription(AuditAction action) {
+        return getActionDescription(action, Constants.ENTITY_TYPE_USER);
+    }
+
+    private String getAssetCredentialActionDescription(AuditAction action) {
+        return getActionDescription(action, Constants.ENTITY_TYPE_ASSET_CREDENTIAL);
+    }
+
+    // Entity-specific identifier methods
+    private String getAssetName(Object target) {
+        try {
+            Object name = target.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(target);
+            return name != null ? name.toString() : Constants.DEFAULT_UNKNOWN_ASSET;
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_ASSET + getEntityId(target);
+        }
+    }
+
+    private String getUserEmail(Object target) {
+        try {
+            Object email = target.getClass().getMethod(Constants.METHOD_GET_EMAIL).invoke(target);
+            return email != null ? email.toString() : Constants.DEFAULT_UNKNOWN_USER;
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_USER + getEntityId(target);
+        }
+    }
+
+    private String getRoleName(Object target) {
+        try {
+            Object name = target.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(target);
+            return name != null ? name.toString() : Constants.DEFAULT_UNKNOWN_ROLE;
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_ROLE + getEntityId(target);
+        }
+    }
+
+    private String getAccessRequestIdentifier(Object target) {
+        try {
+            // Try to get asset name first
+            Object asset = target.getClass().getMethod(Constants.METHOD_GET_ASSET).invoke(target);
+            if (asset != null) {
+                Object assetName = asset.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(asset);
+                if (assetName != null) {
+                    return Constants.ENTITY_DESC_REQUEST_FOR + assetName.toString();
+                }
+            }
+            // Fallback to ID
+            return Constants.ENTITY_PREFIX_ACCESS_REQUEST + getEntityId(target);
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_ACCESS_REQUEST + getEntityId(target);
+        }
+    }
+
+    private String getAssetCredentialIdentifier(Object target) {
+        try {
+            // Try to get asset name first
+            Object asset = target.getClass().getMethod(Constants.METHOD_GET_ASSET).invoke(target);
+            if (asset != null) {
+                Object assetName = asset.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(asset);
+                if (assetName != null) {
+                    return Constants.ENTITY_DESC_CREDENTIAL_FOR + assetName.toString();
+                }
+            }
+            // Fallback to ID
+            return Constants.ENTITY_PREFIX_ASSET_CREDENTIAL + getEntityId(target);
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_ASSET_CREDENTIAL + getEntityId(target);
+        }
+    }
+
+    private String getAssetApproverIdentifier(Object target) {
+        try {
+            // Try to get asset name first
+            Object asset = target.getClass().getMethod(Constants.METHOD_GET_ASSET).invoke(target);
+            if (asset != null) {
+                Object assetName = asset.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(asset);
+                if (assetName != null) {
+                    return Constants.ENTITY_DESC_APPROVER_FOR + assetName.toString();
+                }
+            }
+            // Fallback to ID
+            return Constants.ENTITY_PREFIX_ASSET_APPROVER + getEntityId(target);
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_ASSET_APPROVER + getEntityId(target);
+        }
+    }
+
+    private String getAIPromptKey(Object target) {
+        try {
+            Object promptKey = target.getClass().getMethod(Constants.METHOD_GET_PROMPT_KEY).invoke(target);
+            return promptKey != null ? promptKey.toString() : Constants.DEFAULT_UNKNOWN_PROMPT;
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_AI_PROMPT + getEntityId(target);
+        }
+    }
+
+    private String getAISensitivePatternName(Object target) {
+        try {
+            Object name = target.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(target);
+            return name != null ? name.toString() : Constants.DEFAULT_UNKNOWN_PATTERN;
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_AI_SENSITIVE_PATTERN + getEntityId(target);
+        }
+    }
+
+    private String getAICategoryName(Object target) {
+        try {
+            Object name = target.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(target);
+            return name != null ? name.toString() : Constants.DEFAULT_UNKNOWN_CATEGORY;
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_AI_CATEGORY + getEntityId(target);
+        }
+    }
+
+    private String getEmailIdentifier(Object target) {
+        try {
+            // Try to get recipient email first
+            Object recipientEmail = target.getClass().getMethod(Constants.METHOD_GET_RECIPIENT_EMAIL).invoke(target);
+            if (recipientEmail != null) {
+                return Constants.ENTITY_DESC_EMAIL_TO + recipientEmail.toString();
+            }
+            // Fallback to ID
+            return Constants.ENTITY_PREFIX_EMAIL + getEntityId(target);
+        } catch (Exception e) {
+            return Constants.ENTITY_PREFIX_EMAIL + getEntityId(target);
+        }
+    }
+
 } 

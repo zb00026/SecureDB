@@ -2159,7 +2159,7 @@ public class DatabaseAccessService {
         String query = "SELECT privilege_type, is_grantable, CONCAT(table_schema, '.', table_name) as scope " +
                        "FROM information_schema.table_privileges WHERE grantee = ? " +
                        "UNION ALL " +
-                       "SELECT privilege_type, is_grantable, schema_name as scope " +
+                       "SELECT privilege_type, is_grantable, object_name as scope " +
                        "FROM information_schema.usage_privileges WHERE grantee = ?";
         
         return executePermissionQuery(connection, query, username, 2, false);

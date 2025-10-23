@@ -52,7 +52,6 @@ import com.verlake.dam.enums.UnixServerType;
 @Slf4j
 public class AssetService {
     private final AssetRepository assetRepository;
-    private final AssetCredentialsRepository credentialsRepository;
     private final AssetApproversRepository assetApproversRepository;
     private final AccessLevelRepository accessLevelRepository;
     private final UserService userService;
@@ -68,7 +67,6 @@ public class AssetService {
 
     @Autowired
     public AssetService(AssetRepository assetRepository,
-                        AssetCredentialsRepository credentialsRepository,
                         AssetApproversRepository assetApproversRepository,
                         AccessLevelRepository accessLevelRepository,
                         UserService userService, AccessRequestRepository accessRequestRepository,
@@ -78,7 +76,6 @@ public class AssetService {
                         DatabaseConnectionUtils databaseConnectionUtils,
                         NotificationTaskRepository notificationTaskRepository, AccessLevelObjectRepository accessLevelObjectRepository) {
         this.assetRepository = assetRepository;
-        this.credentialsRepository = credentialsRepository;
         this.assetApproversRepository = assetApproversRepository;
         this.accessLevelRepository = accessLevelRepository;
         this.userService = userService;
@@ -144,7 +141,7 @@ public class AssetService {
                     .password(null)
                     .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                     .build();
-            credentialsRepository.save(credentials);
+            assetCredentialsRepository.save(credentials);
         }
     }
 
@@ -168,9 +165,9 @@ public class AssetService {
         if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
             // Delete existing credentials for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
-                List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
+                List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
                 credentials.forEach(assetObjectRepository::deleteByAssetCredential);
-                credentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
+                assetCredentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
             });
 
             // Create new credentials for provided user IDs
@@ -188,19 +185,19 @@ public class AssetService {
                         .password(null)
                         .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                         .build();
-                credentialsRepository.save(credentials);
+                assetCredentialsRepository.save(credentials);
             }
         } else if (updateDTO.getMethod().equals(Constants.getMessage("asset.remove.name"))) {
             // Delete credentials for provided user IDs
             updateDTO.getUserIds().forEach(userId -> {
-                List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
+                List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
                 credentials.forEach(assetCredential -> {
                     assetObjectRepository.deleteByAssetCredential(assetCredential);
                     //Remove existing developer's access request for this asset
                     accessRequestRepository.findByAsset(assetCredential.getAsset()).forEach(accessLevelObjectRepository::deleteByAccessRequest);
                     accessRequestRepository.deleteByAsset(assetCredential.getAsset());
                 } );
-                credentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
+                assetCredentialsRepository.deleteByAssetIdAndUserId(asset.getId(), userId);
             });
         }
 
@@ -258,7 +255,7 @@ public class AssetService {
         asset.setDeleted(true);
 
         // Wipe all credentials
-        credentialsRepository.deleteByAssetId(asset.getId());
+        assetCredentialsRepository.deleteByAssetId(asset.getId());
 
         assetRepository.save(asset);
     }
@@ -290,14 +287,14 @@ public class AssetService {
 
     public List<Asset> getAssetsOwnedByCurrentUser() {
         User currentUser = userService.getCurrentUser();
-        List<AssetCredential> credentials = credentialsRepository.findByUserId(currentUser.getId());
+        List<AssetCredential> credentials = assetCredentialsRepository.findByUserId(currentUser.getId());
         return credentials.stream()
                 .map(AssetCredential::getAsset)
                 .toList();
     }
 
-    public AssetDTO convertToDTO(Asset asset) {
-        List<AssetCredential> credentials = credentialsRepository.findByAssetId(asset.getId());
+    public AssetDTO convertToDTOByUserType(Asset asset, Roles role) {
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetAndUserAccessType(asset, role.getOriginalName());
         List<User> owners = credentials.stream()
                 .map(AssetCredential::getUser)
                 .toList();
@@ -309,21 +306,19 @@ public class AssetService {
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
         List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
 
-        return AssetDTO.builder()
-                .id(asset.getId())
-                .name(asset.getName())
-                .description(asset.getDescription())
-                .type(asset.getType())
-                .databaseType(asset.getDatabaseType())
-                .hostAddress(asset.getHostAddress())
-                .portNumber(asset.getPortNumber())
-                .databaseName(asset.getDatabaseName())
-                .locked(asset.isLocked())
-                .lockType(asset.getLockType())
-                .owners(owners)
-                .accessRequest(requests.isEmpty() ? null : requests.get(0))
-                .approvers(approvers)
-                .build();
+        AssetDTO dto = AssetDTO.fromEntity(asset);
+        dto.setOwners(owners);
+        dto.setApprovers(approvers);
+        dto.setAccessRequest(requests.isEmpty() ? null : AccessRequestSummaryDTO.fromEntity(requests.get(0)));
+        return dto;
+    }
+
+    public AssetDTO convertToDTO(Asset asset) {
+        return convertToDTOByUserType(asset, Roles.ASSET_OWNER);
+    }
+
+    public AssetApprovalsDTO convertToApprovalsDTO(Asset asset) {
+        return AssetApprovalsDTO.fromEntity(asset);
     }
 
     private AssetDTO convertToDTOWithFetchAccessTemplate(Asset asset) {
@@ -332,7 +327,7 @@ public class AssetService {
                 asset.getDatabaseType());
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
         List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
-        dto.setAccessRequest(requests.isEmpty() ? null : requests.get(0));
+        dto.setAccessRequest(requests.isEmpty() ? null : AccessRequestSummaryDTO.fromEntity(requests.get(0)));
         dto.setFetchTemplate(fetchAccess != null ? fetchAccess.getAccessTemplate() : null);
         dto.setLocked(asset.isLocked());
         dto.setLockType(asset.getLockType());
@@ -374,7 +369,7 @@ public class AssetService {
     public List<AssetCredential> getNewAssignedCredentials() {
         User currentUser = userService.getCurrentUser();
 
-        return credentialsRepository.findNewAssignedCredentials(currentUser.getId());
+        return assetCredentialsRepository.findNewAssignedCredentials(currentUser.getId());
     }
 
     /**
@@ -386,7 +381,8 @@ public class AssetService {
 
         User currentUser = userService.getCurrentUser();
 
-        List<AssetCredential> credentials = credentialsRepository.findByUserId(currentUser.getId());
+        List<AssetCredential> credentials = assetCredentialsRepository
+                .findByUserAndUserAccessType(currentUser, Roles.ASSET_OWNER.getOriginalName());
         credentials.sort((c1, c2) -> {
             boolean c1Null = c1.getUsername() == null && c1.getPassword() == null;
             boolean c2Null = c2.getUsername() == null && c2.getPassword() == null;
@@ -396,7 +392,7 @@ public class AssetService {
     }
 
     public AssetCredential findCredentialByAssetId(Long assetId) {
-        List<AssetCredential> credentials = credentialsRepository.findByAssetId(assetId);
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(assetId);
         if (credentials.isEmpty()) {
             return null;
         }
@@ -405,21 +401,21 @@ public class AssetService {
 
     public AssetCredential findOwnerCredentialByAssetId(Long assetId) {
         User assetOwner = userService.getCurrentUser();
-        List<AssetCredential> credentials = credentialsRepository.findByAssetIdAndUserId(assetId, assetOwner.getId());
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserId(assetId, assetOwner.getId());
         return credentials.isEmpty() ? null : credentials.get(0);
     }
 
     public AssetCredential findCredentialById(Long credentialId) {
-        return credentialsRepository.findById(credentialId)
+        return assetCredentialsRepository.findById(credentialId)
                 .orElse(null);
     }
 
     public void saveCredential(AssetCredential assetCredential) {
-        credentialsRepository.save(assetCredential);
+        assetCredentialsRepository.save(assetCredential);
     }
 
     public void deleteAssetCredential(AssetCredential credential) {
-        credentialsRepository.delete(credential);
+        assetCredentialsRepository.delete(credential);
     }
 
     /**

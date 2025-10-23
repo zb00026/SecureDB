@@ -3,9 +3,12 @@ package com.verlake.dam.controller.common;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
 import com.verlake.dam.entity.dto.AuditTrailDTO;
+import com.verlake.dam.entity.dto.AuditStatsDTO;
 import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
 import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
+import com.verlake.dam.service.audit_trail.AuditStatsService;
 import com.verlake.dam.exception.CsvExportException;
+import com.verlake.dam.exception.AuditTrailException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -23,6 +26,7 @@ public abstract class BaseAuditTrailController {
     
     protected final RoleBasedAuditTrailService roleBasedAuditTrailService;
     protected final AuditTrailCsvExportService csvExportService;
+    protected final AuditStatsService auditStatsService;
 
     /**
      * Get audit trails for the current user based on their role and permissions
@@ -100,6 +104,30 @@ public abstract class BaseAuditTrailController {
         } catch (Exception e) {
             log.error("Failed to generate CSV export for {}: {}", roleName, e.getMessage(), e);
             throw new CsvExportException("Failed to generate CSV export for " + roleName, e);
+        }
+    }
+
+    /**
+     * Get audit trail statistics and chart data for the current user based on their role
+     * @param filter The filter containing search criteria for the stats
+     * @return Audit statistics with chart data filtered by role-based access
+     */
+    @GetMapping("/stats/charts")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    public ResponseEntity<AuditStatsDTO> getAuditStats(RoleBasedAuditTrailFilter filter) {
+        String roleName = getRoleName();
+        log.info("{} requesting audit stats with filter: {}", roleName, filter);
+        
+        try {
+            AuditStatsDTO stats = auditStatsService.generateAuditStats(filter);
+            
+            log.info("Generated audit stats for {}: {} total events", roleName, stats.getTotalEvents());
+            
+            return ResponseEntity.ok(stats);
+            
+        } catch (Exception e) {
+            log.error("Failed to generate audit stats for {}: {}", roleName, e.getMessage(), e);
+            throw new AuditTrailException("Failed to generate audit stats for " + roleName, "AUDIT_STATS_GENERATION", roleName, e);
         }
     }
 

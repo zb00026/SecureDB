@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.api.client.json.Json;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
@@ -13,30 +12,25 @@ import com.verlake.dam.service.firebase.FirebaseMessagingService;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.exception.FirebaseMessagingOperationException;
 import com.verlake.dam.exception.NotificationJobException;
 import com.verlake.dam.exception.NotificationProcessingException;
 import com.verlake.dam.exception.NotificationTimeoutException;
 import com.verlake.dam.exception.NotificationEmailException;
-import lombok.RequiredArgsConstructor;
 
 import org.keycloak.email.EmailException;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.data.RepositoryItemReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -45,28 +39,21 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.repository.Repository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.AsyncTaskExecutor;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.List;
 import java.util.function.Consumer;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.enums.EmailType;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 
 @Configuration
@@ -253,74 +240,112 @@ public class NotificationJobConfig {
     }
 
     protected void sendEmailBasedOnType(NotificationTask task) throws Exception {
-        // Map of handlers for different email types
-        Map<EmailType, Consumer<NotificationTask>> emailHandlers = Map.of(
-                EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY, this::sendDeveloperAssetRequestEmail,
-                EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY, this::sendDeveloperRelinquishAssetEmail,
-                EmailType.ASSET_QUERY_CHANGE_REQUEST_NOTIFY, this::sendAssetQueryChangeRequestEmail,
-                EmailType.INVITATION, notificationTask -> {
-                    try {
-                        sendInvitationEmail(notificationTask);
-                    } catch (Exception e) {
-                        throw new NotificationProcessingException(
-                                "Failed to send invitation email",
-                                notificationTask.getId(),
-                                notificationTask.getReceiver().getEmail(),
-                                e);
-                    }
-                },
-                EmailType.ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY, notificationTask -> {
-                    try {
-                        sendAssetQueryChangeRequestApprovalEmail(notificationTask);
-                    } catch (Exception e) {
-                        throw new NotificationProcessingException(
-                                "Failed to send asset query change request approval email",
-                                notificationTask.getId(),
-                                notificationTask.getReceiver().getEmail(),
-                                e);
-                    }
-                },
-                EmailType.APPROVAL_ASSET_ACCESS_REQUEST, notificationTask -> {
-                    try {
-                        sendApprovalAssetAccessRequestEmail(notificationTask);
-                    } catch (Exception e) {
-                        throw new NotificationProcessingException(
-                                "Failed to send approval email",
-                                notificationTask.getId(),
-                                notificationTask.getReceiver().getEmail(),
-                                e);
-                    }
-                },
-                EmailType.DELETE_QUERY_ALERT, notificationTask -> {
-                    try {
-                        sendDeleteQueryNotifyEmail(notificationTask);
-                    } catch (Exception e) {
-                        throw new NotificationProcessingException(
-                                "Failed to send DELETE query notify email",
-                                notificationTask.getId(),
-                                notificationTask.getReceiver().getEmail(),
-                                e);
-                    }
-                },
-                EmailType.FORGOT_PASSWORD, notificationTask -> {
-                    try {
-                        sendForgotPasswordEmail(notificationTask);
-                    } catch (Exception e) {
-                        throw new NotificationProcessingException(
-                                "Failed to send forgot password email",
-                                notificationTask.getId(),
-                                notificationTask.getReceiver().getEmail(),
-                                e);
-                    }
-                });
-
-        // Get handler for the email type
-        Consumer<NotificationTask> handler = emailHandlers.get(task.getEmailType());
-
+        Consumer<NotificationTask> handler = getEmailHandler(task.getEmailType());
+        
         if (handler != null) {
             handler.accept(task);
         } else {
             log.warn("Unhandled email type: {}", task.getEmailType());
+        }
+    }
+
+    private Consumer<NotificationTask> getEmailHandler(EmailType emailType) {
+        return switch (emailType) {
+            case DEVELOPER_ASSET_REQUEST_NOTIFY -> this::sendDeveloperAssetRequestEmail;
+            case DEVELOPER_RELINQUISH_ASSET_NOTIFY -> this::sendDeveloperRelinquishAssetEmail;
+            case ASSET_QUERY_CHANGE_REQUEST_NOTIFY -> this::sendAssetQueryChangeRequestEmail;
+            case INVITATION -> this::sendInvitationEmailWrapper;
+            case ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY -> this::sendAssetQueryChangeRequestApprovalEmailWrapper;
+            case APPROVAL_ASSET_ACCESS_REQUEST -> this::sendApprovalAssetAccessRequestEmailWrapper;
+            case DELETE_QUERY_ALERT -> this::sendDeleteQueryNotifyEmailWrapper;
+            case FORGOT_PASSWORD -> this::sendForgotPasswordEmailWrapper;
+            case SSH_CREDENTIAL_RELINQUISH -> this::sendSSHCredentialRelinquishEmailWrapper;
+            case RELINQUISH_ASSET_CREDENTIAL -> this::sendAssetCredentialRelinquishEmailWrapper;
+            default -> null;
+        };
+    }
+
+    private void sendInvitationEmailWrapper(NotificationTask task) {
+        try {
+            sendInvitationEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send invitation email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
+    }
+
+    private void sendAssetQueryChangeRequestApprovalEmailWrapper(NotificationTask task) {
+        try {
+            sendAssetQueryChangeRequestApprovalEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send asset query change request approval email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
+    }
+
+    private void sendApprovalAssetAccessRequestEmailWrapper(NotificationTask task) {
+        try {
+            sendApprovalAssetAccessRequestEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send approval email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
+    }
+
+    private void sendDeleteQueryNotifyEmailWrapper(NotificationTask task) {
+        try {
+            sendDeleteQueryNotifyEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send DELETE query notify email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
+    }
+
+    private void sendForgotPasswordEmailWrapper(NotificationTask task) {
+        try {
+            sendForgotPasswordEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send forgot password email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
+    }
+
+    private void sendSSHCredentialRelinquishEmailWrapper(NotificationTask task) {
+        try {
+            sendSSHCredentialRelinquishEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send SSH credential relinquish email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
+    }
+
+    private void sendAssetCredentialRelinquishEmailWrapper(NotificationTask task) {
+        try {
+            sendAssetCredentialRelinquishEmail(task);
+        } catch (Exception e) {
+            throw new NotificationProcessingException(
+                    "Failed to send asset credential relinquish email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
         }
     }
 
@@ -339,6 +364,7 @@ public class NotificationJobConfig {
                 task.getAsset(),
                 "developer-relinquish-asset");
     }
+
 
     private void sendAssetQueryChangeRequestEmail(NotificationTask task) {
         // Parse notification message to extract additional data
@@ -567,6 +593,49 @@ public class NotificationJobConfig {
         }
 
         return credentials;
+    }
+
+    private void sendSSHCredentialRelinquishEmail(NotificationTask task) {
+        sendCredentialRelinquishEmail(task, "SSH credential relinquish", "SSH");
+    }
+
+    private void sendAssetCredentialRelinquishEmail(NotificationTask task) {
+        sendCredentialRelinquishEmail(task, "Asset credential relinquish", "Asset");
+    }
+
+    /**
+     * Common method for sending credential relinquish emails
+     */
+    private void sendCredentialRelinquishEmail(NotificationTask task, String emailType, String credentialType) {
+        try {
+            // Parse notification message to extract credential ID
+            ObjectNode notificationNode = (ObjectNode) objectMapper.readTree(task.getNotificationMessage());
+            JsonNode dataNode = notificationNode.get(Constants.ACCESS_OBJECT_ATTR_DATA);
+            
+            if (dataNode != null && dataNode.has(Constants.EMAIL_VAR_ASSET_CREDENTIAL_ID)) {
+                Long credentialId = dataNode.get(Constants.EMAIL_VAR_ASSET_CREDENTIAL_ID).asLong();
+                
+                // Create a mock AssetCredential for the email service
+                AssetCredential mockCredential = new AssetCredential();
+                mockCredential.setId(credentialId);
+                mockCredential.setAsset(task.getAsset());
+                
+                emailService.sendAssetRelinquishEmail(
+                        task.getReceiver(),
+                        task.getSender(),
+                        mockCredential,
+                        "relinquish-asset-credential");
+            } else {
+                log.warn("No credential ID found in {} relinquish notification task {}", credentialType, task.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send {} email for task {}: {}", emailType, task.getId(), e.getMessage(), e);
+            throw new NotificationProcessingException(
+                    "Failed to send " + emailType.toLowerCase() + " email",
+                    task.getId(),
+                    task.getReceiver().getEmail(),
+                    e);
+        }
     }
 
     @Bean

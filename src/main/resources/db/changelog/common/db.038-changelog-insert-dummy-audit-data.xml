@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <changeSet id="insert-dummy-audit-data" author="admin">
+        <comment>Insert dummy audit trail data for testing charts and statistics</comment>
+        
+        <!-- Insert dummy users first -->
+        <sql>
+            INSERT IGNORE INTO users (id, email, first_name, last_name, is_active) VALUES
+            (1001, 'john.doe@example.com', 'John', 'Doe', true),
+            (1002, 'jane.smith@example.com', 'Jane', 'Smith', true),
+            (1003, 'mike.johnson@example.com', 'Mike', 'Johnson', true),
+            (1004, 'sarah.wilson@example.com', 'Sarah', 'Wilson', true),
+            (1005, 'david.brown@example.com', 'David', 'Brown', true),
+            (1006, 'lisa.davis@example.com', 'Lisa', 'Davis', true),
+            (1007, 'tom.miller@example.com', 'Tom', 'Miller', true),
+            (1008, 'amy.garcia@example.com', 'Amy', 'Garcia', true),
+            (1009, 'chris.martinez@example.com', 'Chris', 'Martinez', true),
+            (1010, 'emma.rodriguez@example.com', 'Emma', 'Rodriguez', true);
+        </sql>
+
+        <!-- Insert dummy assets -->
+        <sql>
+            INSERT IGNORE INTO assets (id, name, description, type, database_type, unix_server_type, host_address, port_number, database_name, is_deleted) VALUES
+            (2001, 'Production Database', 'Main production database server', 'DATABASE', 'MYSQL', null, 'prod-db-01.example.com', '3306', 'production_db', false),
+            (2002, 'Staging Database', 'Staging environment database', 'DATABASE', 'POSTGRESQL', null, 'staging-db-01.example.com', '5432', 'staging_db', false),
+            (2003, 'Analytics Database', 'Data analytics and reporting database', 'DATABASE', 'MYSQL', null, 'analytics-db-01.example.com', '3306', 'analytics_db', false),
+            (2004, 'User Management DB', 'User authentication and management', 'DATABASE', 'MYSQL', null, 'user-db-01.example.com', '3306', 'user_management', false),
+            (2005, 'Logs Database', 'Application logs and monitoring', 'DATABASE', 'POSTGRESQL', null, 'logs-db-01.example.com', '5432', 'logs_db', false),
+            (2006, 'Web Server 01', 'Primary web application server', 'UNIX_SERVER', null, 'LINUX', 'web-01.example.com', '22', null, false),
+            (2007, 'Web Server 02', 'Secondary web application server', 'UNIX_SERVER', null, 'LINUX', 'web-02.example.com', '22', null, false),
+            (2008, 'API Server', 'REST API server', 'UNIX_SERVER', null, 'LINUX', 'api-01.example.com', '22', null, false),
+            (2009, 'Cache Server', 'Redis cache server', 'UNIX_SERVER', null, 'LINUX', 'cache-01.example.com', '22', null, false),
+            (2010, 'File Server', 'File storage and backup server', 'UNIX_SERVER', null, 'LINUX', 'files-01.example.com', '22', null, false);
+        </sql>
+
+        <!-- Insert dummy audit trail data -->
+        <sql>
+            INSERT INTO audit_trails (timestamp, instance_id, user_email, action, previous_value, new_value, action_metadata, synced, ip_address, asset_id) VALUES
+            <!-- Recent activity (last 7 days) -->
+            ('2024-01-15 09:00:00', 'ASSET(Production Database)', 'john.doe@example.com', 'CREATE_ASSET', null, '{"name":"Production Database","type":"DATABASE"}', 'Asset Management', false, '192.168.1.100', 2001),
+            ('2024-01-15 09:15:00', 'ASSET(Production Database)', 'jane.smith@example.com', 'UPDATE_ASSET', '{"name":"Production Database"}', '{"name":"Production Database","description":"Updated description"}', 'Asset Management', false, '192.168.1.101', 2001),
+            ('2024-01-15 10:30:00', 'ASSET(Staging Database)', 'mike.johnson@example.com', 'CREATE_ASSET', null, '{"name":"Staging Database","type":"DATABASE"}', 'Asset Management', false, '192.168.1.102', 2002),
+            ('2024-01-15 11:00:00', 'ASSET(Analytics Database)', 'sarah.wilson@example.com', 'CREATE_ASSET', null, '{"name":"Analytics Database","type":"DATABASE"}', 'Asset Management', false, '192.168.1.103', 2003),
+            ('2024-01-15 11:30:00', 'ASSET(Production Database)', 'david.brown@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM users WHERE active = 1', 'Database Query', false, '192.168.1.104', 2001),
+            ('2024-01-15 12:00:00', 'ASSET(Staging Database)', 'lisa.davis@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT COUNT(*) FROM orders', 'Database Query', false, '192.168.1.105', 2002),
+            ('2024-01-15 13:00:00', 'ASSET(Web Server 01)', 'tom.miller@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.106', 2006),
+            ('2024-01-15 13:30:00', 'ASSET(Web Server 02)', 'amy.garcia@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.107', 2007),
+            ('2024-01-15 14:00:00', 'ASSET(Production Database)', 'chris.martinez@example.com', 'UPDATE_ASSET', '{"port":"3306"}', '{"port":"3307"}', 'Asset Management', false, '192.168.1.108', 2001),
+            ('2024-01-15 14:30:00', 'ASSET(User Management DB)', 'emma.rodriguez@example.com', 'CREATE_ASSET', null, '{"name":"User Management DB","type":"DATABASE"}', 'Asset Management', false, '192.168.1.109', 2004),
+
+            <!-- Previous day activity -->
+            ('2024-01-14 08:00:00', 'ASSET(Production Database)', 'john.doe@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM products LIMIT 100', 'Database Query', false, '192.168.1.100', 2001),
+            ('2024-01-14 08:30:00', 'ASSET(Staging Database)', 'jane.smith@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'UPDATE users SET last_login = NOW()', 'Database Query', false, '192.168.1.101', 2002),
+            ('2024-01-14 09:00:00', 'ASSET(Analytics Database)', 'mike.johnson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT COUNT(*) FROM analytics_data', 'Database Query', false, '192.168.1.102', 2003),
+            ('2024-01-14 09:30:00', 'ASSET(Web Server 01)', 'sarah.wilson@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.103', 2006),
+            ('2024-01-14 10:00:00', 'ASSET(Web Server 02)', 'david.brown@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.104', 2007),
+            ('2024-01-14 10:30:00', 'ASSET(API Server)', 'lisa.davis@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.105', 2008),
+            ('2024-01-14 11:00:00', 'ASSET(Production Database)', 'tom.miller@example.com', 'UPDATE_ASSET', '{"host":"prod-db-01.example.com"}', '{"host":"prod-db-02.example.com"}', 'Asset Management', false, '192.168.1.106', 2001),
+            ('2024-01-14 11:30:00', 'ASSET(Logs Database)', 'amy.garcia@example.com', 'CREATE_ASSET', null, '{"name":"Logs Database","type":"DATABASE"}', 'Asset Management', false, '192.168.1.107', 2005),
+            ('2024-01-14 12:00:00', 'ASSET(Cache Server)', 'chris.martinez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.108', 2009),
+            ('2024-01-14 12:30:00', 'ASSET(File Server)', 'emma.rodriguez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.109', 2010),
+
+            <!-- More historical data for better charts -->
+            ('2024-01-13 08:00:00', 'ASSET(Production Database)', 'john.doe@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM orders WHERE date &gt; "2024-01-01"', 'Database Query', false, '192.168.1.100', 2001),
+            ('2024-01-13 08:30:00', 'ASSET(Staging Database)', 'jane.smith@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'INSERT INTO logs (message) VALUES ("System started")', 'Database Query', false, '192.168.1.101', 2002),
+            ('2024-01-13 09:00:00', 'ASSET(Analytics Database)', 'mike.johnson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT AVG(price) FROM products', 'Database Query', false, '192.168.1.102', 2003),
+            ('2024-01-13 09:30:00', 'ASSET(User Management DB)', 'sarah.wilson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM users WHERE role = "admin"', 'Database Query', false, '192.168.1.103', 2004),
+            ('2024-01-13 10:00:00', 'ASSET(Logs Database)', 'david.brown@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT COUNT(*) FROM error_logs', 'Database Query', false, '192.168.1.104', 2005),
+            ('2024-01-13 10:30:00', 'ASSET(Web Server 01)', 'lisa.davis@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.105', 2006),
+            ('2024-01-13 11:00:00', 'ASSET(Web Server 02)', 'tom.miller@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.106', 2007),
+            ('2024-01-13 11:30:00', 'ASSET(API Server)', 'amy.garcia@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.107', 2008),
+            ('2024-01-13 12:00:00', 'ASSET(Cache Server)', 'chris.martinez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.108', 2009),
+            ('2024-01-13 12:30:00', 'ASSET(File Server)', 'emma.rodriguez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '192.168.1.109', 2010),
+
+            <!-- Additional data for more variety -->
+            ('2024-01-12 08:00:00', 'ASSET(Production Database)', 'john.doe@example.com', 'DELETE_ASSET', '{"name":"Old Table"}', null, 'Database Management', false, '192.168.1.100', 2001),
+            ('2024-01-12 08:30:00', 'ASSET(Staging Database)', 'jane.smith@example.com', 'CREATE_ASSET', null, '{"name":"New Table","type":"TABLE"}', 'Database Management', false, '192.168.1.101', 2002),
+            ('2024-01-12 09:00:00', 'ASSET(Analytics Database)', 'mike.johnson@example.com', 'UPDATE_ASSET', '{"status":"active"}', '{"status":"inactive"}', 'Database Management', false, '192.168.1.102', 2003),
+            ('2024-01-12 09:30:00', 'ASSET(User Management DB)', 'sarah.wilson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM permissions', 'Database Query', false, '192.168.1.103', 2004),
+            ('2024-01-12 10:00:00', 'ASSET(Logs Database)', 'david.brown@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'DELETE FROM temp_data WHERE created &lt; NOW() - INTERVAL 1 DAY', 'Database Query', false, '192.168.1.104', 2005),
+            ('2024-01-12 10:30:00', 'ASSET(Web Server 01)', 'lisa.davis@example.com', 'COMMAND', null, 'ls -la /var/log', 'Terminal Command', false, '192.168.1.105', 2006),
+            ('2024-01-12 11:00:00', 'ASSET(Web Server 02)', 'tom.miller@example.com', 'COMMAND', null, 'tail -f /var/log/application.log', 'Terminal Command', false, '192.168.1.106', 2007),
+            ('2024-01-12 11:30:00', 'ASSET(API Server)', 'amy.garcia@example.com', 'COMMAND', null, 'ps aux | grep java', 'Terminal Command', false, '192.168.1.107', 2008),
+            ('2024-01-12 12:00:00', 'ASSET(Cache Server)', 'chris.martinez@example.com', 'COMMAND', null, 'df -h', 'Terminal Command', false, '192.168.1.108', 2009),
+            ('2024-01-12 12:30:00', 'ASSET(File Server)', 'emma.rodriguez@example.com', 'COMMAND', null, 'free -m', 'Terminal Command', false, '192.168.1.109', 2010),
+
+            <!-- More IP addresses for variety -->
+            ('2024-01-11 08:00:00', 'ASSET(Production Database)', 'john.doe@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM customers', 'Database Query', false, '10.0.0.100', 2001),
+            ('2024-01-11 08:30:00', 'ASSET(Staging Database)', 'jane.smith@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM products', 'Database Query', false, '10.0.0.101', 2002),
+            ('2024-01-11 09:00:00', 'ASSET(Analytics Database)', 'mike.johnson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM orders', 'Database Query', false, '10.0.0.102', 2003),
+            ('2024-01-11 09:30:00', 'ASSET(User Management DB)', 'sarah.wilson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM users', 'Database Query', false, '10.0.0.103', 2004),
+            ('2024-01-11 10:00:00', 'ASSET(Logs Database)', 'david.brown@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM logs', 'Database Query', false, '10.0.0.104', 2005),
+            ('2024-01-11 10:30:00', 'ASSET(Web Server 01)', 'lisa.davis@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '10.0.0.105', 2006),
+            ('2024-01-11 11:00:00', 'ASSET(Web Server 02)', 'tom.miller@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '10.0.0.106', 2007),
+            ('2024-01-11 11:30:00', 'ASSET(API Server)', 'amy.garcia@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '10.0.0.107', 2008),
+            ('2024-01-11 12:00:00', 'ASSET(Cache Server)', 'chris.martinez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '10.0.0.108', 2009),
+            ('2024-01-11 12:30:00', 'ASSET(File Server)', 'emma.rodriguez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '10.0.0.109', 2010),
+
+            <!-- External IP addresses -->
+            ('2024-01-10 08:00:00', 'ASSET(Production Database)', 'john.doe@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM reports', 'Database Query', false, '203.0.113.100', 2001),
+            ('2024-01-10 08:30:00', 'ASSET(Staging Database)', 'jane.smith@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM analytics', 'Database Query', false, '203.0.113.101', 2002),
+            ('2024-01-10 09:00:00', 'ASSET(Analytics Database)', 'mike.johnson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM metrics', 'Database Query', false, '203.0.113.102', 2003),
+            ('2024-01-10 09:30:00', 'ASSET(User Management DB)', 'sarah.wilson@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM statistics', 'Database Query', false, '203.0.113.103', 2004),
+            ('2024-01-10 10:00:00', 'ASSET(Logs Database)', 'david.brown@example.com', 'DEVELOPER_QUERY_EXECUTION', null, 'SELECT * FROM monitoring', 'Database Query', false, '203.0.113.104', 2005),
+            ('2024-01-10 10:30:00', 'ASSET(Web Server 01)', 'lisa.davis@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '203.0.113.105', 2006),
+            ('2024-01-10 11:00:00', 'ASSET(Web Server 02)', 'tom.miller@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '203.0.113.106', 2007),
+            ('2024-01-10 11:30:00', 'ASSET(API Server)', 'amy.garcia@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '203.0.113.107', 2008),
+            ('2024-01-10 12:00:00', 'ASSET(Cache Server)', 'chris.martinez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '203.0.113.108', 2009),
+            ('2024-01-10 12:30:00', 'ASSET(File Server)', 'emma.rodriguez@example.com', 'LOGIN', null, 'SSH connection established', 'Terminal Access', false, '203.0.113.109', 2010);
+        </sql>
+    </changeSet>
+</databaseChangeLog>

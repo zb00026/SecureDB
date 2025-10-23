@@ -38,7 +38,10 @@
     <include file="db/changelog/common/db.035-changelog-unix-groups.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.036-changelog-add-unix-access-requests.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.037-changelog-fix-foreign-keys-cascade.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.039-changelog-add-ssh-credential-email-type.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
+    
+    <include file="db/changelog/common/db.038-changelog-insert-dummy-audit-data.xml" relativeToChangelogFile="false"/>
     
 </databaseChangeLog>

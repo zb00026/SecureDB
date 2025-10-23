@@ -4,6 +4,7 @@ import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.listener.AuditEntityListener;
+import com.verlake.dam.entity.assets.dto.AssetApprovalsDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
 
@@ -29,7 +30,11 @@ public class AccessRequest {
     private Asset asset;
     
     @Transient
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private AssetDTO assetDTO;
+
+    @Transient
+    private AssetApprovalsDTO assetApprovalsDTO;
 
     @Column(name = "access_sql", columnDefinition = "text")
     private String accessSql;
@@ -89,5 +94,6 @@ public class AccessRequest {
     
     @OneToMany(mappedBy = "accessRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<UnixGroupMembership> groupMemberships;
+
 
 } 
