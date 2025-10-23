@@ -40,11 +40,12 @@ public class GeminiAIService {
     private volatile long circuitOpenTime = 0;
     private static final long CIRCUIT_TIMEOUT_MS = 60000; // 1 minute
     
+    // Track last error type for better retry handling
+    private volatile String lastErrorType = null;
+    
     // Empty response tracking for Gemini 2.5 Flash
     private final AtomicInteger consecutiveEmptyResponses = new AtomicInteger(0);
-    private volatile long lastEmptyResponseTime = 0;
     private static final int MAX_EMPTY_RESPONSES = 3;
-    private static final long EMPTY_RESPONSE_RESET_TIME = 300000; // 5 minutes
     
     private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
     
@@ -73,7 +74,7 @@ public class GeminiAIService {
      */
     public String generateResponse(String prompt) {
         if (isCircuitBreakerOpen()) {
-            return Constants.GEMINI_CIRCUIT_BREAKER_FALLBACK;
+            return Constants.getMessage(Constants.GEMINI_CIRCUIT_BREAKER_FALLBACK_KEY);
         }
         
         return executeWithRetry(prompt);
@@ -108,26 +109,50 @@ public class GeminiAIService {
             try {
                 return executeApiCall(prompt);
             } catch (Exception e) {
-                log.error("Error calling Gemini AI (attempt {}/{}): {}", attempt + 1, maxRetries + 1, e.getMessage());
-                
-                if (isLocationRestrictionError(e)) {
-                    return Constants.GEMINI_LOCATION_RESTRICTION_RESPONSE;
+                String result = handleRetryException(e, attempt);
+                if (result != null) {
+                    return result;
                 }
-                
-                if (isRetryableError(e) && attempt < maxRetries) {
-                    handleRetryableError(attempt);
-                    continue;
-                }
-                
-                if (attempt == maxRetries) {
-                    openCircuitBreaker();
-                }
-                
-                return Constants.GEMINI_GENERIC_ERROR_RESPONSE;
+                // Continue to next attempt for retryable errors
             }
         }
         
-        return Constants.GEMINI_GENERIC_ERROR_RESPONSE;
+        return Constants.getMessage(Constants.GEMINI_GENERIC_ERROR_RESPONSE_KEY);
+    }
+    
+    /**
+     * Handle exception during retry
+     */
+    private String handleRetryException(Exception e, int attempt) {
+        // Track error type for better retry handling
+        lastErrorType = classifyErrorType(e);
+        log.error("Error calling Gemini AI (attempt {}/{}): {} - Error type: {}", 
+                 attempt + 1, maxRetries + 1, e.getMessage(), lastErrorType);
+        
+        if (isLocationRestrictionError(e)) {
+            return Constants.getMessage(Constants.GEMINI_LOCATION_RESTRICTION_RESPONSE_KEY);
+        }
+        
+        if (isRetryableError(e) && attempt < maxRetries) {
+            handleRetryableError(attempt, e);
+            return null; // Continue to next attempt
+        }
+        
+        return handleFinalRetryFailure();
+    }
+    
+    /**
+     * Handle final retry failure
+     */
+    private String handleFinalRetryFailure() {
+        openCircuitBreaker();
+        
+        // Return specific message for model overload
+        if ("MODEL_OVERLOADED".equals(lastErrorType)) {
+            return Constants.getMessage(Constants.GEMINI_MODEL_OVERLOADED_RESPONSE_KEY);
+        }
+        
+        return Constants.getMessage(Constants.GEMINI_GENERIC_ERROR_RESPONSE_KEY);
     }
     
     /**
@@ -170,22 +195,69 @@ public class GeminiAIService {
      * Check if error is retryable
      */
     private boolean isRetryableError(Exception e) {
-        return e.getMessage().contains("500") || e.getMessage().contains("INTERNAL") || 
-               e.getMessage().contains("An internal error has occurred");
+        String message = e.getMessage().toLowerCase();
+        return message.contains("500") || 
+               message.contains("internal") || 
+               message.contains(Constants.GEMINI_ERROR_INTERNAL_ERROR) ||
+               message.contains(Constants.GEMINI_ERROR_MODEL_OVERLOADED) ||
+               message.contains(Constants.GEMINI_ERROR_QUOTA_EXCEEDED) ||
+               message.contains(Constants.GEMINI_ERROR_RATE_LIMIT) ||
+               message.contains(Constants.GEMINI_ERROR_TEMPORARILY_UNAVAILABLE) ||
+               message.contains(Constants.GEMINI_ERROR_SERVICE_UNAVAILABLE);
     }
     
     /**
      * Handle retryable error with exponential backoff
      */
-    private void handleRetryableError(int attempt) {
+    private void handleRetryableError(int attempt, Exception e) {
         long delayMs = Math.min(baseDelayMs * (long) Math.pow(2, attempt), maxDelayMs);
-        log.info("Retrying in {} ms due to 500 error (attempt {}/{})", delayMs, attempt + 1, maxRetries + 1);
+        
+        // Use longer delays for model overload errors
+        if (isModelOverloadedError(e)) {
+            delayMs = Math.min(delayMs * 2, (long) maxDelayMs * 2); // Double the delay for overload
+            log.warn("Model overloaded, using extended delay: {} ms (attempt {}/{})", 
+                    delayMs, attempt + 1, maxRetries + 1);
+        } else {
+            log.info("Retrying in {} ms due to retryable error (attempt {}/{})", 
+                    delayMs, attempt + 1, maxRetries + 1);
+        }
         
         try {
             Thread.sleep(delayMs);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             log.warn("Retry interrupted");
+        }
+    }
+    
+    /**
+     * Check if the error is a model overload error
+     */
+    private boolean isModelOverloadedError(Exception e) {
+        String message = e.getMessage().toLowerCase();
+        return message.contains(Constants.GEMINI_ERROR_MODEL_OVERLOADED) ||
+               message.contains(Constants.GEMINI_ERROR_QUOTA_EXCEEDED) ||
+               message.contains(Constants.GEMINI_ERROR_RATE_LIMIT);
+    }
+    
+    /**
+     * Classify error type for better handling
+     */
+    private String classifyErrorType(Exception e) {
+        String message = e.getMessage().toLowerCase();
+        
+        if (message.contains(Constants.GEMINI_ERROR_MODEL_OVERLOADED)) {
+            return "MODEL_OVERLOADED";
+        } else if (message.contains(Constants.GEMINI_ERROR_QUOTA_EXCEEDED)) {
+            return "QUOTA_EXCEEDED";
+        } else if (message.contains(Constants.GEMINI_ERROR_RATE_LIMIT)) {
+            return "RATE_LIMIT";
+        } else if (message.contains("500") || message.contains("internal")) {
+            return "INTERNAL_ERROR";
+        } else if (message.contains("location") || message.contains("precondition")) {
+            return "LOCATION_RESTRICTION";
+        } else {
+            return "UNKNOWN";
         }
     }
     
@@ -453,7 +525,7 @@ public class GeminiAIService {
             log.error("Gemini API error: {}", message.asText());
             return "I encountered an error: " + message.asText() + ". Please try again.";
         }
-        return Constants.GEMINI_GENERIC_ERROR_RESPONSE;
+        return Constants.getMessage(Constants.GEMINI_GENERIC_ERROR_RESPONSE_KEY);
     }
     
     /**
@@ -576,7 +648,6 @@ public class GeminiAIService {
         
         // Track consecutive empty responses
         int currentCount = consecutiveEmptyResponses.incrementAndGet();
-        lastEmptyResponseTime = System.currentTimeMillis();
         
         if (currentCount >= MAX_EMPTY_RESPONSES) {
             log.warn("Gemini 2.5 Flash has {} consecutive empty responses, possible model issues", currentCount);

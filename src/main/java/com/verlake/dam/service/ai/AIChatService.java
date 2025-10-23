@@ -852,7 +852,7 @@ public class AIChatService {
      * Create a location restriction error message
      */
     private ChatMessage createLocationRestrictionMessage(String sessionId) {
-        ChatMessage message = createMessage(sessionId, Constants.GEMINI_LOCATION_RESTRICTION_RESPONSE, 
+        ChatMessage message = createMessage(sessionId, Constants.getMessage(Constants.GEMINI_LOCATION_RESTRICTION_RESPONSE_KEY), 
                                           Constants.AI_SENDER, ChatMessage.MessageType.ERROR);
         message.setRequiresUserAction(false);
         return message;

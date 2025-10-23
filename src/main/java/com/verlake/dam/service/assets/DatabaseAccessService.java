@@ -1184,7 +1184,7 @@ public class DatabaseAccessService {
         String jdbcUrl = databaseConnectionUtils.buildJdbcUrl(credential.getAsset());
         
         try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
-            String preparedQuery = prepareQueryForExecution(query, isChangeRequest, isDryRun);
+            String preparedQuery = prepareQueryForExecution(query, isChangeRequest, isDryRun, credential.getAsset());
             List<Map<String, Object>> allResults = executeAllQueries(connection, preparedQuery, isChangeRequest);
             
             return createFinalResult(allResults);
@@ -1207,19 +1207,82 @@ public class DatabaseAccessService {
         return databaseConnectionUtils.decryptCredentialPassword(credential);
     }
 
-    private String prepareQueryForExecution(String query, boolean isChangeRequest, boolean isDryRun) {
+    private String prepareQueryForExecution(String query, boolean isChangeRequest, boolean isDryRun, Asset asset) {
+        String modifiedQuery = query;
+        
+        // Add LIMIT clause for SELECT queries if recordCountLimit is set
+        if (asset != null && asset.getRecordCountLimit() != null && asset.getRecordCountLimit() > 0) {
+            modifiedQuery = addLimitClauseToSelectQueries(modifiedQuery, asset.getRecordCountLimit());
+        }
+        
         if (!isChangeRequest) {
+            return modifiedQuery;
+        }
+        
+        modifiedQuery = Constants.SQL_TRANSACTION_START + "; " + modifiedQuery;
+        if (isDryRun) {
+            modifiedQuery += modifiedQuery.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_ROLLBACK_SUFFIX : "; " + Constants.SQL_TRANSACTION_ROLLBACK;
+            log.debug("Dry run query: {}", modifiedQuery);
+        } else {
+            modifiedQuery += modifiedQuery.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_COMMIT_SUFFIX : "; " + Constants.SQL_TRANSACTION_COMMIT;
+            log.debug("Execution query: {}", modifiedQuery);
+        }
+        return modifiedQuery;
+    }
+    
+    /**
+     * Add LIMIT clause to SELECT queries based on asset's recordCountLimit
+     */
+    private String addLimitClauseToSelectQueries(String query, Integer recordCountLimit) {
+        if (query == null || query.trim().isEmpty()) {
             return query;
         }
         
-        String modifiedQuery = Constants.SQL_TRANSACTION_START + "; " + query;
-        if (isDryRun) {
-            modifiedQuery += query.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_ROLLBACK_SUFFIX : "; " + Constants.SQL_TRANSACTION_ROLLBACK;
-            log.debug("Dry run query: {}", modifiedQuery);
-        } else {
-            modifiedQuery += query.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_COMMIT_SUFFIX : "; " + Constants.SQL_TRANSACTION_COMMIT;
-            log.debug("Execution query: {}", modifiedQuery);
+        // Split query by semicolon to handle multiple statements
+        String[] queries = query.split(";");
+        StringBuilder modifiedQuery = new StringBuilder();
+        
+        for (int i = 0; i < queries.length; i++) {
+            String individualQuery = queries[i].trim();
+            if (!individualQuery.isEmpty()) {
+                if (i > 0) {
+                    modifiedQuery.append("; ");
+                }
+                
+                // Check if this is a SELECT query and add LIMIT clause
+                if (isSelectQuery(individualQuery.toUpperCase())) {
+                    individualQuery = addLimitToSelectQuery(individualQuery, recordCountLimit);
+                }
+                
+                modifiedQuery.append(individualQuery);
+            }
         }
+        
+        return modifiedQuery.toString();
+    }
+    
+    /**
+     * Add LIMIT clause to a single SELECT query
+     */
+    private String addLimitToSelectQuery(String query, Integer recordCountLimit) {
+        String upperQuery = query.toUpperCase().trim();
+        
+        // Check if LIMIT clause already exists
+        if (upperQuery.contains(" " + Constants.SQL_KEYWORD_LIMIT + " ")) {
+            log.debug("Query already contains LIMIT clause, skipping: {}", query);
+            return query;
+        }
+        
+        // Add LIMIT clause at the end of the query
+        String modifiedQuery = query.trim();
+        if (!modifiedQuery.endsWith(";")) {
+            modifiedQuery += " " + Constants.SQL_KEYWORD_LIMIT + " " + recordCountLimit;
+        } else {
+            // Insert LIMIT before the semicolon
+            modifiedQuery = modifiedQuery.substring(0, modifiedQuery.length() - 1) + " " + Constants.SQL_KEYWORD_LIMIT + " " + recordCountLimit + ";";
+        }
+        
+        log.debug("Added LIMIT {} to query: {}", recordCountLimit, modifiedQuery);
         return modifiedQuery;
     }
 

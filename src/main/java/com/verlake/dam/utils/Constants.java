@@ -148,10 +148,19 @@ public class Constants {
     public static final String GEMINI_JSON_FIELD_CONTENT = "content";
     public static final String GEMINI_STRATEGY_PARTIAL = "partial";
     
-    // Gemini AI response messages
-    public static final String GEMINI_CIRCUIT_BREAKER_FALLBACK = "The AI service is temporarily unavailable due to recent errors. Please try again in a moment or use manual policy creation.";
-    public static final String GEMINI_LOCATION_RESTRICTION_RESPONSE = "I'm currently not available in your region. Please use the manual masking policy creation instead, or contact your administrator to configure an alternative AI service.";
-    public static final String GEMINI_GENERIC_ERROR_RESPONSE = "I encountered an error while processing your request. Please try again or use manual policy creation.";
+    // Gemini AI response message keys
+    public static final String GEMINI_CIRCUIT_BREAKER_FALLBACK_KEY = "gemini.circuit.breaker.fallback";
+    public static final String GEMINI_LOCATION_RESTRICTION_RESPONSE_KEY = "gemini.location.restriction.response";
+    public static final String GEMINI_GENERIC_ERROR_RESPONSE_KEY = "gemini.generic.error.response";
+    public static final String GEMINI_MODEL_OVERLOADED_RESPONSE_KEY = "gemini.model.overloaded.response";
+    
+    // Gemini AI error message patterns
+    public static final String GEMINI_ERROR_MODEL_OVERLOADED = "model is overloaded";
+    public static final String GEMINI_ERROR_QUOTA_EXCEEDED = "quota exceeded";
+    public static final String GEMINI_ERROR_RATE_LIMIT = "rate limit";
+    public static final String GEMINI_ERROR_TEMPORARILY_UNAVAILABLE = "temporarily unavailable";
+    public static final String GEMINI_ERROR_SERVICE_UNAVAILABLE = "service unavailable";
+    public static final String GEMINI_ERROR_INTERNAL_ERROR = "an internal error has occurred";
 
     // Notification data
     public static final String NOTIFY_DATA_ATTR_RECEIVER_ID = "receiverId";
@@ -927,6 +936,7 @@ public class Constants {
     public static final String SQL_KEYWORD_INSERT = "INSERT";
     public static final String SQL_KEYWORD_UPDATE = "UPDATE";
     public static final String SQL_KEYWORD_DELETE = "DELETE";
+    public static final String SQL_KEYWORD_LIMIT = "LIMIT";
     
     // Approval context descriptions
     public static final String AUDIT_APPROVAL_ACCESS_REQUEST_APPROVED = "Access request approved";

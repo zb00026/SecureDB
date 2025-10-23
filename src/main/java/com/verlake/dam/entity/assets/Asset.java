@@ -65,6 +65,10 @@ public class Asset {
     @Column(name = "lock_type")
     private LockType lockType;
 
+    @Column(name = "record_count_limit")
+    @Builder.Default
+    private Integer recordCountLimit = 50;
+
     public String getHostUrl() {
         if (!isValidHostAddress()) {
             return "";

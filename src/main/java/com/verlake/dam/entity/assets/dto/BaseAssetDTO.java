@@ -25,6 +25,7 @@ public abstract class BaseAssetDTO {
     private String fetchTemplate;
     private boolean locked;
     private LockType lockType;
+    private Integer recordCountLimit;
     private List<User> owners;
     private List<User> approvers;
     
@@ -44,6 +45,7 @@ public abstract class BaseAssetDTO {
             this.databaseName = asset.getDatabaseName();
             this.locked = asset.isLocked();
             this.lockType = asset.getLockType();
+            this.recordCountLimit = asset.getRecordCountLimit();
         }
     }
 }
