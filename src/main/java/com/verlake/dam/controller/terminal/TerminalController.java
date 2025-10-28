@@ -122,7 +122,7 @@ public class TerminalController extends TextWebSocketHandler {
 
         // Send connection ready message (assetId will be provided in first message)
         Map<String, Object> response = Map.of(
-                "type", "connection_ready",
+                "type", Constants.WS_MESSAGE_TYPE_CONNECTION_READY,
                 Constants.JSON_FIELD_MESSAGE, "Unix Group WebSocket connection ready. Please authenticate with assetId."
         );
 
@@ -340,7 +340,7 @@ public class TerminalController extends TextWebSocketHandler {
             Map<String, Object> errorResponse;
             if (Constants.CONNECTION_TYPE_UNIX_GROUPS.equals(connectionType)) {
                 errorResponse = Map.of(
-                    "type", "error",
+                    "type", Constants.WS_MESSAGE_TYPE_ERROR,
                     Constants.JSON_FIELD_MESSAGE, message
                 );
             } else {
@@ -478,9 +478,9 @@ public class TerminalController extends TextWebSocketHandler {
     private void sendAuthenticationSuccessResponse(WebSocketSession session, TerminalSession terminalSession) {
         try {
             Map<String, Object> response = Map.of(
-                TERMINAL_TYPE, TERMINAL_ACTION_AUTHENTICATION_SUCCESS,
-                TERMINAL_SESSION_ID, terminalSession.getSessionId(),
-                TERMINAL_MESSAGE, MSG_TERMINAL_SESSION_AUTHENTICATED
+                "type", Constants.WS_MESSAGE_TYPE_AUTHENTICATION_SUCCESS,
+                Constants.WS_FIELD_SESSION_ID, terminalSession.getSessionId(),
+                Constants.JSON_FIELD_MESSAGE, Constants.MSG_TERMINAL_SESSION_AUTHENTICATED
             );
             
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
@@ -501,7 +501,12 @@ public class TerminalController extends TextWebSocketHandler {
                 String sessionId = getTerminalSessionId(session, terminalSession);
                 establishSSHConnectionWithCallback(session, sessionId, connectionType);
                 
-                sendMessage(session, TERMINAL_TYPE_SSH_CONNECTED, MSG_SSH_CONNECTION_ESTABLISHED, "");
+                // Send SSH connected message
+                Map<String, Object> response = Map.of(
+                    "type", Constants.WS_MESSAGE_TYPE_SSH_CONNECTED,
+                    Constants.JSON_FIELD_MESSAGE, Constants.MSG_SSH_CONNECTION_ESTABLISHED
+                );
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
                 
             } catch (Exception e) {
                 handleSSHConnectionError(session, e);
@@ -543,7 +548,12 @@ public class TerminalController extends TextWebSocketHandler {
     private void handleSSHConnectionError(WebSocketSession session, Exception e) {
         log.error("Failed to establish SSH connection", e);
         try {
-            sendMessage(session, TERMINAL_TYPE_SSH_ERROR, MSG_FAILED_TO_ESTABLISH_SSH + e.getMessage(), "");
+            // Send SSH connection failed message
+            Map<String, Object> response = Map.of(
+                "type", Constants.WS_MESSAGE_TYPE_SSH_CONNECTION_FAILED,
+                Constants.JSON_FIELD_MESSAGE, Constants.MSG_FAILED_TO_ESTABLISH_SSH + e.getMessage()
+            );
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
         } catch (Exception ex) {
             log.error("Error sending SSH error message", ex);
         }
@@ -799,10 +809,10 @@ public class TerminalController extends TextWebSocketHandler {
 
             // Send suggestions back to client in terminal format
             Map<String, Object> response = Map.of(
-                    "type", "folder_suggestions",
-                    "suggestions", filteredSuggestions,
-                    "path", path,
-                    "action", "get_folder_suggestions"
+                    "type", Constants.WS_MESSAGE_TYPE_FOLDER_SUGGESTIONS,
+                    Constants.WS_FIELD_SUGGESTIONS, filteredSuggestions,
+                    Constants.WS_FIELD_PATH, path,
+                    Constants.WS_FIELD_ACTION, "get_folder_suggestions"
             );
 
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
@@ -886,9 +896,9 @@ public class TerminalController extends TextWebSocketHandler {
 
             // Send success response
             Map<String, Object> response = Map.of(
-                    "type", "permissions_applied",
+                    "type", Constants.WS_MESSAGE_TYPE_PERMISSION_APPLIED,
                     Constants.JSON_FIELD_MESSAGE, "Folder permissions applied successfully",
-                    "folderPath", folderPath
+                    Constants.WS_FIELD_FOLDER_PATH, folderPath
             );
 
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));

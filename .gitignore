@@ -38,3 +38,6 @@ out/
 .vscode/
 .venv/damprivate.key
 .venv/
+
+### Cursor Rules ###
+.cursorrules

@@ -26,7 +26,7 @@ public class DataMaskingService {
     }
     
     /**
-     * Apply masking to query results based on user role and active policies
+     * Apply masking to query results based on user roles and active policies
      */
     public List<Map<String, Object>> maskQueryResults(Asset asset, String userRole, String userEmail,
                                                      List<Map<String, Object>> queryResults) {
@@ -34,20 +34,42 @@ public class DataMaskingService {
             return queryResults;
         }
         
-        // Get applicable masking policies for this user's role
-        List<AIMaskingPolicy> policies = maskingPolicyService.getApplicablePolicies(asset, userRole);
+        // Parse multiple roles from comma-separated string
+        List<String> userRoles = userRole.contains(",") ? 
+            java.util.Arrays.asList(userRole.split(",")) : 
+            java.util.Arrays.asList(userRole);
+        
+        // Get applicable masking policies for all user roles
+        List<AIMaskingPolicy> policies = getApplicablePoliciesForMultipleRoles(asset, userRoles);
+        
+        // Debug: Log all policies for this asset (regardless of role)
+        List<AIMaskingPolicy> allPolicies = maskingPolicyService.getActivePoliciesForAsset(asset);
+        log.debug("Found {} total active policies for asset {}, {} applicable for roles {}", 
+                allPolicies.size(), asset.getId(), policies.size(), userRoles);
+        
         if (policies.isEmpty()) {
+            log.debug("No applicable masking policies found for user {} (roles: {}) on asset {}", 
+                    userEmail, userRoles, asset.getId());
             return queryResults; // No masking needed
         }
         
-        log.info("Applying {} masking policies for user {} (role: {}) on asset {}", 
-                policies.size(), userEmail, userRole, asset.getId());
+        log.info("Applying {} masking policies for user {} (roles: {}) on asset {}", 
+                policies.size(), userEmail, userRoles, asset.getId());
         
         // Build masking rules map: table.field -> policy
         Map<String, AIMaskingPolicy> maskingRules = new HashMap<>();
         for (AIMaskingPolicy policy : policies) {
             String key = (policy.getTableName() + "." + policy.getFieldName()).toLowerCase();
             maskingRules.put(key, policy);
+            
+            // Also add field-only mapping for better matching
+            String fieldKey = policy.getFieldName().toLowerCase();
+            if (!maskingRules.containsKey(fieldKey)) {
+                maskingRules.put(fieldKey, policy);
+            }
+            
+            log.debug("Added masking rule: {} -> {} (strategy: {})", 
+                    key, policy.getFieldName(), policy.getMaskingStrategy());
         }
         
         // Apply masking to each row
@@ -78,10 +100,29 @@ public class DataMaskingService {
     }
     
     /**
+     * Get applicable masking policies for multiple user roles
+     */
+    private List<AIMaskingPolicy> getApplicablePoliciesForMultipleRoles(Asset asset, List<String> userRoles) {
+        List<AIMaskingPolicy> allApplicablePolicies = new java.util.ArrayList<>();
+        
+        for (String role : userRoles) {
+            List<AIMaskingPolicy> rolePolicies = maskingPolicyService.getApplicablePolicies(asset, role.trim());
+            allApplicablePolicies.addAll(rolePolicies);
+            log.debug("Found {} policies for role '{}' on asset {}", rolePolicies.size(), role, asset.getId());
+        }
+        
+        // Remove duplicates based on policy ID
+        return allApplicablePolicies.stream()
+                .distinct()
+                .toList();
+    }
+    
+    /**
      * Mask a single row based on masking rules
      */
     private Map<String, Object> maskRow(Map<String, Object> row, Map<String, AIMaskingPolicy> maskingRules) {
         Map<String, Object> maskedRow = new HashMap<>(row);
+        int maskedFields = 0;
         
         for (Map.Entry<String, Object> entry : row.entrySet()) {
             String fieldKey = entry.getKey().toLowerCase();
@@ -92,7 +133,14 @@ public class DataMaskingService {
             if (policy != null && value != null) {
                 Object maskedValue = applyMasking(value.toString(), policy);
                 maskedRow.put(entry.getKey(), maskedValue);
+                maskedFields++;
+                log.debug("Masked field '{}' using policy {} (strategy: {})", 
+                        entry.getKey(), policy.getId(), policy.getMaskingStrategy());
             }
+        }
+        
+        if (maskedFields > 0) {
+            log.debug("Masked {} fields in row", maskedFields);
         }
         
         return maskedRow;

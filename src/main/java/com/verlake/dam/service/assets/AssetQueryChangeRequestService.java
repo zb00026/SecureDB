@@ -17,6 +17,7 @@ import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.ai.DataMaskingService;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
 import com.verlake.dam.exception.AssetQueryChangeRequestNotFoundException;
 import com.verlake.dam.exception.QueryExecutionException;
@@ -228,6 +229,12 @@ public class AssetQueryChangeRequestService {
             try {
                 Map<String, Object> result = databaseAccessService.executeQueryWithCredentials(myCredential,
                         changeRequestDTO.getQuery(), changeRequestDTO.isChangeRequest());
+                
+                // Apply data masking to the result
+                if (result != null) {
+                    applyDataMaskingToResultForAsset(result, assetQueryChangeRequest.getAsset());
+                }
+                
                 assetQueryChangeRequest.setQuery(changeRequestDTO.getQuery());
                 // Create successful audit log
                 createQueryAuditLog(changeRequestDTO, assetQueryChangeRequest.getAsset(), myCredential, querySuccess,
@@ -343,8 +350,8 @@ public class AssetQueryChangeRequestService {
         try {
             Map<String, Object> result = databaseAccessService.executeQueryWithCredentialsDryRun(devCredential, accessQueryDTO.getQuery(), accessQueryDTO.isChangeRequest());
             
-            if (result != null && result.containsKey("data")) {
-                applyDataMasking(result, accessRequest);
+            if (result != null) {
+                applyDataMaskingToResult(result, accessRequest);
             }
             
             return result;
@@ -354,26 +361,116 @@ public class AssetQueryChangeRequestService {
     }
     
     /**
+     * Apply data masking to result structure (handles both flat and nested formats)
+     */
+    private void applyDataMaskingToResult(Map<String, Object> result, AccessRequest accessRequest) {
+        // Check if result has Constants.QUERY_RESULT_FIELD_RESULTS array (nested format)
+        if (result.containsKey(Constants.QUERY_RESULT_FIELD_RESULTS)) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_RESULTS);
+            
+            if (resultsList != null && !resultsList.isEmpty()) {
+                log.debug("Applying masking to nested result structure with {} queries", resultsList.size());
+                
+                // Apply masking to each query result
+                for (Map<String, Object> queryResult : resultsList) {
+                    if (queryResult.containsKey(Constants.QUERY_RESULT_FIELD_DATA)) {
+                        applyDataMasking(queryResult, accessRequest);
+                    }
+                }
+            }
+        } 
+        // Check if result has direct Constants.QUERY_RESULT_FIELD_DATA field (flat format)
+        else if (result.containsKey(Constants.QUERY_RESULT_FIELD_DATA)) {
+            log.debug("Applying masking to flat result structure");
+            applyDataMasking(result, accessRequest);
+        } else {
+            log.debug("No data field found in result structure, skipping masking");
+        }
+    }
+    
+    /**
      * Apply data masking to query results
      */
     private void applyDataMasking(Map<String, Object> result, AccessRequest accessRequest) {
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get("data");
+        List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_DATA);
         
         if (rawResults != null && !rawResults.isEmpty()) {
             User currentUser = userService.getCurrentUser();
             String userEmail = currentUser.getEmail();
+            
+            // Get all user roles as comma-separated string
             String userRole = currentUser.getRoles().isEmpty() ? "Developer" : 
-                            currentUser.getRoles().iterator().next().getName();
+                            currentUser.getRoles().stream()
+                                    .map(role -> role.getName())
+                                    .collect(java.util.stream.Collectors.joining(","));
             
             List<Map<String, Object>> maskedResults = dataMaskingService.maskQueryResults(
                 accessRequest.getAsset(), userRole, userEmail, rawResults);
             
-            result.put("data", maskedResults);
+            result.put(Constants.QUERY_RESULT_FIELD_DATA, maskedResults);
             result.put("maskingApplied", !maskedResults.equals(rawResults));
             
             log.info("Applied masking to query results for user {} (role: {}) on asset {}", 
                     userEmail, userRole, accessRequest.getAsset().getId());
+        }
+    }
+    
+    /**
+     * Apply data masking to result structure for Asset (handles both flat and nested formats)
+     */
+    private void applyDataMaskingToResultForAsset(Map<String, Object> result, Asset asset) {
+        // Check if result has Constants.QUERY_RESULT_FIELD_RESULTS array (nested format)
+        if (result.containsKey(Constants.QUERY_RESULT_FIELD_RESULTS)) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_RESULTS);
+            
+            if (resultsList != null && !resultsList.isEmpty()) {
+                log.debug("Applying masking to nested result structure with {} queries", resultsList.size());
+                
+                // Apply masking to each query result
+                for (Map<String, Object> queryResult : resultsList) {
+                    if (queryResult.containsKey(Constants.QUERY_RESULT_FIELD_DATA)) {
+                        applyDataMaskingForAsset(queryResult, asset);
+                    }
+                }
+            }
+        } 
+        // Check if result has direct Constants.QUERY_RESULT_FIELD_DATA field (flat format)
+        else if (result.containsKey(Constants.QUERY_RESULT_FIELD_DATA)) {
+            log.debug("Applying masking to flat result structure");
+            applyDataMaskingForAsset(result, asset);
+        } else {
+            log.debug("No data field found in result structure, skipping masking");
+        }
+    }
+    
+    /**
+     * Apply data masking to query results using Asset directly
+     */
+    private void applyDataMaskingForAsset(Map<String, Object> result, Asset asset) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_DATA);
+        
+        if (rawResults != null && !rawResults.isEmpty()) {
+            User currentUser = userService.getCurrentUser();
+            String userEmail = currentUser.getEmail();
+            
+            // Get all user roles as comma-separated string
+            String userRole = currentUser.getRoles().isEmpty() ? "Asset Owner" : 
+                            currentUser.getRoles().stream()
+                                    .map(role -> role.getName())
+                                    .collect(java.util.stream.Collectors.joining(","));
+            
+            List<Map<String, Object>> maskedResults = dataMaskingService.maskQueryResults(
+                asset, userRole, userEmail, rawResults);
+            
+            result.put(Constants.QUERY_RESULT_FIELD_DATA, maskedResults);
+            result.put("maskingApplied", !maskedResults.equals(rawResults));
+            
+            log.info("Applied masking to query results for user {} (role: {}) on asset {}", 
+                    userEmail, userRole, asset.getId());
         }
     }
     
@@ -425,15 +522,25 @@ public class AssetQueryChangeRequestService {
             }
 
             if (success && result != null) {
-                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
-                auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data != null ? data.size() : 0);
-                List<String> headers = (List<String>) result.get("headers");
-                auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers != null ? headers.size() : 0);
+                Object dataObj = result.get(Constants.QUERY_RESULT_FIELD_DATA);
+                if (dataObj instanceof List) {
+                    List<?> data = (List<?>) dataObj;
+                    auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data.size());
+                }
+                
+                Object headersObj = result.get("headers");
+                if (headersObj instanceof List) {
+                    List<?> headers = (List<?>) headersObj;
+                    auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers.size());
+                }
             }
 
             // Create instance ID for query execution
             String instanceId = String.format("QUERY_EXECUTION(%s)", accessQueryDTO.getRequestId());
 
+            // Create detailed newValue with query and results
+            String newValue = DatabaseQueryUtils.createDetailedNewValue(accessQueryDTO.getQuery(), success, result, errorMessage);
+            
             AuditTrail audit = AuditTrail.builder()
                     .timestamp(LocalDateTime.now())
                     .user(username)
@@ -441,7 +548,7 @@ public class AssetQueryChangeRequestService {
                     .instanceId(instanceId)
                     .actionMetadata(objectMapper.writeValueAsString(auditMetadata))
                     .previousValue(null) // No previous value for query execution
-                    .newValue(success ? "Query executed successfully" : "Query execution failed")
+                    .newValue(newValue)
                     .ipAddress(ipAddress)
                     .asset(asset)
                     .build();
@@ -473,8 +580,8 @@ public class AssetQueryChangeRequestService {
 
             // Get affected rows count
             String affectedRows = "Unknown";
-            if (result != null && result.get("data") != null) {
-                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get("data");
+            if (result != null && result.get(Constants.QUERY_RESULT_FIELD_DATA) != null) {
+                List<Map<String, Object>> data = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_DATA);
                 if (!data.isEmpty() && data.get(0).containsKey("Affected Rows")) {
                     affectedRows = String.valueOf(data.get(0).get("Affected Rows"));
                 }

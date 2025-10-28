@@ -11,6 +11,7 @@ import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.ai.DataMaskingService;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
@@ -119,8 +120,9 @@ public class QueryExecutionService {
             Map<String, Object> result = databaseAccessService.executeQueryWithCredentialsDryRun(
                     context.getCredential(), accessQueryDTO.getQuery(), accessQueryDTO.isChangeRequest());
             
-            if (result != null && result.containsKey("data")) {
-                applyDataMasking(result, context);
+            // Apply masking to the result structure
+            if (result != null) {
+                applyDataMaskingToResult(result, context);
             }
             
             return result;
@@ -130,25 +132,69 @@ public class QueryExecutionService {
     }
 
     /**
+     * Apply data masking to result structure (handles both flat and nested formats)
+     */
+    private void applyDataMaskingToResult(Map<String, Object> result, QueryExecutionContext context) {
+        // Check if result has Constants.QUERY_RESULT_FIELD_RESULTS array (nested format)
+        if (result.containsKey(Constants.QUERY_RESULT_FIELD_RESULTS)) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_RESULTS);
+            
+            if (resultsList != null && !resultsList.isEmpty()) {
+                log.debug("Applying masking to nested result structure with {} queries", resultsList.size());
+                
+                // Apply masking to each query result
+                for (Map<String, Object> queryResult : resultsList) {
+                    if (queryResult.containsKey(Constants.QUERY_RESULT_FIELD_DATA)) {
+                        applyDataMasking(queryResult, context);
+                    }
+                }
+            }
+        } 
+        // Check if result has direct Constants.QUERY_RESULT_FIELD_DATA field (flat format)
+        else if (result.containsKey(Constants.QUERY_RESULT_FIELD_DATA)) {
+            log.debug("Applying masking to flat result structure");
+            applyDataMasking(result, context);
+        } else {
+            log.debug("No data field found in result structure, skipping masking");
+        }
+    }
+    
+    /**
      * Apply data masking based on context
      */
     private void applyDataMasking(Map<String, Object> result, QueryExecutionContext context) {
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get("data");
+        List<Map<String, Object>> rawResults = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_DATA);
         
         if (rawResults != null && !rawResults.isEmpty()) {
             User currentUser = userService.getCurrentUser();
             String userEmail = currentUser.getEmail();
             String userRole = context.getUserRole(currentUser);
+            List<String> userRoles = context.getUserRoles(currentUser);
+            
+            log.debug("Applying data masking for user {} (roles: {}) on asset {} with {} rows", 
+                    userEmail, userRoles, context.getAsset().getId(), rawResults.size());
             
             List<Map<String, Object>> maskedResults = dataMaskingService.maskQueryResults(
                 context.getAsset(), userRole, userEmail, rawResults);
             
-            result.put("data", maskedResults);
-            result.put("maskingApplied", !maskedResults.equals(rawResults));
+            result.put(Constants.QUERY_RESULT_FIELD_DATA, maskedResults);
+            boolean maskingApplied = !maskedResults.equals(rawResults);
+            result.put("maskingApplied", maskingApplied);
+            result.put("maskingInfo", maskingApplied ? 
+                "Data has been masked according to security policies" : 
+                "No masking policies applied to this data");
             
-            log.info("Applied masking to query results for user {} (role: {}) on asset {}", 
-                    userEmail, userRole, context.getAsset().getId());
+            if (maskingApplied) {
+                log.info("✅ Data masking successfully applied to query results for user {} (role: {}) on asset {}", 
+                        userEmail, userRole, context.getAsset().getId());
+            } else {
+                log.info("ℹ️ No masking policies applicable for user {} (role: {}) on asset {}", 
+                        userEmail, userRole, context.getAsset().getId());
+            }
+        } else {
+            log.debug("No data to mask - empty or null results");
         }
     }
 
@@ -177,12 +223,12 @@ public class QueryExecutionService {
             
             if (success && result != null) {
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get("results");
+                List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_RESULTS);
                 if (resultsList != null) {
                     int totalRows = resultsList.stream()
                             .mapToInt(r -> {
                                 @SuppressWarnings("unchecked")
-                                List<Map<String, Object>> data = (List<Map<String, Object>>) r.get("data");
+                                List<Map<String, Object>> data = (List<Map<String, Object>>) r.get(Constants.QUERY_RESULT_FIELD_DATA);
                                 return data != null ? data.size() : 0;
                             })
                             .sum();
@@ -200,13 +246,16 @@ public class QueryExecutionService {
                 auditDetails.put("changeDescription", accessQueryDTO.getChangeDescription());
             }
             
+            // Create detailed newValue with query and results
+            String newValue = DatabaseQueryUtils.createDetailedNewValue(accessQueryDTO.getQuery(), success, result, errorMessage);
+            
             AuditTrail auditTrail = AuditTrail.builder()
                     .timestamp(LocalDateTime.now())
                     .user(currentUser.getEmail())
                     .action(context.getAuditAction())
                     .instanceId(String.format("ASSET(%s)", context.getAsset().getId()))
                     .actionMetadata(objectMapper.writeValueAsString(auditDetails))
-                    .newValue(success ? "Query executed successfully" : "Query execution failed")
+                    .newValue(newValue)
                     .ipAddress(getCurrentIpAddress())
                     .asset(context.getAsset())
                     .build();
@@ -327,13 +376,27 @@ public class QueryExecutionService {
         }
 
         public String getUserRole(User currentUser) {
-            if (Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType)) {
-                return currentUser.getRoles().isEmpty() ? "Developer" : 
-                       currentUser.getRoles().iterator().next().getName();
-            } else {
-                return currentUser.getRoles().isEmpty() ? "Asset Owner" : 
-                       currentUser.getRoles().iterator().next().getName();
+            if (currentUser.getRoles().isEmpty()) {
+                return Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? "Developer" : "Asset Owner";
             }
+            
+            // Get all roles as a comma-separated string for masking policy matching
+            return currentUser.getRoles().stream()
+                    .map(role -> role.getName())
+                    .collect(java.util.stream.Collectors.joining(","));
+        }
+        
+        /**
+         * Get user roles as a list for more detailed processing
+         */
+        public List<String> getUserRoles(User currentUser) {
+            if (currentUser.getRoles().isEmpty()) {
+                return List.of(Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? "Developer" : "Asset Owner");
+            }
+            
+            return currentUser.getRoles().stream()
+                    .map(role -> role.getName())
+                    .collect(java.util.stream.Collectors.toList());
         }
 
         public String getAuditAction() {

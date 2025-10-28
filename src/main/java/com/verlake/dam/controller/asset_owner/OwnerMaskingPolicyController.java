@@ -3,6 +3,7 @@ package com.verlake.dam.controller.asset_owner;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.ai.AIMaskingPolicy;
+import com.verlake.dam.entity.ai.dto.AIMaskingPolicyDTO;
 import com.verlake.dam.entity.ai.FieldSuggestion;
 import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.entity.assets.Asset;
@@ -83,8 +84,13 @@ public class OwnerMaskingPolicyController {
                 }
             }
 
+            // Convert entities to DTOs to ensure consistent data structure
+            List<AIMaskingPolicyDTO> policyDTOs = policies.getContent().stream()
+                    .map(AIMaskingPolicyDTO::fromEntity)
+                    .toList();
+
             Map<String, Object> response = new HashMap<>();
-            response.put(Constants.FIELD_POLICIES, policies.getContent());
+            response.put(Constants.FIELD_POLICIES, policyDTOs);
             response.put(Constants.FIELD_TOTAL_ELEMENTS, policies.getTotalElements());
             response.put(Constants.FIELD_TOTAL_PAGES, policies.getTotalPages());
             response.put(Constants.FIELD_CURRENT_PAGE, policies.getNumber());

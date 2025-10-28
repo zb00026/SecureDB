@@ -9,6 +9,7 @@ import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.SSHCommandUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,8 +45,8 @@ public class SSHConnectionService {
     // Session cache: key = assetId:userId, value = Session
     private final Map<String, Session> sessionCache = new ConcurrentHashMap<>();
     
-    // Session timeout in milliseconds (30 minutes)
-    private static final int SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+    // Session timeout in milliseconds (5 minutes)
+    private static final int SESSION_TIMEOUT_MS = Constants.SSH_SESSION_TIMEOUT_MS;
 
     /**
      * SSH connection wrapper to encapsulate JSch objects
@@ -252,9 +253,9 @@ public class SSHConnectionService {
             setupAuthentication(jsch, session, sshCredential, userKey);
 
             // Connect with timeout
-            log.debug("Connecting SSH session with 30 second timeout");
+            log.debug("Connecting SSH session with 5 minute timeout");
             log.debug("Attempting SSH connection to {}@{}:{}", sshCredential.getUsername(), host, port);
-            session.connect(30000);
+            session.connect(Constants.SSH_CONNECT_TIMEOUT_MS);
             log.info("SSH session connected successfully. Server version: {}", session.getServerVersion());
 
             // Open shell channel
@@ -268,8 +269,8 @@ public class SSHConnectionService {
             OutputStream outputStream = channelShell.getOutputStream();
 
             // Connect the channel
-            log.debug("Connecting shell channel with 10 second timeout");
-            channelShell.connect(10000);
+            log.debug("Connecting shell channel with 5 minute timeout");
+            channelShell.connect(Constants.SSH_CHANNEL_TIMEOUT_MS);
 
             log.info("SSH connection established successfully to {}:{}", host, port);
 
@@ -759,7 +760,7 @@ public class SSHConnectionService {
         StringBuilder output = new StringBuilder();
         StringBuilder commandOutput = new StringBuilder();
         boolean commandCompleted = false;
-        int timeoutMs = 10000; // 10 second timeout
+        int timeoutMs = Constants.SSH_COMMAND_TIMEOUT_MS; // 5 minute timeout
         int checkIntervalMs = 100; // Check every 100ms
         int elapsedMs = 0;
 

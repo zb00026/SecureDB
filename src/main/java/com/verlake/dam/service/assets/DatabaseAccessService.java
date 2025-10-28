@@ -838,7 +838,7 @@ public class DatabaseAccessService {
             devCredential.setIsTemporaryPassword(false);
             assetCredentialsRepository.save(devCredential);
         } catch (SQLException e) {
-            log.error(Constants.getMessage("log.error.updating.password"), e);
+            log.error(Constants.getMessage(Constants.LOG_ERROR_UPDATING_PASSWORD_ID), e);
             throw new DatabaseAccessException(e.getMessage(), e);
         }
     }
@@ -1249,8 +1249,8 @@ public class DatabaseAccessService {
                     modifiedQuery.append("; ");
                 }
                 
-                // Check if this is a SELECT query and add LIMIT clause
-                if (isSelectQuery(individualQuery.toUpperCase())) {
+                // Check if this query should have LIMIT clause applied (only SELECT queries)
+                if (shouldApplyLimit(individualQuery.toUpperCase())) {
                     individualQuery = addLimitToSelectQuery(individualQuery, recordCountLimit);
                 }
                 
@@ -1333,6 +1333,13 @@ public class DatabaseAccessService {
                upperQuery.startsWith(Constants.MYSQL_QUERY_DESC) ||
                upperQuery.startsWith(Constants.MYSQL_QUERY_EXPLAIN);
     }
+    
+    /**
+     * Check if query should have LIMIT clause applied (only SELECT queries)
+     */
+    private boolean shouldApplyLimit(String upperQuery) {
+        return upperQuery.startsWith(Constants.MYSQL_QUERY_SELECT);
+    }
 
     private boolean isTransactionControl(String upperQuery) {
         return upperQuery.startsWith(Constants.SQL_TRANSACTION_START) || 
@@ -1361,6 +1368,7 @@ public class DatabaseAccessService {
                         ResultSetMetaData metaData = resultSet.getMetaData();
             List<String> headers = extractHeaders(metaData);
             List<Map<String, Object>> data = extractData(resultSet, metaData);
+            
             
             return createQueryResult(query, headers, data);
         }
@@ -2548,5 +2556,6 @@ public class DatabaseAccessService {
             return grantableTables;
         }
     }
+    
 
 }

@@ -938,9 +938,38 @@ public class Constants {
     public static final String SQL_KEYWORD_DELETE = "DELETE";
     public static final String SQL_KEYWORD_LIMIT = "LIMIT";
     
+    // Query result structure fields
+    public static final String QUERY_RESULT_FIELD_RESULTS = "results";
+    public static final String QUERY_RESULT_FIELD_DATA = "data";
+    
     // Approval context descriptions
     public static final String AUDIT_APPROVAL_ACCESS_REQUEST_APPROVED = "Access request approved";
     public static final String AUDIT_APPROVAL_ACCESS_REQUEST_REJECTED = "Access request rejected";
     public static final String AUDIT_APPROVAL_STATUS_UPDATED = "Approval status updated";
     public static final String AUDIT_APPROVAL_ACTION_PERFORMED = "Approval action performed";
+    
+    // Logging messages
+    public static final String LOG_ERROR_UPDATING_PASSWORD_ID = "log.error.updating.password";
+    
+    // WebSocket message types
+    public static final String WS_MESSAGE_TYPE_PERMISSION_APPLIED = "permission_applied";
+    public static final String WS_MESSAGE_TYPE_SSH_CONNECTION_FAILED = "ssh_connection_failed";
+    public static final String WS_MESSAGE_TYPE_SSH_CONNECTED = "ssh_connected";
+    public static final String WS_MESSAGE_TYPE_AUTHENTICATION_SUCCESS = "authentication_success";
+    public static final String WS_MESSAGE_TYPE_FOLDER_SUGGESTIONS = "folder_suggestions";
+    public static final String WS_MESSAGE_TYPE_ERROR = "error";
+    public static final String WS_MESSAGE_TYPE_CONNECTION_READY = "connection_ready";
+    
+    // WebSocket field names
+    public static final String WS_FIELD_SESSION_ID = "sessionId";
+    public static final String WS_FIELD_FOLDER_PATH = "folderPath";
+    public static final String WS_FIELD_SUGGESTIONS = "suggestions";
+    public static final String WS_FIELD_PATH = "path";
+    public static final String WS_FIELD_ACTION = "action";
+    
+    // SSH timeout constants (5 minutes)
+    public static final int SSH_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    public static final int SSH_CONNECT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    public static final int SSH_CHANNEL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    public static final int SSH_COMMAND_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 }

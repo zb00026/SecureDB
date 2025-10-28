@@ -309,6 +309,13 @@ public class AIMaskingPolicyService {
     }
     
     /**
+     * Get all active policies for an asset (for debugging)
+     */
+    public List<AIMaskingPolicy> getActivePoliciesForAsset(Asset asset) {
+        return policyRepository.findByAssetAndIsActiveTrue(asset);
+    }
+    
+    /**
      * Safe alternative to regex matching - checks if field contains any of the keywords
      */
     private boolean containsAnyIgnoreCase(String field, String... keywords) {
