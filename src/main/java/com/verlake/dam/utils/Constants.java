@@ -942,6 +942,25 @@ public class Constants {
     public static final String QUERY_RESULT_FIELD_RESULTS = "results";
     public static final String QUERY_RESULT_FIELD_DATA = "data";
     
+    // Database schema fields
+    public static final String SCHEMA_FIELD_TABLE_NAME = "TABLE_NAME";
+    public static final String SCHEMA_FIELD_TABLE_TYPE = "TABLE_TYPE";
+    public static final String SCHEMA_FIELD_COLUMN_NAME = "COLUMN_NAME";
+    public static final String SCHEMA_FIELD_TYPE_NAME = "TYPE_NAME";
+    public static final String SCHEMA_FIELD_COLUMN_SIZE = "COLUMN_SIZE";
+    public static final String SCHEMA_FIELD_IS_NULLABLE = "IS_NULLABLE";
+    public static final String SCHEMA_FIELD_COLUMN_DEF = "COLUMN_DEF";
+    public static final String SCHEMA_FIELD_COLUMN_KEY = "COLUMN_KEY";
+    public static final String SCHEMA_FIELD_REMARKS = "REMARKS";
+    public static final String SCHEMA_FIELD_ORDINAL_POSITION = "ORDINAL_POSITION";
+    public static final String SCHEMA_FIELD_IS_AUTOINCREMENT = "IS_AUTOINCREMENT";
+    
+    // Database schema types
+    public static final String SCHEMA_TYPE_TABLE = "TABLE";
+    public static final String SCHEMA_TYPE_VIEW = "VIEW";
+    public static final String SCHEMA_NULLABLE_YES = "YES";
+    public static final String SCHEMA_NULLABLE_NO = "NO";
+    
     // Approval context descriptions
     public static final String AUDIT_APPROVAL_ACCESS_REQUEST_APPROVED = "Access request approved";
     public static final String AUDIT_APPROVAL_ACCESS_REQUEST_REJECTED = "Access request rejected";
@@ -972,4 +991,13 @@ public class Constants {
     public static final int SSH_CONNECT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
     public static final int SSH_CHANNEL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
     public static final int SSH_COMMAND_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    
+    // Database type names for logging
+    public static final String DB_TYPE_MYSQL = "MySQL";
+    public static final String DB_TYPE_POSTGRESQL = "PostgreSQL";
+    public static final String DB_TYPE_SQL_SERVER = "SQL Server";
+    public static final String DB_TYPE_ORACLE = "Oracle";
+    
+    // Database query result field names
+    public static final String DB_QUERY_RESULT_COUNT = "count";
 }

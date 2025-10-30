@@ -69,23 +69,23 @@ public class DatabaseAccessService {
 
     public void updateAssetObjects(AssetCredential credential) throws SQLException {
         // Check if this is an Asset Owner credential
-        if (credential.getUserAccessType() != null && 
-            credential.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
-            
+        if (credential.getUserAccessType() != null &&
+                credential.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
+
             // Validate Asset Owner permissions before proceeding
             PermissionValidationResult validationResult = validateAssetOwnerPermissions(credential);
-            
+
             if (!validationResult.isSufficient()) {
-                log.warn("Asset Owner {} has insufficient permissions for asset {}: {}", 
+                log.warn("Asset Owner {} has insufficient permissions for asset {}: {}",
                         credential.getUsername(), credential.getAsset().getId(), validationResult.getWarningMessage());
-                
+
                 // Store the warning in the asset object for UI display
                 String objectsJsonWithWarning = createObjectsJsonWithWarning(validationResult);
                 saveAssetObjectWithWarning(credential, objectsJsonWithWarning, validationResult);
                 return;
             }
         }
-        
+
         String objectsJson = fetchDatabaseObjects(credential);
 
         AssetObject assetObject = assetObjectRepository.findByAssetCredential(credential)
@@ -112,7 +112,9 @@ public class DatabaseAccessService {
                 return fetchOracleObjects(credential, rootNode);
             default:
                 throw new DatabaseAccessException(
-                        Constants.getMessage("error.database.type.not.supported") + credential.getAsset().getDatabaseType(), null);
+                        Constants.getMessage("error.database.type.not.supported")
+                                + credential.getAsset().getDatabaseType(),
+                        null);
         }
     }
 
@@ -205,8 +207,10 @@ public class DatabaseAccessService {
     }
 
     private boolean isSystemDatabase(String dbName) {
-        return dbName.equals(Constants.MYSQL_SYSTEM_DB_MYSQL) || dbName.equals(Constants.MYSQL_SYSTEM_DB_PERFORMANCE_SCHEMA) ||
-                dbName.equals(Constants.MYSQL_SYSTEM_DB_SYS) || dbName.equals(Constants.MYSQL_SYSTEM_DB_INFORMATION_SCHEMA);
+        return dbName.equals(Constants.MYSQL_SYSTEM_DB_MYSQL)
+                || dbName.equals(Constants.MYSQL_SYSTEM_DB_PERFORMANCE_SCHEMA) ||
+                dbName.equals(Constants.MYSQL_SYSTEM_DB_SYS)
+                || dbName.equals(Constants.MYSQL_SYSTEM_DB_INFORMATION_SCHEMA);
     }
 
     private void fetchDatabaseObjects(Connection connection, String dbName,
@@ -222,7 +226,8 @@ public class DatabaseAccessService {
     }
 
     private void fetchTables(Connection connection, String dbName, ArrayNode tableData) throws SQLException {
-        // Validate database name to prevent SQL injection using centralized, ReDoS-safe validator
+        // Validate database name to prevent SQL injection using centralized, ReDoS-safe
+        // validator
         if (!CommonUtils.isValidSqlIdentifier(dbName)) {
             log.error("Invalid database name: {}", dbName);
             return;
@@ -343,7 +348,8 @@ public class DatabaseAccessService {
 
     private void addTableGrantFromGlobal(ArrayNode tableGrants) {
         ObjectNode tableGrantNode = objectMapper.createObjectNode();
-        tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "GRANT SELECT, INSERT, UPDATE, DELETE ON $DATABASE.* TO $USER");
+        tableGrantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON $DATABASE.* TO $USER");
         tableGrants.add(tableGrantNode);
     }
 
@@ -366,25 +372,27 @@ public class DatabaseAccessService {
     private String convertMySQLGrantToTemplate(String grantStr) {
         // Convert MySQL GRANT statement to use placeholders
         // Examples:
-        // "GRANT SELECT ON `database`.`table` TO 'user'@'host'" -> "GRANT SELECT ON $DATABASE.table TO $USER"
-        // "GRANT ALL PRIVILEGES ON *.* TO 'user'@'host'" -> "GRANT ALL PRIVILEGES ON *.* TO $USER"
-        
+        // "GRANT SELECT ON `database`.`table` TO 'user'@'host'" -> "GRANT SELECT ON
+        // $DATABASE.table TO $USER"
+        // "GRANT ALL PRIVILEGES ON *.* TO 'user'@'host'" -> "GRANT ALL PRIVILEGES ON
+        // *.* TO $USER"
+
         String template = grantStr;
-        
+
         // Replace username with $USER placeholder
         // Pattern: TO 'username'@'host' or TO `username`@`host`
         // Use safer regex without nested quantifiers to prevent ReDoS
         template = template.replaceAll("TO\\s+['`\"]([^'`\"@]+)['`\"]@['`\"]([^'`\"]+)['`\"]", "TO \\$USER");
-        
+
         // Replace database name with $DATABASE placeholder
         // Pattern: ON `database`.`table` or ON database.table
         // Use safer regex without nested quantifiers to prevent ReDoS
         template = template.replaceAll("ON\\s+['`\"]([^'`\".]+)['`\"]\\.", "ON \\$DATABASE.");
         template = template.replaceAll("ON\\s+([^.\\s]+)\\.", "ON \\$DATABASE.");
-        
+
         // For global grants (ON *.*)
         template = template.replaceAll("ON\\s+\\*\\.\\*", "ON \\$DATABASE.*");
-        
+
         return template;
     }
 
@@ -397,16 +405,16 @@ public class DatabaseAccessService {
         return grantStr.contains(Constants.SQL_KEYWORD_ROUTINE) || grantStr.contains(Constants.SQL_KEYWORD_PROCEDURE);
     }
 
-        private JdbcTemplate createJdbcTemplate(AssetCredential credential, String driverClassName, String urlPrefix) {
+    private JdbcTemplate createJdbcTemplate(AssetCredential credential, String driverClassName, String urlPrefix) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName(driverClassName);
-        
+
         String jdbcUrl = urlPrefix + credential.getAsset().getHostUrl();
         // Add SSL parameters for MSSQL
         if (urlPrefix.equals(Constants.JDBC_SQLSERVER_URL)) {
             jdbcUrl += Constants.JDBC_SQLSERVER_SSL_PARAMS;
         }
-        
+
         dataSource.setUrl(jdbcUrl);
         dataSource.setUsername(credential.getUsername());
         dataSource.setPassword(credential.getPassword());
@@ -444,7 +452,7 @@ public class DatabaseAccessService {
         for (Map<String, Object> privilege : privileges) {
             String grantType = (String) privilege.get(Constants.POSTGRES_PRIVILEGE_TYPE_COLUMN);
             String tableName = (String) privilege.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-            
+
             ObjectNode grantNode = objectMapper.createObjectNode();
             grantNode.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT %s %s.%s TO $USER",
@@ -485,7 +493,7 @@ public class DatabaseAccessService {
         for (Map<String, Object> schema : schemas) {
             String schemaName = (String) schema.get(Constants.DB_COLUMN_SCHEMA_NAME);
             databaseData.add(schemaName);
-            }
+        }
 
         // Fetch tables
         List<Map<String, Object>> tables = jdbcTemplate.queryForList(
@@ -545,92 +553,96 @@ public class DatabaseAccessService {
         ArrayNode procedureData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_PROCEDURE)
                 .get(Constants.ACCESS_OBJECT_ATTR_DATA);
 
-        // Instead of querying existing permissions, we'll create templates based on available objects
+        // Instead of querying existing permissions, we'll create templates based on
+        // available objects
         // This approach works regardless of the user's permission to view system tables
-        
+
         // For tables - create permission templates for each table
         List<Map<String, Object>> tables = jdbcTemplate.queryForList(
                 "SELECT SCHEMA_NAME(schema_id) as schema_name, name as table_name FROM sys.tables");
-        
+
         for (Map<String, Object> table : tables) {
             String schemaName = (String) table.get(Constants.DB_COLUMN_SCHEMA_NAME);
             String tableName = (String) table.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-            
+
             // Add SELECT permission template
             ObjectNode selectGrant = objectMapper.createObjectNode();
             selectGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT SELECT ON [%s].[%s] TO [$USER]", schemaName, tableName));
             tableGrants.add(selectGrant);
-            
+
             // Add INSERT permission template
             ObjectNode insertGrant = objectMapper.createObjectNode();
             insertGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT INSERT ON [%s].[%s] TO [$USER]", schemaName, tableName));
             tableGrants.add(insertGrant);
-            
+
             // Add UPDATE permission template
             ObjectNode updateGrant = objectMapper.createObjectNode();
             updateGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT UPDATE ON [%s].[%s] TO [$USER]", schemaName, tableName));
             tableGrants.add(updateGrant);
-            
+
             // Add DELETE permission template
             ObjectNode deleteGrant = objectMapper.createObjectNode();
             deleteGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT DELETE ON [%s].[%s] TO [$USER]", schemaName, tableName));
             tableGrants.add(deleteGrant);
         }
-        
+
         // For views - create permission templates for each view
         List<Map<String, Object>> views = jdbcTemplate.queryForList(
                 "SELECT SCHEMA_NAME(schema_id) as schema_name, name as view_name FROM sys.views");
-        
+
         for (Map<String, Object> view : views) {
             String schemaName = (String) view.get(Constants.DB_COLUMN_SCHEMA_NAME);
             String viewName = (String) view.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-            
+
             ObjectNode selectGrant = objectMapper.createObjectNode();
             selectGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT SELECT ON [%s].[%s] TO [$USER]", schemaName, viewName));
             viewGrants.add(selectGrant);
         }
-        
+
         // For procedures - create permission templates for each procedure
         List<Map<String, Object>> procedures = jdbcTemplate.queryForList(
                 "SELECT SCHEMA_NAME(schema_id) as schema_name, name as procedure_name FROM sys.procedures");
-        
+
         for (Map<String, Object> procedure : procedures) {
             String schemaName = (String) procedure.get(Constants.DB_COLUMN_SCHEMA_NAME);
             String procedureName = (String) procedure.get(Constants.INFORMATION_SCHEMA_TABLE_NAME);
-            
+
             ObjectNode executeGrant = objectMapper.createObjectNode();
             executeGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
                     String.format("GRANT EXECUTE ON [%s].[%s] TO [$USER]", schemaName, procedureName));
             procedureGrants.add(executeGrant);
         }
 
-        // Add database-level role memberships (matching the predefined templates in the database)
+        // Add database-level role memberships (matching the predefined templates in the
+        // database)
         ObjectNode fullAccessRole = objectMapper.createObjectNode();
         fullAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "ALTER ROLE [db_owner] ADD MEMBER [$USER]");
         databaseGrants.add(fullAccessRole);
 
         ObjectNode readAccessRole = objectMapper.createObjectNode();
-        readAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "ALTER ROLE [db_datareader] ADD MEMBER [$USER]");
+        readAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                "ALTER ROLE [db_datareader] ADD MEMBER [$USER]");
         databaseGrants.add(readAccessRole);
 
         ObjectNode writeAccessRole = objectMapper.createObjectNode();
-        writeAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, "ALTER ROLE [db_datawriter] ADD MEMBER [$USER]");
+        writeAccessRole.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE,
+                "ALTER ROLE [db_datawriter] ADD MEMBER [$USER]");
         databaseGrants.add(writeAccessRole);
 
         // Fetch user-defined schemas (excluding system schemas)
         List<Map<String, Object>> schemas = jdbcTemplate.queryForList(
                 "SELECT name FROM sys.schemas WHERE name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys', " +
-                "'db_owner', 'db_accessadmin', 'db_securityadmin', 'db_ddladmin', 'db_backupoperator', " +
-                "'db_datareader', 'db_datawriter', 'db_denydatareader', 'db_denydatawriter')");
-        
+                        "'db_owner', 'db_accessadmin', 'db_securityadmin', 'db_ddladmin', 'db_backupoperator', " +
+                        "'db_datareader', 'db_datawriter', 'db_denydatareader', 'db_denydatawriter')");
+
         // Always include 'dbo' as it's the default schema users work with
         databaseData.add(Constants.SQLSERVER_SCHEMA_DBO);
-        
+
         // Add any custom schemas
         for (Map<String, Object> schema : schemas) {
             String schemaName = (String) schema.get("name");
@@ -820,8 +832,11 @@ public class DatabaseAccessService {
                     if (!CommonUtils.isValidUsername(devCredential.getUsername())) {
                         throw new IllegalArgumentException("Invalid username: " + devCredential.getUsername());
                     }
-                    String escapedSqlServerUsername = CommonUtils.escapeSqlServerIdentifier(devCredential.getUsername());
-                    String alterLoginSqlTemplate = "ALTER LOGIN [" + escapedSqlServerUsername + "] WITH PASSWORD = ? OLD_PASSWORD = ?"; // NOSONAR java:S2077 - identifier is validated and safely escaped
+                    String escapedSqlServerUsername = CommonUtils
+                            .escapeSqlServerIdentifier(devCredential.getUsername());
+                    String alterLoginSqlTemplate = "ALTER LOGIN [" + escapedSqlServerUsername
+                            + "] WITH PASSWORD = ? OLD_PASSWORD = ?"; // NOSONAR java:S2077 - identifier is validated
+                                                                      // and safely escaped
                     try (PreparedStatement ps = connection.prepareStatement(alterLoginSqlTemplate)) {
                         ps.setString(1, newPassword);
                         ps.setString(2, devCredential.getPassword());
@@ -832,7 +847,9 @@ public class DatabaseAccessService {
 
                 default:
                     throw new DatabaseAccessException(
-                            Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + devCredential.getAsset().getDatabaseType(), null);
+                            Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE)
+                                    + devCredential.getAsset().getDatabaseType(),
+                            null);
             }
             devCredential.setPassword(CommonUtils.encrypt(userKey, newPassword));
             devCredential.setIsTemporaryPassword(false);
@@ -861,15 +878,15 @@ public class DatabaseAccessService {
             throw new DatabaseAccessException(Constants.getMessage("error.connecting.to.database"), e);
         }
     }
-    
+
     private boolean shouldExecuteAccessSql(AccessRequest accessRequest) {
         return accessRequest != null && accessRequest.getAccessSql() != null;
     }
-    
-    private void executeAccessSqlStatements(Connection connection, AccessRequest accessRequest, 
+
+    private void executeAccessSqlStatements(Connection connection, AccessRequest accessRequest,
             AssetCredential credential, String username) throws SQLException {
         String[] sqlStatements = prepareSqlStatements(accessRequest, credential, username);
-        
+
         for (String sql : sqlStatements) {
             sql = sql.trim();
             if (!sql.isEmpty()) {
@@ -877,11 +894,12 @@ public class DatabaseAccessService {
             }
         }
     }
-    
+
     private String[] prepareSqlStatements(AccessRequest accessRequest, AssetCredential credential, String username) {
         // Get the appropriate schema name based on database type
-        String schemaName = getDefaultSchemaName(credential.getAsset().getDatabaseType(), credential.getAsset().getDatabaseName());
-        
+        String schemaName = getDefaultSchemaName(credential.getAsset().getDatabaseType(),
+                credential.getAsset().getDatabaseName());
+
         // Split SQL statements by semicolon and execute each one
         return accessRequest.getAccessSql()
                 .replace("$USER", username)
@@ -889,7 +907,7 @@ public class DatabaseAccessService {
                 .replace("$SCHEMA", schemaName)
                 .split(";");
     }
-    
+
     private void executeSingleStatement(Connection connection, String sql) throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             log.info("Executing SQL: {}", sql);
@@ -898,22 +916,24 @@ public class DatabaseAccessService {
             handleSqlExecutionError(sql, e);
         }
     }
-    
+
     private void handleSqlExecutionError(String sql, SQLException e) throws SQLException {
         if (isObjectNotFoundError(e)) {
             log.error("SQL execution failed - object not found. SQL: {}, Error: {}", sql, e.getMessage());
             throw new DatabaseAccessException(
-                String.format("Failed to execute SQL: %s. The referenced object may not exist in the database. " +
-                            "Please verify that all tables, views, and other database objects referenced in the access request exist.", sql), e);
+                    String.format("Failed to execute SQL: %s. The referenced object may not exist in the database. " +
+                            "Please verify that all tables, views, and other database objects referenced in the access request exist.",
+                            sql),
+                    e);
         } else {
             log.error("SQL execution failed. SQL: {}, Error: {}", sql, e.getMessage());
             throw e;
         }
     }
-    
+
     private boolean isObjectNotFoundError(SQLException e) {
-        return e.getMessage().contains(Constants.SQL_ERROR_OBJECT_NOT_FOUND) || 
-               e.getMessage().contains(Constants.SQL_ERROR_DOES_NOT_EXIST);
+        return e.getMessage().contains(Constants.SQL_ERROR_OBJECT_NOT_FOUND) ||
+                e.getMessage().contains(Constants.SQL_ERROR_DOES_NOT_EXIST);
     }
 
     private String getCheckUserSql(DatabaseType databaseType) {
@@ -927,7 +947,8 @@ public class DatabaseAccessService {
             case SQLSERVER:
                 return "SELECT * FROM sys.database_principals WHERE name = ? AND type = 'S'";
             default:
-                throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
+                throw new DatabaseAccessException(
+                        Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
         }
     }
 
@@ -942,7 +963,8 @@ public class DatabaseAccessService {
             case SQLSERVER:
                 return "CREATE LOGIN ? WITH PASSWORD = ?";
             default:
-                throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
+                throw new DatabaseAccessException(
+                        Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
         }
     }
 
@@ -961,12 +983,164 @@ public class DatabaseAccessService {
         }
     }
 
-    private String generateUniqueUsername(String name) {
+    /**
+     * Generate a unique username based on the provided name and asset
+     * Checks against existing users for the specific asset to ensure uniqueness
+     */
+    private String generateUniqueUsername(String name, Asset asset) {
         // Remove spaces and special characters
         String baseUsername = name.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
-        // Generate random 4-digit number using SecureRandom
-        int randomNum = secureRandom.nextInt(9000) + 1000;
-        return baseUsername + randomNum;
+
+        // Get existing usernames for this asset
+        Set<String> existingUsernames = getExistingUsernamesForAsset(asset);
+
+        // Generate unique username
+        String username = baseUsername;
+        int counter = 1000;
+        username = baseUsername + System.currentTimeMillis() % 10000;
+        
+        while (existingUsernames.contains(username)) {
+            username = baseUsername + counter;
+            counter++;
+
+            // Prevent infinite loop
+            if (counter > 9999) {
+                // Use timestamp as fallback
+                username = baseUsername + System.currentTimeMillis() % 10000;
+                break;
+            }
+        }
+
+        return username;
+    }
+
+    /**
+     * Get existing usernames for a specific asset
+     */
+    private Set<String> getExistingUsernamesForAsset(Asset asset) {
+        Set<String> existingUsernames = new HashSet<>();
+
+        try {
+            // Get all credentials for this asset
+            List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(asset.getId());
+
+            for (AssetCredential credential : credentials) {
+                processCredentialForUsernameCollection(credential, asset, existingUsernames);
+            }
+
+        } catch (Exception e) {
+            log.warn("Error getting existing usernames for asset {}: {}", asset.getId(), e.getMessage());
+        }
+
+        return existingUsernames;
+    }
+
+    /**
+     * Process a single credential to collect existing usernames for an asset
+     */
+    private void processCredentialForUsernameCollection(AssetCredential credential, Asset asset, Set<String> existingUsernames) {
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
+            DatabaseType databaseType = asset.getDatabaseType();
+
+            switch (databaseType) {
+                case MYSQL:
+                    existingUsernames.addAll(getMySQLUsernames(connection, credential.getUsername()));
+                    break;
+                case POSTGRESQL:
+                    existingUsernames.addAll(getPostgreSQLUsernames(connection, credential.getUsername()));
+                    break;
+                case SQLSERVER:
+                    existingUsernames.addAll(getSQLServerUsernames(connection, credential.getUsername()));
+                    break;
+                case ORACLE:
+                    existingUsernames.addAll(getOracleUsernames(connection, credential.getUsername()));
+                    break;
+                default:
+                    log.warn("Unsupported database type for username checking: {}", databaseType);
+            }
+        } catch (SQLException e) {
+            log.warn("Error getting usernames for asset {}: {}", asset.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Get MySQL usernames that match the pattern
+     */
+    private Set<String> getMySQLUsernames(Connection connection, String baseUsername) throws SQLException {
+        Set<String> usernames = new HashSet<>();
+        String query = "SELECT User FROM mysql.user WHERE User LIKE ? AND Host = '%'";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, baseUsername + "%");
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    usernames.add(rs.getString("User"));
+                }
+            }
+        }
+
+        return usernames;
+    }
+
+    /**
+     * Get PostgreSQL usernames that match the pattern
+     */
+    private Set<String> getPostgreSQLUsernames(Connection connection, String baseUsername) throws SQLException {
+        Set<String> usernames = new HashSet<>();
+        String query = "SELECT usename FROM pg_user WHERE usename LIKE ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, baseUsername + "%");
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    usernames.add(rs.getString("usename"));
+                }
+            }
+        }
+
+        return usernames;
+    }
+
+    /**
+     * Get SQL Server usernames that match the pattern
+     */
+    private Set<String> getSQLServerUsernames(Connection connection, String baseUsername) throws SQLException {
+        Set<String> usernames = new HashSet<>();
+        String query = "SELECT name FROM sys.database_principals WHERE name LIKE ? AND type = 'S'";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, baseUsername + "%");
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    usernames.add(rs.getString("name"));
+                }
+            }
+        }
+
+        return usernames;
+    }
+
+    /**
+     * Get Oracle usernames that match the pattern
+     */
+    private Set<String> getOracleUsernames(Connection connection, String baseUsername) throws SQLException {
+        Set<String> usernames = new HashSet<>();
+        String query = "SELECT username FROM all_users WHERE username LIKE ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, baseUsername.toUpperCase() + "%");
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    usernames.add(rs.getString("username").toLowerCase());
+                }
+            }
+        }
+
+        return usernames;
     }
 
     private String generateRandomPassword() {
@@ -989,7 +1163,7 @@ public class DatabaseAccessService {
 
         String username = requestor.getEmail().split("@")[0];
         if (existUsername.isEmpty()) {
-            username = generateUniqueUsername(username);
+            username = generateUniqueUsername(username, credential.getAsset());
 
             // Check if user exists
             String checkUserSql = getCheckUserSql(credential.getAsset().getDatabaseType());
@@ -1009,9 +1183,19 @@ public class DatabaseAccessService {
                         throw new IllegalArgumentException("Invalid username: " + username);
                     }
                     String escapedPgUsername = CommonUtils.escapePostgresqlIdentifier(username);
-                    String createUserTemplate = "CREATE USER \"" + escapedPgUsername + "\" WITH PASSWORD ?"; // NOSONAR java:S2077 - identifier is validated and safely escaped
+                    // Securely escape password for PostgreSQL CREATE USER statement
+                    String escapedPassword = escapePostgreSQLPassword(password);
+                    String createUserTemplate = "CREATE USER \"" + escapedPgUsername + "\" WITH PASSWORD '"
+                            + escapedPassword + "'"; // NOSONAR
+                    // java:S2077
+                    // -
+                    // identifier
+                    // is
+                    // validated
+                    // and
+                    // safely
+                    // escaped
                     try (PreparedStatement stmt = connection.prepareStatement(createUserTemplate)) {
-                        stmt.setString(1, password);
                         stmt.executeUpdate();
                     }
                 } else {
@@ -1046,7 +1230,9 @@ public class DatabaseAccessService {
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
 
-        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(ownerCredential)) { // Use owner's connection
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(ownerCredential)) { // Use
+                                                                                                                  // owner's
+                                                                                                                  // connection
             String revokeUserSql;
             PreparedStatement statement;
 
@@ -1067,26 +1253,33 @@ public class DatabaseAccessService {
 
                 case POSTGRESQL:
                     // PostgreSQL doesn't support parameter binding for identifiers in DDL.
-                    // Validate and escape identifier; build static template; no user-controllable SQL parts remain.
+                    // Validate and escape identifier; build static template; no user-controllable
+                    // SQL parts remain.
                     if (!CommonUtils.isValidUsername(credential.getUsername())) {
                         throw new IllegalArgumentException("Invalid username: " + credential.getUsername());
                     }
                     String escapedPgUser = CommonUtils.escapePostgresqlIdentifier(credential.getUsername());
                     // Revoke all privileges from all tables
                     try (Statement stmt = connection.createStatement()) {
-                        String revokeTables = String.format("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, escapedPgUser); // NOSONAR java:S2077 - identifier validated and escaped
+                        String revokeTables = String.format(
+                                "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s FROM \"%s\"",
+                                Constants.POSTGRES_SCHEMA_PUBLIC, escapedPgUser); // NOSONAR java:S2077 - identifier
+                                                                                  // validated and escaped
                         stmt.execute(revokeTables);
                     }
 
                     // Revoke all privileges from all sequences
                     try (Statement stmt = connection.createStatement()) {
-                        String revokeSeq = String.format("REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %s FROM \"%s\"", Constants.POSTGRES_SCHEMA_PUBLIC, escapedPgUser); // NOSONAR java:S2077
+                        String revokeSeq = String.format(
+                                "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %s FROM \"%s\"",
+                                Constants.POSTGRES_SCHEMA_PUBLIC, escapedPgUser); // NOSONAR java:S2077
                         stmt.execute(revokeSeq);
                     }
 
                     // Drop the user
                     try (Statement stmt = connection.createStatement()) {
-                        String dropUser = String.format("DROP USER IF EXISTS \"%s\"", escapedPgUser); // NOSONAR java:S2077
+                        String dropUser = String.format("DROP USER IF EXISTS \"%s\"", escapedPgUser); // NOSONAR
+                                                                                                      // java:S2077
                         stmt.execute(dropUser);
                     }
                     break;
@@ -1119,7 +1312,9 @@ public class DatabaseAccessService {
 
                 default:
                     throw new DatabaseAccessException(
-                            Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + credential.getAsset().getDatabaseType(), null);
+                            Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE)
+                                    + credential.getAsset().getDatabaseType(),
+                            null);
             }
 
             log.info("Successfully revoked access and dropped user: {}", credential.getUsername());
@@ -1132,13 +1327,15 @@ public class DatabaseAccessService {
     /**
      * Drops a SQL Server database user.
      * 
-     * @param connection the database connection
+     * @param connection        the database connection
      * @param sqlServerUsername the escaped SQL Server username
-     * @param originalUsername the original username for logging
+     * @param originalUsername  the original username for logging
      */
     private void dropSqlServerUser(Connection connection, String sqlServerUsername, String originalUsername) {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute(String.format("DROP USER IF EXISTS [%s]", sqlServerUsername)); // NOSONAR java:S2077 - identifier validated and safely escaped
+            stmt.execute(String.format("DROP USER IF EXISTS [%s]", sqlServerUsername)); // NOSONAR java:S2077 -
+                                                                                        // identifier validated and
+                                                                                        // safely escaped
             log.info("Dropped SQL Server user: {}", originalUsername);
         } catch (SQLException e) {
             log.warn("Failed to drop SQL Server user {}: {}", originalUsername, e.getMessage());
@@ -1148,13 +1345,14 @@ public class DatabaseAccessService {
     /**
      * Drops a SQL Server login.
      * 
-     * @param connection the database connection
+     * @param connection        the database connection
      * @param sqlServerUsername the escaped SQL Server username
-     * @param originalUsername the original username for logging
+     * @param originalUsername  the original username for logging
      */
     private void dropSqlServerLogin(Connection connection, String sqlServerUsername, String originalUsername) {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute(String.format("DROP LOGIN [%s]", sqlServerUsername)); // NOSONAR java:S2077 - identifier validated and safely escaped
+            stmt.execute(String.format("DROP LOGIN [%s]", sqlServerUsername)); // NOSONAR java:S2077 - identifier
+                                                                               // validated and safely escaped
             log.info("Dropped SQL Server login: {}", originalUsername);
         } catch (SQLException e) {
             log.warn("Failed to drop SQL Server login {}: {}", originalUsername, e.getMessage());
@@ -1162,43 +1360,47 @@ public class DatabaseAccessService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest)
+    public Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query,
+            boolean isChangeRequest)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
         return executeQueryWithCredentials(credential, query, isChangeRequest, false);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Map<String, Object> executeQueryWithCredentialsDryRun(AssetCredential credential, String query, boolean isChangeRequest)
+    public Map<String, Object> executeQueryWithCredentialsDryRun(AssetCredential credential, String query,
+            boolean isChangeRequest)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
         return executeQueryWithCredentials(credential, query, isChangeRequest, true);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query, boolean isChangeRequest, boolean isDryRun)
+    protected Map<String, Object> executeQueryWithCredentials(AssetCredential credential, String query,
+            boolean isChangeRequest, boolean isDryRun)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
-        
+
         String decryptedPassword = getDecryptedPassword(credential, query);
         String jdbcUrl = databaseConnectionUtils.buildJdbcUrl(credential.getAsset());
-        
-        try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
+
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(),
+                decryptedPassword)) {
             String preparedQuery = prepareQueryForExecution(query, isChangeRequest, isDryRun, credential.getAsset());
             List<Map<String, Object>> allResults = executeAllQueries(connection, preparedQuery, isChangeRequest);
-            
+
             return createFinalResult(allResults);
-            
+
         } catch (SQLException e) {
             log.error("Error connecting to database: {}", jdbcUrl, e);
             throw new DatabaseAccessException("Error connecting to database: " + e.getMessage(), e);
         }
     }
 
-    private String getDecryptedPassword(AssetCredential credential, String query) 
+    private String getDecryptedPassword(AssetCredential credential, String query)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
-        
+
         if (credential.getIsTemporaryPassword()) {
             log.error(Constants.getMessage("error.temp.password.query") + query);
             throw new DatabaseAccessException(Constants.getMessage("error.temp.password.query") + query, null);
@@ -1209,27 +1411,31 @@ public class DatabaseAccessService {
 
     private String prepareQueryForExecution(String query, boolean isChangeRequest, boolean isDryRun, Asset asset) {
         String modifiedQuery = query;
-        
+
         // Add LIMIT clause for SELECT queries if recordCountLimit is set
         if (asset != null && asset.getRecordCountLimit() != null && asset.getRecordCountLimit() > 0) {
             modifiedQuery = addLimitClauseToSelectQueries(modifiedQuery, asset.getRecordCountLimit());
         }
-        
+
         if (!isChangeRequest) {
             return modifiedQuery;
         }
-        
+
         modifiedQuery = Constants.SQL_TRANSACTION_START + "; " + modifiedQuery;
         if (isDryRun) {
-            modifiedQuery += modifiedQuery.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_ROLLBACK_SUFFIX : "; " + Constants.SQL_TRANSACTION_ROLLBACK;
+            modifiedQuery += modifiedQuery.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR)
+                    ? Constants.SQL_ROLLBACK_SUFFIX
+                    : "; " + Constants.SQL_TRANSACTION_ROLLBACK;
             log.debug("Dry run query: {}", modifiedQuery);
         } else {
-            modifiedQuery += modifiedQuery.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_COMMIT_SUFFIX : "; " + Constants.SQL_TRANSACTION_COMMIT;
+            modifiedQuery += modifiedQuery.trim().endsWith(Constants.SQL_STATEMENT_SEPARATOR)
+                    ? Constants.SQL_COMMIT_SUFFIX
+                    : "; " + Constants.SQL_TRANSACTION_COMMIT;
             log.debug("Execution query: {}", modifiedQuery);
         }
         return modifiedQuery;
     }
-    
+
     /**
      * Add LIMIT clause to SELECT queries based on asset's recordCountLimit
      */
@@ -1237,51 +1443,51 @@ public class DatabaseAccessService {
         if (query == null || query.trim().isEmpty()) {
             return query;
         }
-        
+
         // Split query by semicolon to handle multiple statements
         String[] queries = query.split(";");
         StringBuilder modifiedQuery = new StringBuilder();
-        
+
         for (int i = 0; i < queries.length; i++) {
             String individualQuery = queries[i].trim();
             if (!individualQuery.isEmpty()) {
                 if (i > 0) {
                     modifiedQuery.append("; ");
                 }
-                
                 // Check if this query should have LIMIT clause applied (only SELECT queries)
                 if (shouldApplyLimit(individualQuery.toUpperCase())) {
                     individualQuery = addLimitToSelectQuery(individualQuery, recordCountLimit);
                 }
-                
+
                 modifiedQuery.append(individualQuery);
             }
         }
-        
+
         return modifiedQuery.toString();
     }
-    
+
     /**
      * Add LIMIT clause to a single SELECT query
      */
     private String addLimitToSelectQuery(String query, Integer recordCountLimit) {
         String upperQuery = query.toUpperCase().trim();
-        
+
         // Check if LIMIT clause already exists
         if (upperQuery.contains(" " + Constants.SQL_KEYWORD_LIMIT + " ")) {
             log.debug("Query already contains LIMIT clause, skipping: {}", query);
             return query;
         }
-        
+
         // Add LIMIT clause at the end of the query
         String modifiedQuery = query.trim();
         if (!modifiedQuery.endsWith(";")) {
             modifiedQuery += " " + Constants.SQL_KEYWORD_LIMIT + " " + recordCountLimit;
         } else {
             // Insert LIMIT before the semicolon
-            modifiedQuery = modifiedQuery.substring(0, modifiedQuery.length() - 1) + " " + Constants.SQL_KEYWORD_LIMIT + " " + recordCountLimit + ";";
+            modifiedQuery = modifiedQuery.substring(0, modifiedQuery.length() - 1) + " " + Constants.SQL_KEYWORD_LIMIT
+                    + " " + recordCountLimit + ";";
         }
-        
+
         log.debug("Added LIMIT {} to query: {}", recordCountLimit, modifiedQuery);
         return modifiedQuery;
     }
@@ -1289,7 +1495,7 @@ public class DatabaseAccessService {
     private List<Map<String, Object>> executeAllQueries(Connection connection, String query, boolean isChangeRequest) {
         String[] individualQueries = query.split(";");
         List<Map<String, Object>> allResults = new ArrayList<>();
-        
+
         for (String individualQuery : individualQueries) {
             String trimmedQuery = individualQuery.trim();
             if (!trimmedQuery.isEmpty()) {
@@ -1297,17 +1503,17 @@ public class DatabaseAccessService {
                 allResults.add(queryResult);
             }
         }
-        
+
         return allResults;
     }
 
     private Map<String, Object> executeIndividualQuery(Connection connection, String query, boolean isChangeRequest) {
         log.debug("Executing individual query: {}", query);
-        
+
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             QueryType queryType = determineQueryType(query);
             return processQueryExecution(statement, query, queryType);
-            
+
         } catch (SQLException e) {
             log.error("Error executing individual query: {}", query, e);
             return handleQueryError(query, e, isChangeRequest);
@@ -1316,7 +1522,7 @@ public class DatabaseAccessService {
 
     private QueryType determineQueryType(String query) {
         String upperQuery = query.toUpperCase();
-        
+
         if (isSelectQuery(upperQuery)) {
             return QueryType.SELECT;
         } else if (isTransactionControl(upperQuery)) {
@@ -1327,13 +1533,13 @@ public class DatabaseAccessService {
     }
 
     private boolean isSelectQuery(String upperQuery) {
-        return upperQuery.startsWith(Constants.MYSQL_QUERY_SELECT) || 
-               upperQuery.startsWith(Constants.MYSQL_QUERY_SHOW) || 
-               upperQuery.startsWith(Constants.MYSQL_QUERY_DESCRIBE) || 
-               upperQuery.startsWith(Constants.MYSQL_QUERY_DESC) ||
-               upperQuery.startsWith(Constants.MYSQL_QUERY_EXPLAIN);
+        return upperQuery.startsWith(Constants.MYSQL_QUERY_SELECT) ||
+                upperQuery.startsWith(Constants.MYSQL_QUERY_SHOW) ||
+                upperQuery.startsWith(Constants.MYSQL_QUERY_DESCRIBE) ||
+                upperQuery.startsWith(Constants.MYSQL_QUERY_DESC) ||
+                upperQuery.startsWith(Constants.MYSQL_QUERY_EXPLAIN);
     }
-    
+
     /**
      * Check if query should have LIMIT clause applied (only SELECT queries)
      */
@@ -1342,15 +1548,15 @@ public class DatabaseAccessService {
     }
 
     private boolean isTransactionControl(String upperQuery) {
-        return upperQuery.startsWith(Constants.SQL_TRANSACTION_START) || 
-               upperQuery.startsWith(Constants.SQL_TRANSACTION_COMMIT) || 
-               upperQuery.startsWith(Constants.SQL_TRANSACTION_ROLLBACK) ||
-               upperQuery.startsWith(Constants.SQL_TRANSACTION_BEGIN);
+        return upperQuery.startsWith(Constants.SQL_TRANSACTION_START) ||
+                upperQuery.startsWith(Constants.SQL_TRANSACTION_COMMIT) ||
+                upperQuery.startsWith(Constants.SQL_TRANSACTION_ROLLBACK) ||
+                upperQuery.startsWith(Constants.SQL_TRANSACTION_BEGIN);
     }
 
-    private Map<String, Object> processQueryExecution(PreparedStatement statement, String query, QueryType queryType) 
+    private Map<String, Object> processQueryExecution(PreparedStatement statement, String query, QueryType queryType)
             throws SQLException {
-        
+
         switch (queryType) {
             case SELECT:
                 return executeSelectQuery(statement, query);
@@ -1364,21 +1570,21 @@ public class DatabaseAccessService {
     }
 
     private Map<String, Object> executeSelectQuery(PreparedStatement statement, String query) throws SQLException {
-                    try (ResultSet resultSet = statement.executeQuery()) {
-                        ResultSetMetaData metaData = resultSet.getMetaData();
+        try (ResultSet resultSet = statement.executeQuery()) {
+            ResultSetMetaData metaData = resultSet.getMetaData();
             List<String> headers = extractHeaders(metaData);
             List<Map<String, Object>> data = extractData(resultSet, metaData);
-            
-            
             return createQueryResult(query, headers, data);
         }
     }
 
-    private Map<String, Object> executeTransactionControl(PreparedStatement statement, String query) throws SQLException {
+    private Map<String, Object> executeTransactionControl(PreparedStatement statement, String query)
+            throws SQLException {
         statement.executeUpdate();
         List<String> headers = List.of(Constants.QUERY_RESULT_STATUS_HEADER);
-        List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_STATUS_HEADER, query.toUpperCase() + Constants.QUERY_RESULT_EXECUTED_SUCCESSFULLY));
-        
+        List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_STATUS_HEADER,
+                query.toUpperCase() + Constants.QUERY_RESULT_EXECUTED_SUCCESSFULLY));
+
         return createQueryResult(query, headers, data);
     }
 
@@ -1386,35 +1592,35 @@ public class DatabaseAccessService {
         int affectedRows = statement.executeUpdate();
         List<String> headers = List.of(Constants.QUERY_RESULT_AFFECTED_ROWS_HEADER);
         List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_AFFECTED_ROWS_HEADER, affectedRows));
-        
+
         return createQueryResult(query, headers, data);
     }
 
     private List<String> extractHeaders(ResultSetMetaData metaData) throws SQLException {
         List<String> headers = new ArrayList<>();
-                        int columnCount = metaData.getColumnCount();
-                        
-                        for (int i = 1; i <= columnCount; i++) {
+        int columnCount = metaData.getColumnCount();
+
+        for (int i = 1; i <= columnCount; i++) {
             headers.add(metaData.getColumnName(i));
         }
-        
+
         return headers;
-                        }
-                        
+    }
+
     private List<Map<String, Object>> extractData(ResultSet resultSet, ResultSetMetaData metaData) throws SQLException {
         List<Map<String, Object>> data = new ArrayList<>();
         int columnCount = metaData.getColumnCount();
-        
-                        while (resultSet.next()) {
-                            Map<String, Object> row = new HashMap<>();
-                            for (int i = 1; i <= columnCount; i++) {
-                                String columnName = metaData.getColumnName(i);
-                                Object value = resultSet.getObject(i);
-                                row.put(columnName, value);
-                            }
-                            data.add(row);
-                        }
-        
+
+        while (resultSet.next()) {
+            Map<String, Object> row = new HashMap<>();
+            for (int i = 1; i <= columnCount; i++) {
+                String columnName = metaData.getColumnName(i);
+                Object value = resultSet.getObject(i);
+                row.put(columnName, value);
+            }
+            data.add(row);
+        }
+
         return data;
     }
 
@@ -1432,11 +1638,11 @@ public class DatabaseAccessService {
         errorResult.put("headers", List.of(Constants.QUERY_RESULT_ERROR_HEADER));
         errorResult.put("data", List.of(Map.of(Constants.QUERY_RESULT_ERROR_HEADER, e.getMessage())));
         errorResult.put("hasError", true);
-        
+
         if (!isChangeRequest) {
             throw new DatabaseAccessException(Constants.getMessage("error.executing.query") + e.getMessage(), e);
         }
-        
+
         return errorResult;
     }
 
@@ -1455,36 +1661,38 @@ public class DatabaseAccessService {
 
     /**
      * Fetch actual user access information by querying the target database directly
-     * This method provides real-time information about database users and their permissions
+     * This method provides real-time information about database users and their
+     * permissions
      * 
-     * @param asset The asset containing database connection information
+     * @param asset           The asset containing database connection information
      * @param adminCredential The credential to use for database connection
-     * @return AssetAccessDTO containing all users and their permissions in the database
+     * @return AssetAccessDTO containing all users and their permissions in the
+     *         database
      * @throws DatabaseAccessException for database connection or access issues
      */
     public AssetAccessDTO fetchAssetUserAccess(Asset asset, AssetCredential adminCredential) {
-        
-        log.info("=== Starting fetchAssetUserAccess for asset: {} (ID: {}) ===", 
+
+        log.info("=== Starting fetchAssetUserAccess for asset: {} (ID: {}) ===",
                 asset.getName(), asset.getId());
         log.info("Using credential username: {}", adminCredential.getUsername());
-        
+
         // Validate inputs
         validateInputs(asset, adminCredential);
-        
+
         String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(adminCredential);
-        
+
         // Create temporary credential for connection
-        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential, decryptedPassword);
-        
+        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential,
+                decryptedPassword);
+
         List<UserAccessDTO> users = fetchUsersByDatabaseType(asset, tempCredential);
-        
+
         log.info("Successfully fetched access information for {} users", users.size());
         return new AssetAccessDTO(
-            asset.getId(),
-            asset.getName(),
-            asset.getDatabaseType().toString(),
-            users
-        );
+                asset.getId(),
+                asset.getName(),
+                asset.getDatabaseType().toString(),
+                users);
     }
 
     /**
@@ -1494,11 +1702,11 @@ public class DatabaseAccessService {
         if (asset == null) {
             throw new DatabaseAccessException(Constants.getMessage("error.asset.cannot.be.null"), null);
         }
-        
+
         if (adminCredential == null) {
             throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
         }
-        
+
         if (!databaseConnectionUtils.hasValidPassword(adminCredential)) {
             log.warn("Credential ID: {} has no password", adminCredential.getId());
             throw new DatabaseAccessException(Constants.getMessage("error.user.no.access.to.asset"), null);
@@ -1511,20 +1719,21 @@ public class DatabaseAccessService {
     private List<UserAccessDTO> fetchUsersByDatabaseType(Asset asset, AssetCredential tempCredential) {
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
             log.debug("Successfully connected to database: {}", asset.getDatabaseType());
-            
+
             DatabaseUserAccessFetcher fetcher = switch (asset.getDatabaseType()) {
                 case MYSQL -> new MySQLUserAccessFetcher();
                 case POSTGRESQL -> new PostgreSQLUserAccessFetcher();
                 case SQLSERVER -> new SQLServerUserAccessFetcher();
                 case ORACLE -> new OracleUserAccessFetcher();
                 default -> throw new DatabaseAccessException(
-                        Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + asset.getDatabaseType(), null);
+                        Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + asset.getDatabaseType(),
+                        null);
             };
-            
+
             return fetcher.fetchUserAccess(connection, asset.getDatabaseName());
         } catch (SQLException e) {
-            log.error("Database connection or query error for asset ID: {} - {}", 
-                     asset.getId(), e.getMessage());
+            log.error("Database connection or query error for asset ID: {} - {}",
+                    asset.getId(), e.getMessage());
             throw new DatabaseAccessException(Constants.getMessage("error.failed.to.connect.to.database"), e);
         }
     }
@@ -1533,42 +1742,44 @@ public class DatabaseAccessService {
      * CRITICAL SECURITY OPERATION: Lock out users in the asset database
      * This method is coded defensively to prevent any security vulnerabilities
      * 
-     * @param asset The asset containing database connection information
+     * @param asset           The asset containing database connection information
      * @param adminCredential The admin credential to use for the operation
-     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrid users.
+     * @param lockAllUsers    If true, locks all database users. If false, only
+     *                        locks Hagrid users.
      * @return Map containing operation results and statistics
      * @throws DatabaseAccessException for any database operation errors
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Map<String, Object> lockoutAssetUsers(Asset asset, AssetCredential adminCredential, boolean lockAllUsers) {
         log.error("=== CRITICAL SECURITY OPERATION: Database user lockout starting ===");
-        log.error("Asset: {} (ID: {}), Database: {}, Lock all users: {}", 
-                 asset.getName(), asset.getId(), asset.getDatabaseType(), lockAllUsers);
-        
+        log.error("Asset: {} (ID: {}), Database: {}, Lock all users: {}",
+                asset.getName(), asset.getId(), asset.getDatabaseType(), lockAllUsers);
+
         validateLockoutInputs(asset, adminCredential);
-        
+
         String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(adminCredential);
-        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential, decryptedPassword);
-        
+        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential,
+                decryptedPassword);
+
         Map<String, Object> result = new HashMap<>();
         List<String> lockedUsers = new ArrayList<>();
         List<String> failedUsers = new ArrayList<>();
         List<String> skippedUsers = new ArrayList<>();
-        
+
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
             List<String> usersToLock = getUsersToLock(connection, asset, lockAllUsers);
             String currentAdminUser = adminCredential.getUsername();
-            
-            log.warn("Found {} users to potentially lock. Admin user '{}' will be protected.", 
+
+            log.warn("Found {} users to potentially lock. Admin user '{}' will be protected.",
                     usersToLock.size(), currentAdminUser);
-            
+
             for (String username : usersToLock) {
                 if (isProtectedUser(username, currentAdminUser, asset.getDatabaseType())) {
                     skippedUsers.add(username + " (protected)");
                     log.info("PROTECTED: Skipping admin/system user: {}", username);
                     continue;
                 }
-                
+
                 if (lockDatabaseUser(connection, username, asset.getDatabaseType())) {
                     lockedUsers.add(username);
                     log.warn("LOCKED: Successfully locked user: {}", username);
@@ -1577,7 +1788,7 @@ public class DatabaseAccessService {
                     log.error("FAILED: Could not lock user: {}", username);
                 }
             }
-            
+
             result.put("success", true);
             result.put("operation", "lockout");
             result.put("assetId", asset.getId());
@@ -1592,12 +1803,12 @@ public class DatabaseAccessService {
             result.put("lockedCount", lockedUsers.size());
             result.put("failedCount", failedUsers.size());
             result.put("skippedCount", skippedUsers.size());
-            
-            log.error("Lockout operation completed: {} locked, {} failed, {} skipped", 
-                     lockedUsers.size(), failedUsers.size(), skippedUsers.size());
-            
+
+            log.error("Lockout operation completed: {} locked, {} failed, {} skipped",
+                    lockedUsers.size(), failedUsers.size(), skippedUsers.size());
+
             return result;
-            
+
         } catch (SQLException e) {
             log.error("CRITICAL ERROR during user lockout for asset ID: {}", asset.getId(), e);
             throw new DatabaseAccessException(Constants.getMessage("error.failed.user.lockout") + e.getMessage(), e);
@@ -1608,35 +1819,37 @@ public class DatabaseAccessService {
      * CRITICAL SECURITY OPERATION: Unlock users in the asset database
      * This method is coded defensively to prevent any security vulnerabilities
      * 
-     * @param asset The asset containing database connection information
+     * @param asset           The asset containing database connection information
      * @param adminCredential The admin credential to use for the operation
-     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrid users.
+     * @param unlockAllUsers  If true, unlocks all database users. If false, only
+     *                        unlocks Hagrid users.
      * @return Map containing operation results and statistics
      * @throws DatabaseAccessException for any database operation errors
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Map<String, Object> unlockAssetUsers(Asset asset, AssetCredential adminCredential, boolean unlockAllUsers) {
         log.error("=== CRITICAL SECURITY OPERATION: Database user unlock starting ===");
-        log.error("Asset: {} (ID: {}), Database: {}, Unlock all users: {}", 
-                 asset.getName(), asset.getId(), asset.getDatabaseType(), unlockAllUsers);
-        
+        log.error("Asset: {} (ID: {}), Database: {}, Unlock all users: {}",
+                asset.getName(), asset.getId(), asset.getDatabaseType(), unlockAllUsers);
+
         validateLockoutInputs(asset, adminCredential);
-        
+
         String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(adminCredential);
-        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential, decryptedPassword);
-        
+        AssetCredential tempCredential = databaseConnectionUtils.createTempCredential(asset, adminCredential,
+                decryptedPassword);
+
         Map<String, Object> result = new HashMap<>();
         List<String> unlockedUsers = new ArrayList<>();
         List<String> failedUsers = new ArrayList<>();
         List<String> skippedUsers = new ArrayList<>();
-        
+
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
             List<String> usersToUnlock = getUsersToUnlock(connection, asset, unlockAllUsers);
             String currentAdminUser = adminCredential.getUsername();
-            
-            log.warn("Found {} users to potentially unlock. Admin user '{}' noted.", 
+
+            log.warn("Found {} users to potentially unlock. Admin user '{}' noted.",
                     usersToUnlock.size(), currentAdminUser);
-            
+
             for (String username : usersToUnlock) {
                 if (unlockDatabaseUser(connection, username, asset.getDatabaseType())) {
                     unlockedUsers.add(username);
@@ -1646,7 +1859,7 @@ public class DatabaseAccessService {
                     log.error("FAILED: Could not unlock user: {}", username);
                 }
             }
-            
+
             result.put("success", true);
             result.put("operation", "unlock");
             result.put("assetId", asset.getId());
@@ -1661,12 +1874,12 @@ public class DatabaseAccessService {
             result.put("unlockedCount", unlockedUsers.size());
             result.put("failedCount", failedUsers.size());
             result.put("skippedCount", skippedUsers.size());
-            
-            log.error("Unlock operation completed: {} unlocked, {} failed, {} skipped", 
-                     unlockedUsers.size(), failedUsers.size(), skippedUsers.size());
-            
+
+            log.error("Unlock operation completed: {} unlocked, {} failed, {} skipped",
+                    unlockedUsers.size(), failedUsers.size(), skippedUsers.size());
+
             return result;
-            
+
         } catch (SQLException e) {
             log.error("CRITICAL ERROR during user unlock for asset ID: {}", asset.getId(), e);
             throw new DatabaseAccessException(Constants.getMessage("error.failed.user.unlock") + e.getMessage(), e);
@@ -1680,15 +1893,15 @@ public class DatabaseAccessService {
         if (asset == null) {
             throw new IllegalArgumentException(Constants.getMessage("error.asset.cannot.be.null"));
         }
-        
+
         if (adminCredential == null) {
             throw new IllegalArgumentException(Constants.getMessage("error.admin.credential.cannot.be.null"));
         }
-        
+
         if (!databaseConnectionUtils.hasValidPassword(adminCredential)) {
             throw new SecurityException(Constants.getMessage("error.admin.credential.no.password"));
         }
-        
+
         if (asset.getDatabaseType() == null) {
             throw new IllegalArgumentException(Constants.getMessage("error.asset.database.type.null"));
         }
@@ -1708,7 +1921,8 @@ public class DatabaseAccessService {
     /**
      * Gets list of users to unlock based on the unlockAllUsers flag
      */
-    private List<String> getUsersToUnlock(Connection connection, Asset asset, boolean unlockAllUsers) throws SQLException {
+    private List<String> getUsersToUnlock(Connection connection, Asset asset, boolean unlockAllUsers)
+            throws SQLException {
         if (unlockAllUsers) {
             return getLockedDatabaseUsers(connection, asset.getDatabaseType());
         } else {
@@ -1721,13 +1935,17 @@ public class DatabaseAccessService {
      */
     private List<String> getAllDatabaseUsers(Connection connection, DatabaseType databaseType) throws SQLException {
         String query = switch (databaseType) {
-            case MYSQL -> "SELECT User FROM mysql.user WHERE User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
+            case MYSQL ->
+                "SELECT User FROM mysql.user WHERE User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
             case POSTGRESQL -> "SELECT usename FROM pg_user WHERE usename NOT LIKE 'pg_%' AND usename != 'postgres'";
-            case ORACLE -> "SELECT username FROM dba_users WHERE username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
-            case SQLSERVER -> "SELECT name FROM sys.database_principals WHERE type = 'S' AND name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys')";
-            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.user.listing") + databaseType, null);
+            case ORACLE ->
+                "SELECT username FROM dba_users WHERE username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
+            case SQLSERVER ->
+                "SELECT name FROM sys.database_principals WHERE type = 'S' AND name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys')";
+            default -> throw new DatabaseAccessException(
+                    Constants.getMessage("error.unsupported.db.type.user.listing") + databaseType, null);
         };
-        
+
         return executeUserQuery(connection, query);
     }
 
@@ -1736,13 +1954,18 @@ public class DatabaseAccessService {
      */
     private List<String> getLockedDatabaseUsers(Connection connection, DatabaseType databaseType) throws SQLException {
         String query = switch (databaseType) {
-            case MYSQL -> "SELECT User FROM mysql.user WHERE account_locked = 'Y' AND User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
-            case POSTGRESQL -> "SELECT usename FROM pg_user WHERE NOT usecanlogin AND usename NOT LIKE 'pg_%' AND usename != 'postgres'";
-            case ORACLE -> "SELECT username FROM dba_users WHERE account_status = 'LOCKED' AND username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
-            case SQLSERVER -> "SELECT name FROM sys.database_principals p JOIN sys.sql_logins l ON p.sid = l.sid WHERE l.is_disabled = 1 AND p.type = 'S'";
-            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.locked.user.listing") + databaseType, null);
+            case MYSQL ->
+                "SELECT User FROM mysql.user WHERE account_locked = 'Y' AND User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
+            case POSTGRESQL ->
+                "SELECT usename FROM pg_user WHERE NOT usecanlogin AND usename NOT LIKE 'pg_%' AND usename != 'postgres'";
+            case ORACLE ->
+                "SELECT username FROM dba_users WHERE account_status = 'LOCKED' AND username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
+            case SQLSERVER ->
+                "SELECT name FROM sys.database_principals p JOIN sys.sql_logins l ON p.sid = l.sid WHERE l.is_disabled = 1 AND p.type = 'S'";
+            default -> throw new DatabaseAccessException(
+                    Constants.getMessage("error.unsupported.db.type.locked.user.listing") + databaseType, null);
         };
-        
+
         return executeUserQuery(connection, query);
     }
 
@@ -1765,7 +1988,7 @@ public class DatabaseAccessService {
     private List<String> getLockedHagridUsers(Connection connection, Asset asset) throws SQLException {
         List<String> hagridUsers = getHagridUsers(asset);
         List<String> lockedUsers = getLockedDatabaseUsers(connection, asset.getDatabaseType());
-        
+
         return hagridUsers.stream()
                 .filter(lockedUsers::contains)
                 .toList();
@@ -1776,10 +1999,10 @@ public class DatabaseAccessService {
      */
     private List<String> executeUserQuery(Connection connection, String query) throws SQLException {
         List<String> users = new ArrayList<>();
-        
+
         try (PreparedStatement stmt = connection.prepareStatement(query);
-             ResultSet rs = stmt.executeQuery()) {
-            
+                ResultSet rs = stmt.executeQuery()) {
+
             while (rs.next()) {
                 String username = rs.getString(1);
                 if (username != null && !username.trim().isEmpty()) {
@@ -1787,7 +2010,7 @@ public class DatabaseAccessService {
                 }
             }
         }
-        
+
         return users;
     }
 
@@ -1798,28 +2021,28 @@ public class DatabaseAccessService {
         if (username == null || username.trim().isEmpty()) {
             return true;
         }
-        
+
         // Always protect the current admin user
         if (username.equals(currentAdminUser)) {
             return true;
         }
-        
+
         // Protect system users based on database type
         return switch (databaseType) {
-            case MYSQL -> username.startsWith("mysql.") || 
-                         username.equals("root") || 
-                         username.equals("debian-sys-maint");
-            
-            case POSTGRESQL -> username.startsWith("pg_") || 
-                              username.equals("postgres") || 
-                              username.equals("postgresql");
-            
+            case MYSQL -> username.startsWith("mysql.") ||
+                    username.equals("root") ||
+                    username.equals("debian-sys-maint");
+
+            case POSTGRESQL -> username.startsWith("pg_") ||
+                    username.equals("postgres") ||
+                    username.equals("postgresql");
+
             case ORACLE -> Set.of("SYS", "SYSTEM", "DBSNMP", "SYSMAN", "OUTLN", "ORACLE_OCM")
-                              .contains(username.toUpperCase());
-            
+                    .contains(username.toUpperCase());
+
             case SQLSERVER -> Set.of("sa", "dbo", "guest", "INFORMATION_SCHEMA", "sys", "NT AUTHORITY\\SYSTEM")
-                                 .contains(username);
-            
+                    .contains(username);
+
             default -> false;
         };
     }
@@ -1833,9 +2056,10 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "ALTER USER ? NOLOGIN";
             case ORACLE -> "ALTER USER ? ACCOUNT LOCK";
             case SQLSERVER -> "ALTER LOGIN ? DISABLE";
-            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.user.locking") + databaseType, null);
+            default -> throw new DatabaseAccessException(
+                    Constants.getMessage("error.unsupported.db.type.user.locking") + databaseType, null);
         };
-        
+
         return executeUserLockUnlockOperation(connection, lockSql, username, "lock");
     }
 
@@ -1848,9 +2072,10 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "ALTER USER ? LOGIN";
             case ORACLE -> "ALTER USER ? ACCOUNT UNLOCK";
             case SQLSERVER -> "ALTER LOGIN ? ENABLE";
-            default -> throw new DatabaseAccessException(Constants.getMessage("error.unsupported.db.type.user.unlocking") + databaseType, null);
+            default -> throw new DatabaseAccessException(
+                    Constants.getMessage("error.unsupported.db.type.user.unlocking") + databaseType, null);
         };
-        
+
         return executeUserLockUnlockOperation(connection, unlockSql, username, "unlock");
     }
 
@@ -1858,20 +2083,22 @@ public class DatabaseAccessService {
      * Executes the lock/unlock SQL operation for a user
      * Uses proper escaping to prevent SQL injection
      */
-    private boolean executeUserLockUnlockOperation(Connection connection, String sql, String username, String operation) {
+    private boolean executeUserLockUnlockOperation(Connection connection, String sql, String username,
+            String operation) {
         try {
             // Validate username to prevent SQL injection
             if (!CommonUtils.isValidUsername(username)) {
                 log.error("Invalid username detected for {} operation: {}", operation, username);
                 return false;
             }
-            
-            // For PostgreSQL and SQL Server, we need to use string formatting instead of parameter binding
+
+            // For PostgreSQL and SQL Server, we need to use string formatting instead of
+            // parameter binding
             if (sql.contains("ALTER USER ?")) {
                 // PostgreSQL - use proper escaping
                 String escapedUsername = CommonUtils.escapePostgresqlIdentifier(username);
                 sql = sql.replace("ALTER USER ?", "ALTER USER \"" + escapedUsername + "\"");
-                
+
                 try (Statement stmt = connection.createStatement()) {
                     stmt.executeUpdate(sql);
                 }
@@ -1879,7 +2106,7 @@ public class DatabaseAccessService {
                 // SQL Server - use proper escaping
                 String escapedUsername = CommonUtils.escapeSqlServerIdentifier(username);
                 sql = sql.replace("ALTER LOGIN ?", "ALTER LOGIN [" + escapedUsername + "]");
-                
+
                 try (Statement stmt = connection.createStatement()) {
                     stmt.executeUpdate(sql);
                 }
@@ -1890,18 +2117,19 @@ public class DatabaseAccessService {
                     stmt.executeUpdate();
                 }
             }
-            
+
             log.debug("Successfully executed {} operation for user: {}", operation, username);
             return true;
-            
+
         } catch (SQLException e) {
             log.error("Failed to {} user '{}': {}", operation, username, e.getMessage());
             return false;
         }
     }
-    
+
     /**
-     * Validate Asset Owner permissions to ensure they have sufficient access to grant permissions to others
+     * Validate Asset Owner permissions to ensure they have sufficient access to
+     * grant permissions to others
      */
     private PermissionValidationResult validateAssetOwnerPermissions(AssetCredential credential) {
         try {
@@ -1910,33 +2138,34 @@ public class DatabaseAccessService {
             List<String> warnings = new ArrayList<>();
             List<String> existingPermissions = new ArrayList<>();
             List<String> grantablePermissions = new ArrayList<>();
-            
+
             // Test 1: Can connect to the database and perform permission analysis
-            return performPermissionValidation(credential, missingPermissions, warnings, existingPermissions, grantablePermissions);
-            
+            return performPermissionValidation(credential, missingPermissions, warnings, existingPermissions,
+                    grantablePermissions);
+
         } catch (Exception e) {
             log.error("Error validating Asset Owner permissions: {}", e.getMessage(), e);
-            return new PermissionValidationResult(false, 
-                "Permission validation failed: " + e.getMessage(), 
-                new ArrayList<>());
+            return new PermissionValidationResult(false,
+                    "Permission validation failed: " + e.getMessage(),
+                    new ArrayList<>());
         }
     }
-    
+
     /**
      * Perform permission validation tests on the database connection
      */
-    private PermissionValidationResult performPermissionValidation(AssetCredential credential, 
-                                                                   List<String> missingPermissions, 
-                                                                   List<String> warnings, 
-                                                                   List<String> existingPermissions, 
-                                                                   List<String> grantablePermissions) {
+    private PermissionValidationResult performPermissionValidation(AssetCredential credential,
+            List<String> missingPermissions,
+            List<String> warnings,
+            List<String> existingPermissions,
+            List<String> grantablePermissions) {
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
             if (connection == null) {
-                return new PermissionValidationResult(false, 
-                    "Cannot establish database connection. Please verify credentials.", 
-                    new ArrayList<>());
+                return new PermissionValidationResult(false,
+                        "Cannot establish database connection. Please verify credentials.",
+                        new ArrayList<>());
             }
-            
+
             // Test 2: Check if user can see information_schema (basic metadata access)
             if (!canAccessInformationSchema(connection)) {
                 missingPermissions.add("INFORMATION_SCHEMA access");
@@ -1944,12 +2173,13 @@ public class DatabaseAccessService {
             } else {
                 existingPermissions.add("INFORMATION_SCHEMA access");
             }
-            
+
             // Test 3: Analyze existing permissions and what can be granted
-            PermissionAnalysisResult permissionAnalysis = analyzeExistingPermissions(connection, credential.getAsset().getDatabaseType(), credential.getUsername());
+            PermissionAnalysisResult permissionAnalysis = analyzeExistingPermissions(connection,
+                    credential.getAsset().getDatabaseType(), credential.getUsername());
             existingPermissions.addAll(permissionAnalysis.getExistingPermissions());
             grantablePermissions.addAll(permissionAnalysis.getGrantablePermissions());
-            
+
             // Test 4: Check if user can grant permissions (varies by database type)
             if (!canGrantPermissions(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
                 missingPermissions.add("GRANT permissions");
@@ -1957,7 +2187,7 @@ public class DatabaseAccessService {
             } else {
                 existingPermissions.add("GRANT permissions");
             }
-            
+
             // Test 5: Check if user can create/modify users (for some database types)
             if (!canManageUsers(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
                 missingPermissions.add("User management permissions");
@@ -1965,35 +2195,39 @@ public class DatabaseAccessService {
             } else {
                 existingPermissions.add("User management permissions");
             }
-            
+
             // Test 6: Check if user has administrative privileges
-            if (!hasAdministrativePrivileges(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
-                warnings.add("Limited administrative privileges - some advanced access management features may not be available");
+            if (!hasAdministrativePrivileges(connection, credential.getAsset().getDatabaseType(),
+                    credential.getUsername())) {
+                warnings.add(
+                        "Limited administrative privileges - some advanced access management features may not be available");
             } else {
                 existingPermissions.add("Administrative privileges");
             }
-            
+
             // Test 7: Analyze specific table/view permissions
-            TablePermissionAnalysis tableAnalysis = analyzeTablePermissions(connection, credential.getAsset().getDatabaseType(), credential.getUsername());
+            TablePermissionAnalysis tableAnalysis = analyzeTablePermissions(connection,
+                    credential.getAsset().getDatabaseType(), credential.getUsername());
             existingPermissions.addAll(tableAnalysis.getAccessibleTables());
             grantablePermissions.addAll(tableAnalysis.getGrantableTables());
-            
+
             // Add warnings based on permission analysis
             addPermissionAnalysisWarnings(warnings, existingPermissions, grantablePermissions, tableAnalysis);
-            
+
             // Determine if permissions are sufficient
             boolean isSufficient = missingPermissions.isEmpty() && !grantablePermissions.isEmpty();
-            String warningMessage = buildEnhancedWarningMessage(missingPermissions, warnings, existingPermissions, grantablePermissions);
-            
+            String warningMessage = buildEnhancedWarningMessage(missingPermissions, warnings, existingPermissions,
+                    grantablePermissions);
+
             return new PermissionValidationResult(isSufficient, warningMessage, warnings);
-            
+
         } catch (SQLException e) {
-            return new PermissionValidationResult(false, 
-                "Database connection failed: " + e.getMessage(), 
-                new ArrayList<>());
+            return new PermissionValidationResult(false,
+                    "Database connection failed: " + e.getMessage(),
+                    new ArrayList<>());
         }
     }
-    
+
     /**
      * Check if user can access information_schema
      */
@@ -2001,7 +2235,7 @@ public class DatabaseAccessService {
         try {
             String query = "SELECT COUNT(*) FROM information_schema.tables LIMIT 1";
             try (PreparedStatement stmt = connection.prepareStatement(query);
-                 ResultSet rs = stmt.executeQuery()) {
+                    ResultSet rs = stmt.executeQuery()) {
                 return rs.next();
             }
         } catch (SQLException e) {
@@ -2009,7 +2243,7 @@ public class DatabaseAccessService {
             return false;
         }
     }
-    
+
     /**
      * Check if user can grant permissions
      */
@@ -2032,20 +2266,21 @@ public class DatabaseAccessService {
         }
         return false;
     }
-    
+
     /**
      * Check MySQL grant permissions
      */
     private boolean checkMySQLGrantPermissions(Connection connection, String username) throws SQLException {
-        // For MySQL, check both user_privileges and table_privileges with flexible grantee matching
+        // For MySQL, check both user_privileges and table_privileges with flexible
+        // grantee matching
         String query = "SELECT COUNT(*) FROM (" +
-                       "SELECT IS_GRANTABLE FROM information_schema.user_privileges " +
-                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND IS_GRANTABLE = 'YES' " +
-                       "UNION ALL " +
-                       "SELECT IS_GRANTABLE FROM information_schema.table_privileges " +
-                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND IS_GRANTABLE = 'YES' LIMIT 1" +
-                       ") AS grant_check";
-        
+                "SELECT IS_GRANTABLE FROM information_schema.user_privileges " +
+                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND IS_GRANTABLE = 'YES' " +
+                "UNION ALL " +
+                "SELECT IS_GRANTABLE FROM information_schema.table_privileges " +
+                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND IS_GRANTABLE = 'YES' LIMIT 1" +
+                ") AS grant_check";
+
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, username);
             stmt.setString(2, username);
@@ -2054,13 +2289,13 @@ public class DatabaseAccessService {
             }
         }
     }
-    
+
     /**
      * Check PostgreSQL grant permissions
      */
     private boolean checkPostgreSQLGrantPermissions(Connection connection, String username) throws SQLException {
         String query = "SELECT COUNT(*) FROM information_schema.table_privileges WHERE grantee = ? AND is_grantable = 'YES' LIMIT 1";
-        
+
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -2068,13 +2303,13 @@ public class DatabaseAccessService {
             }
         }
     }
-    
+
     /**
      * Check Oracle grant permissions
      */
     private boolean checkOracleGrantPermissions(Connection connection, String username) throws SQLException {
         String query = "SELECT COUNT(*) FROM dba_tab_privs WHERE grantee = UPPER(?) AND grantable = 'YES' AND rownum = 1";
-        
+
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -2082,13 +2317,13 @@ public class DatabaseAccessService {
             }
         }
     }
-    
+
     /**
      * Check SQL Server grant permissions
      */
     private boolean checkSQLServerGrantPermissions(Connection connection, String username) throws SQLException {
         String query = "SELECT COUNT(*) FROM sys.database_permissions p JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id WHERE pr.name = ? AND p.state_desc = 'GRANT_WITH_GRANT_OPTION'";
-        
+
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -2096,35 +2331,36 @@ public class DatabaseAccessService {
             }
         }
     }
-    
+
     /**
      * Check if user can manage users
      */
     private boolean canManageUsers(Connection connection, DatabaseType databaseType, String username) {
         return executePermissionCheck(connection, databaseType, username, "user management");
     }
-    
+
     /**
      * Check if user has administrative privileges
      */
     private boolean hasAdministrativePrivileges(Connection connection, DatabaseType databaseType, String username) {
         return executePermissionCheck(connection, databaseType, username, "administrative");
     }
-    
+
     /**
      * Generic method to execute permission checks with different privilege criteria
      */
-    private boolean executePermissionCheck(Connection connection, DatabaseType databaseType, String username, String checkType) {
+    private boolean executePermissionCheck(Connection connection, DatabaseType databaseType, String username,
+            String checkType) {
         try {
             String query = Constants.SQL_QUERY_SELECT_ZERO; // Default fallback query
             switch (databaseType) {
                 case MYSQL:
                     if (Constants.PERMISSION_CHECK_TYPE_USER_MANAGEMENT.equals(checkType)) {
                         query = "SELECT COUNT(*) FROM information_schema.user_privileges " +
-                               "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND PRIVILEGE_TYPE IN ('CREATE USER', 'SUPER') LIMIT 1";
+                                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND PRIVILEGE_TYPE IN ('CREATE USER', 'SUPER') LIMIT 1";
                     } else { // administrative
                         query = "SELECT COUNT(*) FROM information_schema.user_privileges " +
-                               "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND PRIVILEGE_TYPE IN ('SUPER', 'ALL PRIVILEGES') LIMIT 1";
+                                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') AND PRIVILEGE_TYPE IN ('SUPER', 'ALL PRIVILEGES') LIMIT 1";
                     }
                     break;
                 case POSTGRESQL, ORACLE, SQLSERVER:
@@ -2138,9 +2374,9 @@ public class DatabaseAccessService {
                                 break;
                             case SQLSERVER:
                                 query = "SELECT COUNT(*) FROM sys.database_role_members rm " +
-                                       "JOIN sys.database_principals rp ON rm.role_principal_id = rp.principal_id " +
-                                       "JOIN sys.database_principals mp ON rm.member_principal_id = mp.principal_id " +
-                                       "WHERE mp.name = ? AND rp.name IN ('db_securityadmin', 'db_owner')";
+                                        "JOIN sys.database_principals rp ON rm.role_principal_id = rp.principal_id " +
+                                        "JOIN sys.database_principals mp ON rm.member_principal_id = mp.principal_id " +
+                                        "WHERE mp.name = ? AND rp.name IN ('db_securityadmin', 'db_owner')";
                                 break;
                             default:
                                 query = Constants.SQL_QUERY_SELECT_ZERO; // Fallback query
@@ -2156,9 +2392,9 @@ public class DatabaseAccessService {
                                 break;
                             case SQLSERVER:
                                 query = "SELECT COUNT(*) FROM sys.server_role_members rm " +
-                                       "JOIN sys.server_principals rp ON rm.role_principal_id = rp.principal_id " +
-                                       "JOIN sys.server_principals mp ON rm.member_principal_id = mp.principal_id " +
-                                       "WHERE mp.name = ? AND rp.name = 'sysadmin'";
+                                        "JOIN sys.server_principals rp ON rm.role_principal_id = rp.principal_id " +
+                                        "JOIN sys.server_principals mp ON rm.member_principal_id = mp.principal_id " +
+                                        "WHERE mp.name = ? AND rp.name = 'sysadmin'";
                                 break;
                             default:
                                 query = Constants.SQL_QUERY_SELECT_ZERO; // Fallback query
@@ -2169,7 +2405,7 @@ public class DatabaseAccessService {
                 default:
                     return true; // Assume sufficient for unknown types
             }
-            
+
             try (PreparedStatement stmt = connection.prepareStatement(query)) {
                 stmt.setString(1, username);
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -2183,11 +2419,12 @@ public class DatabaseAccessService {
         }
         return false;
     }
-    
+
     /**
      * Analyze existing permissions and what can be granted to others
      */
-    private PermissionAnalysisResult analyzeExistingPermissions(Connection connection, DatabaseType databaseType, String username) {
+    private PermissionAnalysisResult analyzeExistingPermissions(Connection connection, DatabaseType databaseType,
+            String username) {
         try {
             switch (databaseType) {
                 case MYSQL:
@@ -2206,100 +2443,108 @@ public class DatabaseAccessService {
             return new PermissionAnalysisResult(new ArrayList<>(), new ArrayList<>());
         }
     }
-    
+
     /**
      * Analyze MySQL permissions
      */
-    private PermissionAnalysisResult analyzeMySQLPermissions(Connection connection, String username) throws SQLException {
-        String query = "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, 'GLOBAL' as scope FROM information_schema.user_privileges " +
-                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
-                       "UNION ALL " +
-                       "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, CONCAT(TABLE_SCHEMA, '.', TABLE_NAME) as scope FROM information_schema.table_privileges " +
-                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
-                       "UNION ALL " +
-                       "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, TABLE_SCHEMA as scope FROM information_schema.schema_privileges " +
-                       "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%')";
-        
+    private PermissionAnalysisResult analyzeMySQLPermissions(Connection connection, String username)
+            throws SQLException {
+        String query = "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, 'GLOBAL' as scope FROM information_schema.user_privileges "
+                +
+                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
+                "UNION ALL " +
+                "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, CONCAT(TABLE_SCHEMA, '.', TABLE_NAME) as scope FROM information_schema.table_privileges "
+                +
+                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
+                "UNION ALL " +
+                "SELECT PRIVILEGE_TYPE, IS_GRANTABLE, TABLE_SCHEMA as scope FROM information_schema.schema_privileges "
+                +
+                "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%')";
+
         return executePermissionQuery(connection, query, username, 3, false);
     }
-    
+
     /**
      * Analyze PostgreSQL permissions
      */
-    private PermissionAnalysisResult analyzePostgreSQLPermissions(Connection connection, String username) throws SQLException {
+    private PermissionAnalysisResult analyzePostgreSQLPermissions(Connection connection, String username)
+            throws SQLException {
         String query = "SELECT privilege_type, is_grantable, CONCAT(table_schema, '.', table_name) as scope " +
-                       "FROM information_schema.table_privileges WHERE grantee = ? " +
-                       "UNION ALL " +
-                       "SELECT privilege_type, is_grantable, object_name as scope " +
-                       "FROM information_schema.usage_privileges WHERE grantee = ?";
-        
+                "FROM information_schema.table_privileges WHERE grantee = ? " +
+                "UNION ALL " +
+                "SELECT privilege_type, is_grantable, object_name as scope " +
+                "FROM information_schema.usage_privileges WHERE grantee = ?";
+
         return executePermissionQuery(connection, query, username, 2, false);
     }
-    
+
     /**
      * Analyze Oracle permissions
      */
-    private PermissionAnalysisResult analyzeOraclePermissions(Connection connection, String username) throws SQLException {
+    private PermissionAnalysisResult analyzeOraclePermissions(Connection connection, String username)
+            throws SQLException {
         String query = "SELECT privilege, grantable, CONCAT(owner, '.', table_name) as scope " +
-                       "FROM dba_tab_privs WHERE grantee = UPPER(?) " +
-                       "UNION ALL " +
-                       "SELECT privilege, grantable, 'SYSTEM' as scope " +
-                       "FROM dba_sys_privs WHERE grantee = UPPER(?)";
-        
+                "FROM dba_tab_privs WHERE grantee = UPPER(?) " +
+                "UNION ALL " +
+                "SELECT privilege, grantable, 'SYSTEM' as scope " +
+                "FROM dba_sys_privs WHERE grantee = UPPER(?)";
+
         return executePermissionQuery(connection, query, username, 2, false);
     }
-    
+
     /**
      * Analyze SQL Server permissions
      */
-    private PermissionAnalysisResult analyzeSQLServerPermissions(Connection connection, String username) throws SQLException {
-        String query = "SELECT p.permission_name, p.state_desc, CONCAT(SCHEMA_NAME(t.schema_id), '.', t.name) as scope " +
-                       "FROM sys.database_permissions p " +
-                       "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
-                       "LEFT JOIN sys.tables t ON p.major_id = t.object_id " +
-                       "WHERE pr.name = ? AND t.name IS NOT NULL " +
-                       "UNION ALL " +
-                       "SELECT p.permission_name, p.state_desc, 'DATABASE' as scope " +
-                       "FROM sys.database_permissions p " +
-                       "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
-                       "WHERE pr.name = ? AND p.major_id = 0";
-        
+    private PermissionAnalysisResult analyzeSQLServerPermissions(Connection connection, String username)
+            throws SQLException {
+        String query = "SELECT p.permission_name, p.state_desc, CONCAT(SCHEMA_NAME(t.schema_id), '.', t.name) as scope "
+                +
+                "FROM sys.database_permissions p " +
+                "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
+                "LEFT JOIN sys.tables t ON p.major_id = t.object_id " +
+                "WHERE pr.name = ? AND t.name IS NOT NULL " +
+                "UNION ALL " +
+                "SELECT p.permission_name, p.state_desc, 'DATABASE' as scope " +
+                "FROM sys.database_permissions p " +
+                "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
+                "WHERE pr.name = ? AND p.major_id = 0";
+
         return executePermissionQuery(connection, query, username, 2, true);
     }
-    
+
     /**
      * Execute permission analysis query (common logic for all database types)
      */
-    private PermissionAnalysisResult executePermissionQuery(Connection connection, String query, 
-                                                           String username, int parameterCount, 
-                                                           boolean isSQLServer) throws SQLException {
+    private PermissionAnalysisResult executePermissionQuery(Connection connection, String query,
+            String username, int parameterCount,
+            boolean isSQLServer) throws SQLException {
         List<String> existingPermissions = new ArrayList<>();
         List<String> grantablePermissions = new ArrayList<>();
-        
+
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             // Set username parameter for each placeholder
             for (int i = 1; i <= parameterCount; i++) {
                 stmt.setString(i, username);
             }
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     processPermissionRow(rs, existingPermissions, grantablePermissions, isSQLServer);
                 }
             }
         }
-        
+
         return new PermissionAnalysisResult(existingPermissions, grantablePermissions);
     }
-    
+
     /**
      * Process a permission result set row
      */
-    private void processPermissionRow(ResultSet rs, List<String> existingPermissions, 
-                                     List<String> grantablePermissions, boolean isSQLServer) throws SQLException {
+    private void processPermissionRow(ResultSet rs, List<String> existingPermissions,
+            List<String> grantablePermissions, boolean isSQLServer) throws SQLException {
         String privilege = rs.getString(1);
         String scope = rs.getString(3);
-        
+
         boolean isGrantable;
         if (isSQLServer) {
             isGrantable = "GRANT_WITH_GRANT_OPTION".equals(rs.getString(2)) || "GRANT".equals(rs.getString(2));
@@ -2307,7 +2552,7 @@ public class DatabaseAccessService {
             String grantableValue = rs.getString(2);
             isGrantable = "YES".equalsIgnoreCase(grantableValue) || "true".equalsIgnoreCase(grantableValue);
         }
-        
+
         // Create detailed permission string with scope
         String detailedPermission = privilege + " ON " + scope;
         existingPermissions.add(detailedPermission);
@@ -2315,68 +2560,71 @@ public class DatabaseAccessService {
             grantablePermissions.add(detailedPermission);
         }
     }
-    
+
     /**
      * Analyze table-level permissions
      */
-    private TablePermissionAnalysis analyzeTablePermissions(Connection connection, DatabaseType databaseType, String username) {
+    private TablePermissionAnalysis analyzeTablePermissions(Connection connection, DatabaseType databaseType,
+            String username) {
         List<String> accessibleTables = new ArrayList<>();
         List<String> grantableTables = new ArrayList<>();
-        
+
         try {
             String query;
             switch (databaseType) {
                 case MYSQL:
                     query = "SELECT CONCAT(TABLE_SCHEMA, '.', TABLE_NAME) as full_table_name, " +
-                           "GROUP_CONCAT(DISTINCT PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE SEPARATOR ', ') as privileges, " +
-                           "MAX(CASE WHEN IS_GRANTABLE = 'YES' THEN 1 ELSE 0 END) as can_grant " +
-                           "FROM information_schema.table_privileges " +
-                           "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
-                           "GROUP BY TABLE_SCHEMA, TABLE_NAME";
+                            "GROUP_CONCAT(DISTINCT PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE SEPARATOR ', ') as privileges, "
+                            +
+                            "MAX(CASE WHEN IS_GRANTABLE = 'YES' THEN 1 ELSE 0 END) as can_grant " +
+                            "FROM information_schema.table_privileges " +
+                            "WHERE GRANTEE LIKE CONCAT('''', ?, '''@%') " +
+                            "GROUP BY TABLE_SCHEMA, TABLE_NAME";
                     break;
                 case POSTGRESQL:
                     query = "SELECT CONCAT(table_schema, '.', table_name) as full_table_name, " +
-                           "STRING_AGG(DISTINCT privilege_type, ', ' ORDER BY privilege_type) as privileges, " +
-                           "MAX(CASE WHEN is_grantable = 'YES' THEN 1 ELSE 0 END) as can_grant " +
-                           "FROM information_schema.table_privileges " +
-                           "WHERE grantee = ? " +
-                           "GROUP BY table_schema, table_name";
+                            "STRING_AGG(DISTINCT privilege_type, ', ' ORDER BY privilege_type) as privileges, " +
+                            "MAX(CASE WHEN is_grantable = 'YES' THEN 1 ELSE 0 END) as can_grant " +
+                            "FROM information_schema.table_privileges " +
+                            "WHERE grantee = ? " +
+                            "GROUP BY table_schema, table_name";
                     break;
                 case ORACLE:
                     query = "SELECT CONCAT(owner, '.', table_name) as full_table_name, " +
-                           "LISTAGG(DISTINCT privilege, ', ') WITHIN GROUP (ORDER BY privilege) as privileges, " +
-                           "MAX(CASE WHEN grantable = 'YES' THEN 1 ELSE 0 END) as can_grant " +
-                           "FROM dba_tab_privs " +
-                           "WHERE grantee = UPPER(?) " +
-                           "GROUP BY owner, table_name";
+                            "LISTAGG(DISTINCT privilege, ', ') WITHIN GROUP (ORDER BY privilege) as privileges, " +
+                            "MAX(CASE WHEN grantable = 'YES' THEN 1 ELSE 0 END) as can_grant " +
+                            "FROM dba_tab_privs " +
+                            "WHERE grantee = UPPER(?) " +
+                            "GROUP BY owner, table_name";
                     break;
                 case SQLSERVER:
                     query = "SELECT CONCAT(SCHEMA_NAME(t.schema_id), '.', t.name) as full_table_name, " +
-                           "STRING_AGG(DISTINCT p.permission_name, ', ') WITHIN GROUP (ORDER BY p.permission_name) as privileges, " +
-                           "MAX(CASE WHEN p.state_desc = 'GRANT_WITH_GRANT_OPTION' THEN 1 ELSE 0 END) as can_grant " +
-                           "FROM sys.tables t " +
-                           "JOIN sys.database_permissions p ON t.object_id = p.major_id " +
-                           "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
-                           "WHERE pr.name = ? " +
-                           "GROUP BY t.schema_id, t.name";
+                            "STRING_AGG(DISTINCT p.permission_name, ', ') WITHIN GROUP (ORDER BY p.permission_name) as privileges, "
+                            +
+                            "MAX(CASE WHEN p.state_desc = 'GRANT_WITH_GRANT_OPTION' THEN 1 ELSE 0 END) as can_grant " +
+                            "FROM sys.tables t " +
+                            "JOIN sys.database_permissions p ON t.object_id = p.major_id " +
+                            "JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id " +
+                            "WHERE pr.name = ? " +
+                            "GROUP BY t.schema_id, t.name";
                     break;
                 default:
                     return new TablePermissionAnalysis(new ArrayList<>(), new ArrayList<>());
             }
-            
+
             try (PreparedStatement stmt = connection.prepareStatement(query)) {
                 stmt.setString(1, username);
                 try (ResultSet rs = stmt.executeQuery()) {
-                    
+
                     while (rs.next()) {
                         String fullTableName = rs.getString(1);
                         String privileges = rs.getString(2);
                         boolean canGrant = rs.getInt(3) > 0;
-                        
+
                         // Create detailed table permission string
                         String detailedTableAccess = fullTableName + " (" + privileges + ")";
                         accessibleTables.add(detailedTableAccess);
-                        
+
                         if (canGrant) {
                             grantableTables.add(detailedTableAccess);
                         }
@@ -2386,75 +2634,75 @@ public class DatabaseAccessService {
         } catch (SQLException e) {
             log.debug("Cannot analyze table permissions for user {}: {}", username, e.getMessage());
         }
-        
+
         return new TablePermissionAnalysis(accessibleTables, grantableTables);
     }
-    
+
     /**
      * Add warnings based on permission analysis
      */
-    private void addPermissionAnalysisWarnings(List<String> warnings, List<String> existingPermissions, 
-                                             List<String> grantablePermissions, 
-                                             TablePermissionAnalysis tableAnalysis) {
-        
+    private void addPermissionAnalysisWarnings(List<String> warnings, List<String> existingPermissions,
+            List<String> grantablePermissions,
+            TablePermissionAnalysis tableAnalysis) {
+
         // Check if user has very limited permissions
         if (existingPermissions.size() < 3) {
             warnings.add("Very limited database permissions detected - may not be able to effectively manage access");
         }
-        
+
         // Check if user can grant any permissions
         if (grantablePermissions.isEmpty()) {
             warnings.add("Cannot grant any permissions to other users - will not be able to approve access requests");
         } else if (grantablePermissions.size() < 3) {
             warnings.add("Limited grant permissions - may not be able to provide full access to developers");
         }
-        
+
         // Check table access
         if (tableAnalysis.getAccessibleTables().isEmpty()) {
             warnings.add("No table access detected - cannot provide database access to developers");
         } else if (tableAnalysis.getGrantableTables().isEmpty()) {
             warnings.add("Cannot grant table access to other users - limited access management capabilities");
         }
-        
+
         // Check for critical missing permissions
         List<String> criticalPermissions = Arrays.asList("SELECT", "INSERT", "UPDATE", "DELETE");
         List<String> missingCritical = criticalPermissions.stream()
                 .filter(perm -> !existingPermissions.contains(perm))
                 .toList();
-        
+
         if (!missingCritical.isEmpty()) {
-            warnings.add("Missing critical permissions: " + String.join(", ", missingCritical) + 
-                        " - may not be able to provide complete database access");
+            warnings.add("Missing critical permissions: " + String.join(", ", missingCritical) +
+                    " - may not be able to provide complete database access");
         }
     }
-    
+
     /**
      * Build enhanced warning message with permission analysis
      */
-    private String buildEnhancedWarningMessage(List<String> missingPermissions, List<String> warnings, 
-                                             List<String> existingPermissions, List<String> grantablePermissions) {
+    private String buildEnhancedWarningMessage(List<String> missingPermissions, List<String> warnings,
+            List<String> existingPermissions, List<String> grantablePermissions) {
         StringBuilder message = new StringBuilder();
-        
+
         if (!missingPermissions.isEmpty()) {
             message.append("Access level is insufficient to be an asset owner. Missing permissions: ");
             message.append(String.join(", ", missingPermissions));
             message.append(". You may not be able to grant all kinds of permission to others.");
         }
-        
+
         if (!existingPermissions.isEmpty()) {
             if (!message.isEmpty()) {
                 message.append(" ");
             }
             message.append("Current permissions: ").append(String.join(", ", existingPermissions));
         }
-        
+
         if (!grantablePermissions.isEmpty()) {
             if (!message.isEmpty()) {
                 message.append(" ");
             }
             message.append("Can grant: ").append(String.join(", ", grantablePermissions));
         }
-        
+
         if (!warnings.isEmpty()) {
             if (!message.isEmpty()) {
                 message.append(" ");
@@ -2462,10 +2710,10 @@ public class DatabaseAccessService {
             message.append("Additional warnings: ");
             message.append(String.join("; ", warnings));
         }
-        
+
         return message.toString();
     }
-    
+
     /**
      * Create objects JSON with warning information
      */
@@ -2478,7 +2726,7 @@ public class DatabaseAccessService {
             objectsData.put("permission_warning", validationResult.getWarningMessage());
             objectsData.put("permission_sufficient", validationResult.isSufficient());
             objectsData.put("warnings", validationResult.getWarnings());
-            
+
             ObjectMapper mapper = new ObjectMapper();
             return mapper.writeValueAsString(objectsData);
         } catch (Exception e) {
@@ -2486,11 +2734,12 @@ public class DatabaseAccessService {
             return "{\"error\": \"Failed to process database objects due to permission issues\"}";
         }
     }
-    
+
     /**
      * Save asset object with warning information
      */
-    private void saveAssetObjectWithWarning(AssetCredential credential, String objectsJsonWithWarning, PermissionValidationResult validationResult) {
+    private void saveAssetObjectWithWarning(AssetCredential credential, String objectsJsonWithWarning,
+            PermissionValidationResult validationResult) {
         try {
             AssetObject assetObject = assetObjectRepository.findByAssetCredential(credential)
                     .orElse(new AssetObject());
@@ -2498,60 +2747,273 @@ public class DatabaseAccessService {
             assetObject.setAssetCredential(credential);
             assetObject.setAsset(credential.getAsset());
             assetObject.setObjectsJson(objectsJsonWithWarning);
-            
+
             // Add metadata about permission issues
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("permission_validation_failed", true);
             metadata.put("validation_timestamp", System.currentTimeMillis());
             metadata.put("missing_permissions", validationResult.getWarnings());
-            
+
             assetObjectRepository.save(assetObject);
-            
-            log.warn("Saved asset object with permission warning for Asset Owner {} on asset {}", 
+
+            log.warn("Saved asset object with permission warning for Asset Owner {} on asset {}",
                     credential.getUsername(), credential.getAsset().getId());
-                    
+
         } catch (Exception e) {
             log.error("Failed to save asset object with warning: {}", e.getMessage(), e);
         }
     }
-    
+
     /**
      * Result class for permission analysis
      */
     private static class PermissionAnalysisResult {
         private final List<String> existingPermissions;
         private final List<String> grantablePermissions;
-        
+
         public PermissionAnalysisResult(List<String> existingPermissions, List<String> grantablePermissions) {
             this.existingPermissions = existingPermissions;
             this.grantablePermissions = grantablePermissions;
         }
-        
+
         public List<String> getExistingPermissions() {
             return existingPermissions;
         }
-        
+
         public List<String> getGrantablePermissions() {
             return grantablePermissions;
         }
     }
-    
+
+    /**
+     * Securely escape password for PostgreSQL CREATE USER statement
+     * This method provides comprehensive protection against SQL injection
+     */
+    private String escapePostgreSQLPassword(String password) {
+        if (password == null) {
+            throw new IllegalArgumentException("Password cannot be null");
+        }
+
+        // Validate password length and characters
+        if (password.length() > 1000) {
+            throw new IllegalArgumentException("Password too long (max 1000 characters)");
+        }
+
+        // Check for dangerous characters that could be used for SQL injection
+        if (password.contains("--") || password.contains("/*") || password.contains("*/") ||
+                password.contains(";") || password.contains("\\") || password.contains("\0")) {
+            throw new IllegalArgumentException("Password contains invalid characters");
+        }
+
+        // Escape single quotes by doubling them (PostgreSQL standard)
+        // This is the only character that needs escaping in PostgreSQL string literals
+        return password.replace("'", "''");
+    }
+
+    /**
+     * Clean up temporary users created for a specific asset
+     */
+    public void cleanupTemporaryUsersForAsset(Asset asset) {
+        try {
+            log.info("Cleaning up temporary users for asset: {}", asset.getId());
+
+            // Get all credentials for this asset
+            User curUser = userService.getCurrentUser();
+
+            AssetCredential credential = assetCredentialsRepository
+                    .findByUserAndAssetAndUserAccessType(curUser, asset, Roles.ASSET_OWNER.getOriginalName())
+                    .orElseThrow(
+                            () -> new DatabaseAccessException("Can not find valid Credential for this asset", null));
+            cleanupTemporaryUsersForCredential(credential);
+
+            log.info("Successfully cleaned up temporary users for asset: {}", asset.getId());
+
+        } catch (Exception e) {
+            log.error("Error cleaning up temporary users for asset: {}", asset.getId(), e);
+            throw new DatabaseAccessException("Failed to cleanup temporary users for asset: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Clean up temporary users for a specific credential
+     */
+    private void cleanupTemporaryUsersForCredential(AssetCredential credential) {
+        String decPsd = databaseConnectionUtils.decryptCredentialPassword(credential);
+        credential.setPassword(decPsd);
+        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
+            DatabaseType databaseType = credential.getAsset().getDatabaseType();
+
+            switch (databaseType) {
+                case MYSQL:
+                    cleanupMySQLTemporaryUsers(connection);
+                    break;
+                case POSTGRESQL:
+                    cleanupPostgreSQLTemporaryUsers(connection);
+                    break;
+                case SQLSERVER:
+                    cleanupSQLServerTemporaryUsers(connection);
+                    break;
+                case ORACLE:
+                    cleanupOracleTemporaryUsers(connection);
+                    break;
+                default:
+                    log.warn("Unsupported database type for cleanup: {}", databaseType);
+            }
+
+        } catch (SQLException e) {
+            log.error("Error cleaning up temporary users for credential: {}", credential.getId(), e);
+            throw new DatabaseAccessException("Failed to cleanup temporary users: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Clean up MySQL temporary users
+     */
+    private void cleanupMySQLTemporaryUsers(Connection connection) throws SQLException {
+        String query = """
+                    SELECT User FROM mysql.user
+                    WHERE User LIKE ? AND Host = '%'
+                """;
+        String baseUserName = userService.getCurrentUser().getEmail().split("@")[0];
+        String usernamePattern = baseUserName + "%";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, usernamePattern);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String username = rs.getString("User");
+                    dropUser(connection, DatabaseType.MYSQL, username);
+                }
+            }
+        }
+    }
+
+    /**
+     * Clean up PostgreSQL temporary users
+     */
+    private void cleanupPostgreSQLTemporaryUsers(Connection connection)
+            throws SQLException {
+        String query = """
+                    SELECT usename FROM pg_user
+                    WHERE usename LIKE ?
+                """;
+
+        String baseUserName = userService.getCurrentUser().getEmail().split("@")[0];
+        String usernamePattern = baseUserName + "%";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, usernamePattern);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String username = rs.getString("usename");
+                    dropUser(connection, DatabaseType.POSTGRESQL, username);
+                }
+            }
+        }
+    }
+
+    /**
+     * Clean up SQL Server temporary users
+     */
+    private void cleanupSQLServerTemporaryUsers(Connection connection) throws SQLException {
+        String query = """
+                    SELECT name FROM sys.database_principals
+                    WHERE name LIKE ? AND type = 'S'
+                """;
+
+        String baseUserName = userService.getCurrentUser().getEmail().split("@")[0];
+        String usernamePattern = baseUserName + "%";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, usernamePattern);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String username = rs.getString("name");
+                    dropUser(connection, DatabaseType.SQLSERVER, username);
+                }
+            }
+        }
+    }
+
+    /**
+     * Clean up Oracle temporary users
+     */
+    private void cleanupOracleTemporaryUsers(Connection connection) throws SQLException {
+        String query = """
+                    SELECT username FROM all_users
+                    WHERE username LIKE ?
+                """;
+
+        String baseUserName = userService.getCurrentUser().getEmail().split("@")[0];
+        String usernamePattern = baseUserName.toUpperCase() + "%";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, usernamePattern);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String username = rs.getString("username");
+                    dropUser(connection, DatabaseType.ORACLE, username);
+                }
+            }
+        }
+    }
+
+    /**
+     * Drop a user from the database
+     */
+    private void dropUser(Connection connection, DatabaseType databaseType, String username) {
+        try {
+            String dropUserSql = getDropUserSql(databaseType, username);
+
+            try (Statement stmt = connection.createStatement()) {
+                stmt.executeUpdate(dropUserSql);
+                log.info("Successfully dropped user: {} from {}", username, databaseType);
+            }
+
+        } catch (SQLException e) {
+            log.warn("Failed to drop user: {} from {}: {}", username, databaseType, e.getMessage());
+            // Don't throw exception - continue with other users
+        }
+    }
+
+    /**
+     * Get the appropriate DROP USER SQL for the database type
+     */
+    private String getDropUserSql(DatabaseType databaseType, String username) {
+        switch (databaseType) {
+            case MYSQL:
+                return "DROP USER IF EXISTS '" + username + "'@'%'";
+            case POSTGRESQL:
+                return "DROP USER IF EXISTS \"" + username + "\"";
+            case SQLSERVER:
+                return "DROP USER IF EXISTS [" + username + "]";
+            case ORACLE:
+                return "DROP USER " + username + " CASCADE";
+            default:
+                throw new IllegalArgumentException("Unsupported database type: " + databaseType);
+        }
+    }
+
     /**
      * Result class for table permission analysis
      */
     private static class TablePermissionAnalysis {
         private final List<String> accessibleTables;
         private final List<String> grantableTables;
-        
+
         public TablePermissionAnalysis(List<String> accessibleTables, List<String> grantableTables) {
             this.accessibleTables = accessibleTables;
             this.grantableTables = grantableTables;
         }
-        
+
         public List<String> getAccessibleTables() {
             return accessibleTables;
         }
-        
+
         public List<String> getGrantableTables() {
             return grantableTables;
         }

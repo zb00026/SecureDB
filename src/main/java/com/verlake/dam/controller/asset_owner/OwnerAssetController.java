@@ -338,6 +338,10 @@ public class OwnerAssetController extends BaseAssetAccessController {
            accessLevelObjectRepository.deleteByAccessRequest(accessRequest);
         });
         accessRequestRepository.deleteByAsset(existingCredential.getAsset());
+        
+        // Remove temporary users created for this asset
+        databaseAccessService.cleanupTemporaryUsersForAsset(existingCredential.getAsset());
+        
         assetService.deleteAssetCredential(existingCredential);
         // Send notifications to admins using notification job
         List<User> admins = userService.getAdminRoleUsers();

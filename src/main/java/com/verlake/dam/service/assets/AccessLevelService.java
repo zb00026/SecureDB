@@ -5,6 +5,7 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.exception.AccessLevelNotFoundException;
 import com.verlake.dam.repository.assets.AccessLevelRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
@@ -67,7 +68,7 @@ public class AccessLevelService {
 
     public AccessLevel findById(Long id) {
         return accessLevelRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Access Level not found with id: " + id));
+            .orElseThrow(() -> new AccessLevelNotFoundException("Access Level not found with id: " + id));
     }
 
     public List<AccessLevel> findAll() {

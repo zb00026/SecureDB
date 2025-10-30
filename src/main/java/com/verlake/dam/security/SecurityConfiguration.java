@@ -89,6 +89,10 @@ public class SecurityConfiguration {
                     Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name(),
                     Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                 .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
+                .requestMatchers("/api/schema/**").hasAnyAuthority(
+                    Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name(),
+                    Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name(),
+                    Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                 .anyRequest().denyAll();
     }
     

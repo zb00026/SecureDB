@@ -5,16 +5,15 @@ import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.exception.QueryExecutionException;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.ai.DataMaskingService;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -33,25 +32,22 @@ public class QueryExecutionService {
     private final UserService userService;
     private final DataMaskingService dataMaskingService;
     private final AuditTrailService auditTrailService;
-    private final AssetService assetService;
-    private final AccessRequestService accessRequestService;
     private final AssetQueryChangeRequestService assetQueryChangeRequestService;
+    private final AssetValidationUtils assetValidationUtils;
     private final ObjectMapper objectMapper;
 
     public QueryExecutionService(DatabaseAccessService databaseAccessService,
                                 UserService userService,
                                 DataMaskingService dataMaskingService,
                                 AuditTrailService auditTrailService,
-                                AssetService assetService,
-                                AccessRequestService accessRequestService,
-                                AssetQueryChangeRequestService assetQueryChangeRequestService) {
+                                AssetQueryChangeRequestService assetQueryChangeRequestService,
+                                AssetValidationUtils assetValidationUtils) {
         this.databaseAccessService = databaseAccessService;
         this.userService = userService;
         this.dataMaskingService = dataMaskingService;
         this.auditTrailService = auditTrailService;
-        this.assetService = assetService;
-        this.accessRequestService = accessRequestService;
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
+        this.assetValidationUtils = assetValidationUtils;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -59,9 +55,9 @@ public class QueryExecutionService {
      * Execute query for Developer with access request validation
      */
     public Map<String, Object> executeQueryForDeveloper(AccessQueryDTO accessQueryDTO) {
-        AccessRequest accessRequest = validateAccessRequest(accessQueryDTO);
-        AssetCredential credential = validateAssetCredential(accessRequest);
-        validateAccessRequestStatus(accessRequest);
+        AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(accessQueryDTO.getRequestId());
+        AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
+        assetValidationUtils.validateAccessRequestStatus(accessRequest);
 
         long startTime = System.currentTimeMillis();
         QueryExecutionContext context = QueryExecutionContext.forDeveloper(accessRequest, credential);
@@ -88,8 +84,8 @@ public class QueryExecutionService {
      * Execute query for Asset Owner with ownership validation
      */
     public Map<String, Object> executeQueryForAssetOwner(AccessQueryDTO accessQueryDTO) {
-        Asset asset = validateAssetOwnership(accessQueryDTO.getAssetId());
-        AssetCredential credential = validateAssetOwnerCredential(asset);
+        Asset asset = assetValidationUtils.validateAssetOwnership(accessQueryDTO.getAssetId());
+        AssetCredential credential = assetValidationUtils.validateAssetOwnerCredential(asset);
         
         long startTime = System.currentTimeMillis();
         QueryExecutionContext context = QueryExecutionContext.forAssetOwner(asset, credential);
@@ -268,67 +264,6 @@ public class QueryExecutionService {
         } catch (Exception e) {
             log.error("Failed to create audit log for query execution", e);
         }
-    }
-
-    // Validation methods (shared logic)
-    
-    private AccessRequest validateAccessRequest(AccessQueryDTO accessQueryDTO) {
-        AccessRequest accessRequest = accessRequestService.findById(accessQueryDTO.getRequestId());
-        if (accessRequest == null) {
-            throw new ResourceNotFoundException("No access request provided");
-        }
-        return accessRequest;
-    }
-    
-    private AssetCredential validateAssetCredential(AccessRequest accessRequest) {
-        AssetCredential credential = accessRequest.getAssetCredential();
-        if (credential == null) {
-            throw new ResourceNotFoundException("No asset credential found for this access request");
-        }
-        return credential;
-    }
-    
-    private void validateAccessRequestStatus(AccessRequest accessRequest) {
-        if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
-                !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
-            throw new IllegalArgumentException("Access request is not approved");
-        }
-
-        if (accessRequest.getExpiryDate() != null && accessRequest.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Access request has expired");
-        }
-    }
-    
-    private Asset validateAssetOwnership(Long assetId) {
-        Asset asset = assetService.findById(assetId);
-        if (asset == null) {
-            throw new ResourceNotFoundException("Asset not found: " + assetId);
-        }
-        
-        List<Asset> ownedAssets = assetService.getAssetsOwnedByCurrentUser();
-        
-        boolean isOwner = ownedAssets.stream()
-                .anyMatch(ownedAsset -> ownedAsset.getId().equals(assetId));
-        
-        if (!isOwner) {
-            throw new IllegalArgumentException("User does not have ownership rights to asset: " + assetId);
-        }
-        
-        return asset;
-    }
-    
-    private AssetCredential validateAssetOwnerCredential(Asset asset) {
-        List<AssetCredential> credentials = assetService.getAssignedCredentials();
-        AssetCredential credential = credentials.stream()
-                .filter(cred -> cred.getAsset().getId().equals(asset.getId()))
-                .findFirst()
-                .orElse(null);
-        
-        if (credential == null) {
-            throw new ResourceNotFoundException("No asset credential found for asset: " + asset.getId());
-        }
-        
-        return credential;
     }
 
     private String getCurrentIpAddress() {
