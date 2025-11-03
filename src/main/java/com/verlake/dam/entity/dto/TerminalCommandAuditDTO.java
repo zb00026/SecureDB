@@ -1,13 +1,12 @@
 package com.verlake.dam.entity.dto;
 
 import com.verlake.dam.entity.terminal.TerminalCommandAudit;
-import com.verlake.dam.entity.terminal.TerminalSessionRecording;
+import com.verlake.dam.utils.SpringContext;
+import com.verlake.dam.utils.TimezoneConverter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 /**
  * DTO for TerminalCommandAudit with full entity references
@@ -24,7 +23,7 @@ public class TerminalCommandAuditDTO {
     private String commandOutput;
     private Long executionTimeMs;
     private String clientIp;
-    private LocalDateTime executedAt;
+    private String executedAt; // Converted to system timezone string
     private Integer commandSequence;
     private String riskLevel;
     private Boolean isDangerous;
@@ -36,6 +35,8 @@ public class TerminalCommandAuditDTO {
      * Convert TerminalCommandAudit entity to DTO
      */
     public static TerminalCommandAuditDTO fromEntity(TerminalCommandAudit audit) {
+        TimezoneConverter timezoneConverter = SpringContext.getBean(TimezoneConverter.class);
+        
         return TerminalCommandAuditDTO.builder()
                 .id(audit.getId())
                 .sessionId(audit.getSessionId())
@@ -44,7 +45,7 @@ public class TerminalCommandAuditDTO {
                 .commandOutput(audit.getCommandOutput())
                 .executionTimeMs(audit.getExecutionTimeMs())
                 .clientIp(audit.getClientIp())
-                .executedAt(audit.getExecutedAt())
+                .executedAt(timezoneConverter.convertToSystemTimezoneString(audit.getExecutedAt()))
                 .commandSequence(audit.getCommandSequence())
                 .riskLevel(audit.getRiskLevel())
                 .isDangerous(audit.getIsDangerous())

@@ -19,6 +19,9 @@ public class S3BucketSettings {
     @Column(name = "previous_bucket_names", columnDefinition = "TEXT")
     private String previousBucketNames;  // Comma-separated list of previous buckets
 
+    @Column(name = "local_retention_days")
+    private Integer localRetentionDays;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

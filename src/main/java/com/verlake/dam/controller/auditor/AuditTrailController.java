@@ -57,6 +57,15 @@ public class AuditTrailController {
     }
 
     /**
+     * Get distinct audit actions for filtering
+     */
+    @GetMapping("/actions")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_AUDITOR')")
+    public ResponseEntity<java.util.List<String>> getDistinctActions() {
+        return ResponseEntity.ok(auditTrailService.getDistinctActions());
+    }
+
+    /**
      * Get all assets for selection in audit trail filtering
      * This endpoint provides a list of all available assets that can be used
      * to filter audit trails by specific assets

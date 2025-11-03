@@ -43,6 +43,32 @@ public class S3SettingsService {
         return s3BucketSettingsRepository.save(settings);
     }
 
+    @Transactional
+    public S3BucketSettings updateS3BucketSettings(String newBucketName, Integer localRetentionDays) {
+        Optional<S3BucketSettings> existingSettings = s3BucketSettingsRepository.findLatestSettings();
+        
+        S3BucketSettings settings = existingSettings.orElse(new S3BucketSettings());
+        
+        // Update previous bucket names
+        if (settings.getBucketName() != null && !settings.getBucketName().equals(newBucketName)) {
+            List<String> previousBuckets = new ArrayList<>();
+            if (settings.getPreviousBucketNames() != null && !settings.getPreviousBucketNames().isEmpty()) {
+                previousBuckets.addAll(Arrays.asList(settings.getPreviousBucketNames().split(",")));
+            }
+            previousBuckets.add(settings.getBucketName());
+            settings.setPreviousBucketNames(previousBuckets.stream().collect(Collectors.joining(",")));
+        }
+        
+        settings.setBucketName(newBucketName);
+        settings.setLocalRetentionDays(localRetentionDays);
+        settings.setUpdatedAt(LocalDateTime.now());
+        if (settings.getCreatedAt() == null) {
+            settings.setCreatedAt(LocalDateTime.now());
+        }
+
+        return s3BucketSettingsRepository.save(settings);
+    }
+
     public Optional<S3BucketSettings> getCurrentSettings() {
         return s3BucketSettingsRepository.findLatestSettings();
     }

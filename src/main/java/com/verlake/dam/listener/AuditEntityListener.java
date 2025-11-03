@@ -7,6 +7,7 @@ import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.AuditAction;
+import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.utils.IpAddressUtils;
@@ -17,11 +18,35 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import jakarta.persistence.EntityManager;
 
 @Slf4j
 public class AuditEntityListener {
     private final ObjectMapper mapper = new ObjectMapper();
+    private static final ThreadLocal<java.util.Map<String, String>> SNAPSHOTS =
+            ThreadLocal.withInitial(java.util.HashMap::new);
+
+    private String snapshotKey(Object entity) {
+        try {
+            Object id = entity.getClass().getMethod(Constants.METHOD_GET_ID).invoke(entity);
+            return entity.getClass().getName() + "#" + id;
+        } catch (Exception e) {
+            return entity.getClass().getName() + "#unknown";
+        }
+    }
+
+    @PostLoad
+    public void postLoad(Object target) {
+        if (target.getClass().isAnnotationPresent(Audited.class)) {
+            try {
+                mapper.registerModule(new JavaTimeModule());
+                String json = mapper.writeValueAsString(target);
+                SNAPSHOTS.get().put(snapshotKey(target), json);
+            } catch (Exception ignored) {
+                // Silently ignore serialization failures for snapshotting
+                // This is non-critical - if snapshotting fails, audit will proceed without previousValue
+            }
+        }
+    }
     
     @PrePersist
     public void prePersist(Object target) {
@@ -41,22 +66,23 @@ public class AuditEntityListener {
     @PreRemove
     public void preRemove(Object target) {
         if (target.getClass().isAnnotationPresent(Audited.class)) {
-            String previousValue = getPreviousValue(target);
+            String previousValue;
+            try {
+                mapper.registerModule(new JavaTimeModule());
+                previousValue = mapper.writeValueAsString(target);
+            } catch (Exception e) {
+                previousValue = null;
+            }
             createAuditTrail(target, AuditAction.DELETE, previousValue);
         }
     }
 
     private String getPreviousValue(Object target) {
-        try {
-            EntityManager em = SpringContext.getBean(EntityManager.class);
-            Object id = target.getClass().getMethod("getId").invoke(target);
-            Object originalEntity = em.find(target.getClass(), id);
-            mapper.registerModule(new JavaTimeModule());
-            return mapper.writeValueAsString(originalEntity);
-        } catch (Exception e) {
-            // If the previous entity is not found, return null, ex: create entity
-            return null;
-        }
+        String key = snapshotKey(target);
+        String snap = SNAPSHOTS.get().get(key);
+        // Clear snapshot after use to avoid memory leaks
+        SNAPSHOTS.get().remove(key);
+        return snap;
     }
 
     private void createAuditTrail(Object target, AuditAction action, String previousValue) {
@@ -79,7 +105,7 @@ public class AuditEntityListener {
             // Use enhanced audit action constants for better descriptions
             String actionDescription = getEnhancedActionDescription(action, audited.entity(), target);
             
-            AuditTrail audit = AuditTrail.builder()
+        AuditTrail audit = AuditTrail.builder()
                 .timestamp(LocalDateTime.now())
                 .user(username)
                 .action(actionDescription)
@@ -89,6 +115,8 @@ public class AuditEntityListener {
                 .newValue(action != AuditAction.DELETE ? mapper.writeValueAsString(target) : null)
                 .ipAddress(ipAddress)
                 .asset(assetEntity)
+                .description(AuditDescriptionUtils.generateDescription(actionDescription, audited.entity(), action != AuditAction.DELETE ? mapper.writeValueAsString(target) : null))
+                // readableDescription will be computed at read-time (DTO) using current system timezone
                 .build();
 
             AuditTrailService auditService = SpringContext.getBean(AuditTrailService.class);
@@ -392,9 +420,10 @@ public class AuditEntityListener {
     private String getEmailIdentifier(Object target) {
         try {
             // Try to get recipient email first
-            Object recipientEmail = target.getClass().getMethod(Constants.METHOD_GET_RECIPIENT_EMAIL).invoke(target);
+            Object recipientEmail = target.getClass().getMethod(Constants.METHOD_GET_EMAIL_TO).invoke(target);
             if (recipientEmail != null) {
-                return Constants.ENTITY_DESC_EMAIL_TO + recipientEmail.toString();
+                // Use the raw recipient email as the instance identifier content
+                return recipientEmail.toString();
             }
             // Fallback to ID
             return Constants.ENTITY_PREFIX_EMAIL + getEntityId(target);

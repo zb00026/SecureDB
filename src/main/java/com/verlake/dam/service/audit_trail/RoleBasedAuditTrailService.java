@@ -1,7 +1,6 @@
 package com.verlake.dam.service.audit_trail;
 
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetApprover;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.utils.Constants;
@@ -33,7 +32,6 @@ public class RoleBasedAuditTrailService {
     private final UserService userService;
     private final AssetCredentialsRepository assetCredentialsRepository;
     private final AssetApproversRepository assetApproversRepository;
-    private final AssetRepository assetRepository;
 
     /**
      * Get audit trails with role-based filtering
@@ -64,6 +62,56 @@ public class RoleBasedAuditTrailService {
         
         log.debug("Returned {} audit trail records for user {}", result.getTotalElements(), currentUser.getEmail());
         return result;
+    }
+
+    /**
+     * Get distinct actions accessible under current role context
+     * For now returns all distinct actions; extend to role-filtered if needed
+     */
+    public List<String> getDistinctActions() {
+        User currentUser = userService.getCurrentUser();
+        Roles userRole = determineAuditAccessRole(currentUser);
+
+        Set<Long> allowedAssetIds = null;
+        Set<String> allowedUserEmails = null;
+
+        switch (userRole) {
+            case ADMIN, AUDITOR:
+                // unrestricted
+                break;
+            case ASSET_OWNER: {
+                List<AssetCredential> ownedCredentials = assetCredentialsRepository
+                        .findByUserAndUserAccessType(currentUser, Roles.ASSET_OWNER.getOriginalName());
+                allowedAssetIds = ownedCredentials.stream()
+                        .map(c -> c.getAsset().getId())
+                        .collect(Collectors.toSet());
+                break;
+            }
+            case APPROVER: {
+                List<AssetApprover> approverRelations = assetApproversRepository.findByUser(currentUser);
+                allowedAssetIds = approverRelations.stream()
+                        .map(rel -> rel.getAsset().getId())
+                        .collect(Collectors.toSet());
+                List<User> usersWithThisApprover = userService.getUsersByApprover(currentUser);
+                allowedUserEmails = usersWithThisApprover.stream()
+                        .map(User::getEmail)
+                        .collect(Collectors.toSet());
+                break;
+            }
+            case DEVELOPER: {
+                allowedUserEmails = Set.of(currentUser.getEmail());
+                break;
+            }
+        }
+
+        if (allowedAssetIds != null && allowedAssetIds.isEmpty()) {
+            allowedAssetIds = null; // no constraint if none
+        }
+        if (allowedUserEmails != null && allowedUserEmails.isEmpty()) {
+            allowedUserEmails = null;
+        }
+
+        return auditTrailRepository.findDistinctActionsFiltered(allowedUserEmails, allowedAssetIds);
     }
 
     /**

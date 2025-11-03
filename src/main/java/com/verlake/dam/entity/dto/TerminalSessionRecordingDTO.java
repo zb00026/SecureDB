@@ -3,12 +3,12 @@ package com.verlake.dam.entity.dto;
 import com.verlake.dam.entity.terminal.TerminalSessionRecording;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
+import com.verlake.dam.utils.SpringContext;
+import com.verlake.dam.utils.TimezoneConverter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 /**
  * DTO for TerminalSessionRecording with full entity references
@@ -20,8 +20,8 @@ import java.time.LocalDateTime;
 public class TerminalSessionRecordingDTO {
     private Long id;
     private String sessionId;
-    private LocalDateTime sessionStart;
-    private LocalDateTime sessionEnd;
+    private String sessionStart; // Converted to system timezone string
+    private String sessionEnd; // Converted to system timezone string
     private Long durationSeconds;
     private Integer commandCount;
     private Boolean isActive;
@@ -36,11 +36,13 @@ public class TerminalSessionRecordingDTO {
      * Convert TerminalSessionRecording entity to DTO
      */
     public static TerminalSessionRecordingDTO fromEntity(TerminalSessionRecording recording) {
+        TimezoneConverter timezoneConverter = SpringContext.getBean(TimezoneConverter.class);
+        
         return TerminalSessionRecordingDTO.builder()
                 .id(recording.getId())
                 .sessionId(recording.getSessionId())
-                .sessionStart(recording.getSessionStart())
-                .sessionEnd(recording.getSessionEnd())
+                .sessionStart(timezoneConverter.convertToSystemTimezoneString(recording.getSessionStart()))
+                .sessionEnd(timezoneConverter.convertToSystemTimezoneString(recording.getSessionEnd()))
                 .durationSeconds(recording.getDurationSeconds())
                 .commandCount(recording.getCommandCount())
                 .isActive(recording.getIsActive())

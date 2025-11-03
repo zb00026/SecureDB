@@ -10,6 +10,7 @@ import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.ai.DataMaskingService;
+import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
@@ -249,11 +250,13 @@ public class QueryExecutionService {
                     .timestamp(LocalDateTime.now())
                     .user(currentUser.getEmail())
                     .action(context.getAuditAction())
-                    .instanceId(String.format("ASSET(%s)", context.getAsset().getId()))
+                    .instanceId(String.format("ASSET(%s)", context.getAsset().getName()))
                     .actionMetadata(objectMapper.writeValueAsString(auditDetails))
                     .newValue(newValue)
                     .ipAddress(getCurrentIpAddress())
                     .asset(context.getAsset())
+                    .description(accessQueryDTO.getQuery())
+                    // readableDescription will be computed at read-time (DTO)
                     .build();
             
             auditTrailService.save(auditTrail);

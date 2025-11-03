@@ -24,7 +24,6 @@ public class SettingsController {
     @Autowired
     private S3SettingsService settingsService;
 
-
     public SettingsController() {
 
     }
@@ -44,7 +43,7 @@ public class SettingsController {
             s3Service.checkPermissions(request.getBucketName());
             
             // If all validations pass, update settings
-            S3BucketSettings settings = settingsService.updateS3BucketSettings(request.getBucketName());
+            S3BucketSettings settings = settingsService.updateS3BucketSettings(request.getBucketName(), request.getLocalRetentionDays());
             return ResponseEntity.ok(settings);
             
         } catch (S3Exception e) {

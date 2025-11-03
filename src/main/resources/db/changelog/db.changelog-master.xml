@@ -40,6 +40,9 @@
     <include file="db/changelog/common/db.037-changelog-fix-foreign-keys-cascade.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.039-changelog-add-ssh-credential-email-type.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.041-changelog-add-record-count-limit.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.042-changelog-add-system-settings.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.044-changelog-add-local-retention-to-s3-settings.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.043-changelog-add-audit-descriptions.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

@@ -850,6 +850,7 @@ public class Constants {
     public static final String ENTITY_TYPE_ASSET = "ASSET";
     public static final String ENTITY_TYPE_USER = "USER";
     public static final String ENTITY_TYPE_ASSET_CREDENTIAL = "ASSET_CREDENTIAL";
+    public static final String ENTITY_TYPE_EMAIL = "EMAIL";
     
     // Approval status values
     public static final String APPROVAL_STATUS_APPROVED = "APPROVED";
@@ -860,7 +861,7 @@ public class Constants {
     public static final String METHOD_GET_NAME = "getName";
     public static final String METHOD_GET_EMAIL = "getEmail";
     public static final String METHOD_GET_PROMPT_KEY = "getPromptKey";
-    public static final String METHOD_GET_RECIPIENT_EMAIL = "getRecipientEmail";
+    public static final String METHOD_GET_EMAIL_TO = "getEmailTo";
     public static final String METHOD_GET_DEVELOPER_APPROVER_STATUS = "getDeveloperApproverStatus";
     public static final String METHOD_GET_ASSET_APPROVER_STATUS = "getAssetApproverStatus";
     
@@ -930,6 +931,9 @@ public class Constants {
     public static final String AUDIT_ACTION_TYPE_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
     public static final String AUDIT_ACTION_TYPE_DOWNLOAD = "DOWNLOAD";
     public static final String AUDIT_ACTION_TYPE_UPLOAD = "UPLOAD";
+    public static final String AUDIT_ACTION_TYPE_QUERY_EXECUTED = "QUERY_EXECUTED";
+    public static final String AUDIT_ACTION_TYPE_QUERY_FAILED = "QUERY_FAILED";
+    public static final String AUDIT_ACTION_TYPE_DATA_ACCESS_WITH_MASKING = "DATA_ACCESS_WITH_MASKING";
     
     // SQL keywords
     public static final String SQL_KEYWORD_SELECT = "SELECT";
@@ -1000,4 +1004,13 @@ public class Constants {
     
     // Database query result field names
     public static final String DB_QUERY_RESULT_COUNT = "count";
+    
+    // System Settings Keys
+    public static final String SYSTEM_TIMEZONE_KEY = "system.timezone";
+    public static final String DEFAULT_TIMEZONE = "UTC";
+    
+    // Timezone formatting patterns
+    public static final String TIMEZONE_DISPLAY_PATTERN = "yyyy-MM-dd HH:mm:ss z";
+    public static final String TIMEZONE_DATE_PATTERN = "yyyy-MM-dd";
+    public static final String TIMEZONE_TIME_PATTERN = "HH:mm:ss";
 }

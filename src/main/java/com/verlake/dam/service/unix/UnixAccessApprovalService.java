@@ -14,6 +14,9 @@ import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.service.terminal.SSHConnectionService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.utils.AuditDescriptionUtils;
+import com.verlake.dam.utils.Constants;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -318,7 +321,7 @@ public class UnixAccessApprovalService {
                             .map(m -> m.getUnixGroup().getGroupName())
                             .collect(Collectors.joining(", ")));
             
-            AuditTrail audit = AuditTrail.builder()
+        AuditTrail audit = AuditTrail.builder()
                     .timestamp(LocalDateTime.now())
                     .instanceId(instanceId)
                     .user(approver.getEmail())
@@ -326,6 +329,8 @@ public class UnixAccessApprovalService {
                     .actionMetadata(metadata)
                     .asset(request.getAsset())
                     .synced(false)
+                    .description(AuditDescriptionUtils.generateDescription(action, Constants.ENTITY_TYPE_ACCESS_REQUEST, null))
+                    // readableDescription will be computed at read-time (DTO)
                     .build();
             
             auditTrailRepository.save(audit);

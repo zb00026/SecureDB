@@ -81,6 +81,7 @@ public class SecurityConfiguration {
                         "/api/license/status", "/api/auth/validateResetToken").permitAll()
                 .requestMatchers("/ws/terminal/connect").permitAll() // Allow WebSocket connections
                 .requestMatchers("/ws/unix-groups").permitAll() // Allow Unix group WebSocket connections
+                .requestMatchers("/api/settings/timezone/**").permitAll() // Allow timezone APIs for all users
                 .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                 .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())
                 .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.APPROVER.name())

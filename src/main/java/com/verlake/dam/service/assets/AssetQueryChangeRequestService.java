@@ -16,6 +16,7 @@ import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.ai.DataMaskingService;
+import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
@@ -541,16 +542,18 @@ public class AssetQueryChangeRequestService {
             // Create detailed newValue with query and results
             String newValue = DatabaseQueryUtils.createDetailedNewValue(accessQueryDTO.getQuery(), success, result, errorMessage);
             
-            AuditTrail audit = AuditTrail.builder()
+                AuditTrail audit = AuditTrail.builder()
                     .timestamp(LocalDateTime.now())
                     .user(username)
-                    .action(success ? "QUERY_EXECUTED" : "QUERY_FAILED")
+                    .action(success ? Constants.AUDIT_ACTION_TYPE_QUERY_EXECUTED : Constants.AUDIT_ACTION_TYPE_QUERY_FAILED)
                     .instanceId(instanceId)
                     .actionMetadata(objectMapper.writeValueAsString(auditMetadata))
                     .previousValue(null) // No previous value for query execution
                     .newValue(newValue)
                     .ipAddress(ipAddress)
                     .asset(asset)
+                    .description(accessQueryDTO.getQuery())
+                    // readableDescription will be computed at read-time (DTO)
                     .build();
 
             auditTrailService.save(audit);

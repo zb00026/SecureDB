@@ -58,6 +58,16 @@ public abstract class BaseAuditTrailController {
     }
 
     /**
+     * Get distinct audit actions for role-based audit views
+     */
+    @GetMapping("/actions")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    public ResponseEntity<java.util.List<String>> getDistinctActions() {
+        roleBasedAuditTrailService.validateAuditAccess();
+        return ResponseEntity.ok(roleBasedAuditTrailService.getDistinctActions());
+    }
+
+    /**
      * Get audit trail statistics for the current user based on their role
      * @return Statistics about audit trails accessible to the current user
      */

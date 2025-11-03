@@ -50,6 +50,12 @@ public class AuditTrail {
     @Column(name = "ip_address")
     private String ipAddress;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "readable_description", columnDefinition = "TEXT")
+    private String readableDescription;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "asset_id")
     @JsonIgnore

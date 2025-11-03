@@ -4,6 +4,10 @@ import com.verlake.dam.entity.ai.AIMaskingPolicy;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.utils.AuditDescriptionUtils;
+import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.IpAddressUtils;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -84,12 +88,18 @@ public class DataMaskingService {
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("none");
                 
-            AuditTrail audit = AuditTrail.builder()
+        String instanceId = asset != null ? String.format("ASSET(%s)", asset.getName()) : Constants.ENTITY_TYPE_ASSET;
+
+        AuditTrail audit = AuditTrail.builder()
                 .timestamp(LocalDateTime.now())
-                .user(userEmail)
-                .action("DATA_ACCESS_WITH_MASKING")
+                .user(Constants.AUDIT_SYSTEM_USER)
+                .action(Constants.AUDIT_ACTION_TYPE_DATA_ACCESS_WITH_MASKING)
                 .newValue("Masked fields: " + maskedFields + " for role: " + userRole)
+                .instanceId(instanceId)
+                .ipAddress(IpAddressUtils.getCurrentIpAddress())
                 .asset(asset)
+                .description(AuditDescriptionUtils.generateDescription(Constants.AUDIT_ACTION_TYPE_DATA_ACCESS_WITH_MASKING, Constants.ENTITY_TYPE_ASSET, null))
+                // readableDescription will be computed at read-time (DTO)
                 .build();
             auditTrailService.save(audit);
         } catch (Exception e) {
