@@ -21,7 +21,6 @@ import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.persistence.Access;
-import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,7 +106,9 @@ public class AssetService {
         PingResult pingResult = pingAsset(asset);
         
         if (!pingResult.isSuccess()) {
-            throw new ResourceNotFoundException(String.format("Asset ping failed during creation. Asset: %s, Error: %s", asset.getName(), pingResult.getMessage()));
+            String errorMessage = cleanErrorMessage(pingResult.getMessage());
+            String detailedError = String.format("Failed to connect to asset '%s'. %s", asset.getName(), errorMessage);
+            throw new DatabaseAccessException(detailedError, null);
         } else {
             log.info("Asset ping successful during creation. Asset: {}, Response: {}ms", 
                     asset.getName(), pingResult.getResponseTimeMs());
@@ -161,7 +162,7 @@ public class AssetService {
     @Transactional
     public void updateAssetOwners(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+                .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
         if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
             // Delete existing credentials for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
@@ -215,7 +216,7 @@ public class AssetService {
     @Transactional
     public void updateAssetApprovers(AssetUpdateDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(updateDTO.getAssetId())
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+                .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
         if (updateDTO.getMethod().equals(Constants.ASSET_ADD_NAME)) {
             // Delete existing asset approvers for these users if they exist
             updateDTO.getUserIds().forEach(userId -> {
@@ -249,7 +250,7 @@ public class AssetService {
     @Transactional
     public void deleteAsset(Long id) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+                .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
 
         // Soft delete the asset
         asset.setDeleted(true);
@@ -262,12 +263,12 @@ public class AssetService {
 
     public Asset findById(Long id) {
         return assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+                .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
     }
 
     public AssetDTO findDTOById(Long id) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+                .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
         return convertToDTO(asset);
     }
 
@@ -337,7 +338,7 @@ public class AssetService {
     @Transactional
     public void updateAsset(Long id, AssetDTO updateDTO) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
+                .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
 
         asset.setName(updateDTO.getName());
         asset.setDescription(updateDTO.getDescription());
@@ -352,7 +353,9 @@ public class AssetService {
         PingResult pingResult = pingAsset(asset);
         
         if (!pingResult.isSuccess()) {
-            throw new ResourceNotFoundException(String.format("Asset ping failed during update. Asset: %s, Error: %s", asset.getName(), pingResult.getMessage()));
+            String errorMessage = cleanErrorMessage(pingResult.getMessage());
+            String detailedError = String.format("Failed to connect to asset '%s'. %s", asset.getName(), errorMessage);
+            throw new DatabaseAccessException(detailedError, null);
         } else {
             log.info("Asset ping successful during update. Asset: {} (ID: {}), Response: {}ms", 
                     asset.getName(), id, pingResult.getResponseTimeMs());
@@ -682,6 +685,12 @@ public class AssetService {
             return PingResult.failure("Invalid host address: " + asset.getHostAddress());
         }
 
+        // Validate port number if provided
+        String portValidationError = validatePortNumber(asset.getPortNumber());
+        if (portValidationError != null) {
+            return PingResult.failure(portValidationError);
+        }
+
         // For Unix Server assets, we don't need to ping database
         if (asset.getType() == com.verlake.dam.enums.AssetType.UNIX_SERVER) {
             // For Unix servers, just check if host is reachable via basic connectivity
@@ -717,9 +726,16 @@ public class AssetService {
                 // Authentication error is expected when no credentials provided
                 // This means the URL is valid and the server is reachable
                 return PingResult.success("Server reachable (authentication required)", responseTime.toMillis());
+            } else if (isPortError(errorMessage)) {
+                // Port-specific error
+                return PingResult.failure("Invalid port number: " + errorMessage, responseTime.toMillis());
             } else if (isConnectionError(errorMessage)) {
                 // Connection error indicates URL or network issues
                 return PingResult.failure("Connection failed: " + errorMessage, responseTime.toMillis());
+            } else if (isConfigurationError(errorMessage)) {
+                // Configuration errors like max_allowed_packet - these shouldn't block ping
+                // but we should report them as warnings
+                return PingResult.failure("Server configuration issue: " + errorMessage, responseTime.toMillis());
             } else {
                 // Other errors
                 return PingResult.failure("Unexpected error: " + errorMessage, responseTime.toMillis());
@@ -736,7 +752,7 @@ public class AssetService {
      * 
      * @param assetId The ID of the asset to ping
      * @return PingResult containing success status and response time
-     * @throws ResourceNotFoundException if asset not found
+     * @throws IllegalArgumentException if asset not found
      */
     public PingResult pingAsset(Long assetId) {
         Asset asset = findById(assetId);
@@ -790,6 +806,52 @@ public class AssetService {
     }
 
     /**
+     * Validates port number format
+     */
+    private String validatePortNumber(String portNumber) {
+        if (portNumber == null || portNumber.isEmpty()) {
+            return null; // Port is optional
+        }
+        
+        try {
+            int port = Integer.parseInt(portNumber);
+            if (port < 1 || port > 65535) {
+                return String.format("Port number must be between 1 and 65535, got: %s", portNumber);
+            }
+            return null; // Valid port
+        } catch (NumberFormatException e) {
+            return String.format("Invalid port number format: '%s'. Port must be a number between 1 and 65535", portNumber);
+        }
+    }
+
+    /**
+     * Checks if the SQL exception is port-related
+     */
+    private boolean isPortError(String errorMessage) {
+        if (errorMessage == null) return false;
+        
+        String message = errorMessage.toLowerCase();
+        return message.contains("invalid port") ||
+               message.contains("port number") ||
+               message.contains("bad port") ||
+               message.contains("port out of range") ||
+               (message.contains("connection refused") && message.contains("port"));
+    }
+
+    /**
+     * Checks if the error is a server configuration issue (like max_allowed_packet)
+     */
+    private boolean isConfigurationError(String errorMessage) {
+        if (errorMessage == null) return false;
+        
+        String message = errorMessage.toLowerCase();
+        return message.contains("max_allowed_packet") ||
+               message.contains("packet too large") ||
+               message.contains("configuration") ||
+               message.contains("server variable");
+    }
+
+    /**
      * Checks if the SQL exception is connection-related
      */
     private boolean isConnectionError(String errorMessage) {
@@ -806,6 +868,25 @@ public class AssetService {
                message.contains("connection failed") ||
                message.contains("timeout") ||
                message.contains("unable to connect");
+    }
+
+    /**
+     * Cleans error message by removing redundant prefixes
+     */
+    private String cleanErrorMessage(String errorMessage) {
+        if (errorMessage == null) {
+            return "Unknown error occurred";
+        }
+        
+        String cleaned = errorMessage;
+        // Remove common prefixes that add no value
+        if (cleaned.startsWith("Unexpected error: ")) {
+            cleaned = cleaned.substring("Unexpected error: ".length());
+        } else if (cleaned.startsWith("Connection failed: ")) {
+            cleaned = cleaned.substring("Connection failed: ".length());
+        }
+        
+        return cleaned.trim();
     }
     
     /**
