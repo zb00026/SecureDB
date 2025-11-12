@@ -29,9 +29,9 @@ public abstract class BaseAssetAccessController {
      * @param id The asset ID
      * @return ResponseEntity containing AssetAccessDTO or error response
      */
-    protected ResponseEntity<?> getAssetAccess(Long id) {
+    protected ResponseEntity<?> getAssetAccess(Long id, String userAccessType) {
         try {
-            AssetAccessDTO accessInfo = assetService.getAssetAccess(id);
+            AssetAccessDTO accessInfo = assetService.getAssetAccess(id, userAccessType);
             return ResponseEntity.ok(accessInfo);
         } catch (RuntimeException e) {
             // Handle access denied scenarios

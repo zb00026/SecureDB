@@ -4,6 +4,7 @@ import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.exception.AccessRequestExpiredException;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import lombok.extern.slf4j.Slf4j;
@@ -63,7 +64,8 @@ public class AssetValidationUtils {
      * Validates that an access request is approved and not expired
      * 
      * @param accessRequest The access request to validate
-     * @throws IllegalArgumentException if access request is not approved or expired
+     * @throws IllegalArgumentException if access request is not approved
+     * @throws com.verlake.dam.exception.AccessRequestExpiredException if access request has expired
      */
     public void validateAccessRequestStatus(AccessRequest accessRequest) {
         if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
@@ -72,7 +74,8 @@ public class AssetValidationUtils {
         }
 
         if (accessRequest.getExpiryDate() != null && accessRequest.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Access request has expired");
+            throw new AccessRequestExpiredException(
+                    "Access request has expired. Please create a new access request.");
         }
     }
     

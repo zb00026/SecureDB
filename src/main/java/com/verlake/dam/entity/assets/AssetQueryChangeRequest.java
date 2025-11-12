@@ -33,7 +33,7 @@ public class AssetQueryChangeRequest {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status")
-    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+    private ApprovalStatus approvalStatus = ApprovalStatus.REQUESTED;
 
     @Column(name = "reject_reason")
     private String rejectReason;

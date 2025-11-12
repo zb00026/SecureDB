@@ -20,6 +20,7 @@ import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
+import com.verlake.dam.exception.AccessRequestExpiredException;
 import com.verlake.dam.exception.AssetQueryChangeRequestNotFoundException;
 import com.verlake.dam.exception.QueryExecutionException;
 import lombok.extern.slf4j.Slf4j;
@@ -340,7 +341,8 @@ public class AssetQueryChangeRequestService {
         }
 
         if (accessRequest.getExpiryDate() != null && accessRequest.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Access request has expired");
+            throw new AccessRequestExpiredException(
+                    "Access request has expired. Please create a new access request.");
         }
     }
     

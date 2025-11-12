@@ -10,7 +10,6 @@ import com.verlake.dam.enums.Roles;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.repository.assets.AssetApproversRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.service.users.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

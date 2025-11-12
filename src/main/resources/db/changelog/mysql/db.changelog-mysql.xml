@@ -61,6 +61,45 @@
         <modifyDataType tableName="asset_query_change_requests" columnName="approval_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
     </changeSet>
 
+    <!-- Update approval status enums with new states and remove legacy PENDING/CANCELLED -->
+    <changeSet id="mysql-update-approval-status-enums-new-states" author="admin" dbms="mysql">
+        <comment>Update approval status ENUMs to use new states: REQUESTED, APPROVAL_IN_PROGRESS, APPROVED, REJECTED, RELINQUISHED_AFTER_APPROVED, RELINQUISHED_BEFORE_APPROVAL. Migrate existing PENDING to REQUESTED and CANCELLED to RELINQUISHED_BEFORE_APPROVAL.</comment>
+        <!-- Step 1: First, expand ENUM to include all new values (keeping old ones temporarily) -->
+        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <modifyDataType tableName="asset_query_change_requests" columnName="approval_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <!-- Step 2: Migrate existing data -->
+        <sql>
+            UPDATE access_requests 
+            SET developer_approver_status = 'REQUESTED' 
+            WHERE developer_approver_status = 'PENDING';
+            
+            UPDATE access_requests 
+            SET asset_approver_status = 'REQUESTED' 
+            WHERE asset_approver_status = 'PENDING';
+            
+            UPDATE access_requests 
+            SET developer_approver_status = 'RELINQUISHED_BEFORE_APPROVAL' 
+            WHERE developer_approver_status = 'CANCELLED';
+            
+            UPDATE access_requests 
+            SET asset_approver_status = 'RELINQUISHED_BEFORE_APPROVAL' 
+            WHERE asset_approver_status = 'CANCELLED';
+            
+            UPDATE asset_query_change_requests 
+            SET approval_status = 'REQUESTED' 
+            WHERE approval_status = 'PENDING';
+            
+            UPDATE asset_query_change_requests 
+            SET approval_status = 'RELINQUISHED_BEFORE_APPROVAL' 
+            WHERE approval_status = 'CANCELLED';
+        </sql>
+        <!-- Step 3: Remove old values from ENUM definitions -->
+        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <modifyDataType tableName="asset_query_change_requests" columnName="approval_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+    </changeSet>
+
     <!-- Other MySQL-specific changes -->
     <changeSet id="mysql-credential-user-type" author="admin" dbms="mysql">
         <addColumn tableName="asset_credentials">
@@ -470,6 +509,13 @@
                                  referencedTableName="users"
                                  referencedColumnNames="id"
                                  onDelete="SET NULL"/>
+    </changeSet>
+
+    <!-- Add EXPIRED status to approval status ENUMs -->
+    <changeSet id="mysql-add-expired-status-to-approval-enums" author="admin" dbms="mysql">
+        <comment>Add EXPIRED status to approval status ENUMs for access_requests table</comment>
+        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL', 'EXPIRED')"/>
+        <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL', 'EXPIRED')"/>
     </changeSet>
 
 </databaseChangeLog> 

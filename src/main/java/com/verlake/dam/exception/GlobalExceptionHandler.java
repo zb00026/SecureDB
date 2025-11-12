@@ -47,6 +47,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
+    // Handle Access Request Expired Exceptions
+    @ExceptionHandler(AccessRequestExpiredException.class)
+    public ResponseEntity<Map<String, String>> handleAccessRequestExpiredException(AccessRequestExpiredException ex, WebRequest request) {
+        Map<String, String> errorResponse = new HashMap<>();
+        log.warn("Access request expired: {}", ex.getMessage());
+        errorResponse.put(Constants.ERROR_FIELD_ERROR, ex.getMessage());
+        errorResponse.put(Constants.ERROR_FIELD_DETAILS, "The access request has expired. Please create a new access request.");
+        return ResponseEntity.status(HttpStatus.GONE).body(errorResponse); // 410 Gone - resource is no longer available
+    }
+
+    // Handle IllegalArgumentException (for access request not approved, etc.)
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
+        Map<String, String> errorResponse = new HashMap<>();
+        log.warn("Illegal argument: {}", ex.getMessage());
+        errorResponse.put(Constants.ERROR_FIELD_ERROR, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
     // Handle General Exceptions
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex, WebRequest request) {

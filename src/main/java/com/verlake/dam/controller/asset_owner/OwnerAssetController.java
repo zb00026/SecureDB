@@ -14,6 +14,7 @@ import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.repository.RoleRepository;
@@ -176,9 +177,8 @@ public class OwnerAssetController extends BaseAssetAccessController {
      * Get real-time user access information for an asset by querying the target database directly
      */
     @GetMapping("/{id}/access")
-    @Override
     public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
-        return super.getAssetAccess(id);
+        return super.getAssetAccess(id, Roles.ASSET_OWNER.getOriginalName());
     }
 
     /**
@@ -340,7 +340,9 @@ public class OwnerAssetController extends BaseAssetAccessController {
         accessRequestRepository.deleteByAsset(existingCredential.getAsset());
         
         // Remove temporary users created for this asset
-        databaseAccessService.cleanupTemporaryUsersForAsset(existingCredential.getAsset());
+        if (!existingCredential.getIsTemporaryPassword() && existingCredential.getPassword() != null) {
+            databaseAccessService.cleanupTemporaryUsersForAsset(existingCredential.getAsset());
+        }
         
         assetService.deleteAssetCredential(existingCredential);
         // Send notifications to admins using notification job
@@ -476,6 +478,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
             try {
                 String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
                 existingCredential.setSshKeyFile(encryptedSSHKey);
+                existingCredential.setIsTemporaryPassword(false);
             } catch (CommonUtils.CryptoException e) {
                 throw new SecurityException("Failed to encrypt SSH key", e);
             }

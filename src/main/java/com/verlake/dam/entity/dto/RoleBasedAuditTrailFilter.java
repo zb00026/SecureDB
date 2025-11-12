@@ -97,6 +97,9 @@ public class RoleBasedAuditTrailFilter extends AuditTrailFilter {
 
     private void addAssetOwnerFilters(List<Predicate> predicates, jakarta.persistence.criteria.Root<AuditTrail> root, 
                                     jakarta.persistence.criteria.CriteriaBuilder cb) {
+        // Exclude audit logs where asset is null for asset owners
+        predicates.add(cb.isNotNull(root.get(Constants.AUDIT_TRAIL_FIELD_ASSET)));
+        
         if (allowedAssetIds != null && !allowedAssetIds.isEmpty()) {
             List<Predicate> assetPredicates = new ArrayList<>();
             
@@ -112,6 +115,9 @@ public class RoleBasedAuditTrailFilter extends AuditTrailFilter {
             }
             
             predicates.add(cb.or(assetPredicates.toArray(new Predicate[0])));
+        } else {
+            // If no allowed assets, return no results (always false predicate)
+            predicates.add(cb.equal(cb.literal(1), 0));
         }
     }
 
@@ -163,6 +169,9 @@ public class RoleBasedAuditTrailFilter extends AuditTrailFilter {
 
     private void addDeveloperFilters(List<Predicate> predicates, jakarta.persistence.criteria.Root<AuditTrail> root, 
                                    jakarta.persistence.criteria.CriteriaBuilder cb) {
+        // Exclude audit logs where asset is null for developers
+        predicates.add(cb.isNotNull(root.get(Constants.AUDIT_TRAIL_FIELD_ASSET)));
+        
         // Developers can only see their own audit logs
         if (currentUserEmail != null) {
             predicates.add(cb.equal(

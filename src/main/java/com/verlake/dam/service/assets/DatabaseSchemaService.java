@@ -11,6 +11,7 @@ import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.enums.Roles;
 import lombok.extern.slf4j.Slf4j;
@@ -30,19 +31,22 @@ public class DatabaseSchemaService {
     private final AssetService assetService;
     private final AccessRequestRepository accessRequestRepository;
     private final AssetCredentialsRepository assetCredentialsRepository;
+    private final AccessRequestService accessRequestService;
 
     public DatabaseSchemaService(DatabaseConnectionUtils databaseConnectionUtils,
-                               AssetValidationUtils assetValidationUtils,
-                               UserService userService,
-                               AssetService assetService,
-                               AccessRequestRepository accessRequestRepository,
-                               AssetCredentialsRepository assetCredentialsRepository) {
+                                 AssetValidationUtils assetValidationUtils,
+                                 UserService userService,
+                                 AssetService assetService,
+                                 AccessRequestRepository accessRequestRepository,
+                                 AssetCredentialsRepository assetCredentialsRepository, 
+                                 AccessRequestService accessRequestService) {
         this.databaseConnectionUtils = databaseConnectionUtils;
         this.assetValidationUtils = assetValidationUtils;
         this.userService = userService;
         this.assetService = assetService;
         this.accessRequestRepository = accessRequestRepository;
         this.assetCredentialsRepository = assetCredentialsRepository;
+        this.accessRequestService = accessRequestService;
     }
 
     /**
@@ -54,7 +58,7 @@ public class DatabaseSchemaService {
      * @return Database schema filtered by user's permissions
      */
     @Transactional(readOnly = true)
-    public DatabaseSchemaDTO getSchemaForCurrentUser(Long assetId, Long requestId, Boolean isAssetOwner) {
+    public DatabaseSchemaDTO getSchemaForCurrentUser(Long assetId, Long requestId, Boolean isAssetOwner) throws CommonUtils.CryptoException {
         log.debug("Fetching database schema for current user - assetId: {}, requestId: {}, isAssetOwner: {}", 
                 assetId, requestId, isAssetOwner);
         
@@ -81,7 +85,7 @@ public class DatabaseSchemaService {
     /**
      * Handle developer request with requestId
      */
-    private DatabaseSchemaDTO handleDeveloperRequest(Long requestId, boolean hasDeveloperRole) {
+    private DatabaseSchemaDTO handleDeveloperRequest(Long requestId, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
         if (!hasDeveloperRole) {
             throw new DatabaseAccessException("Insufficient permissions. You need DEVELOPER role to access schema via requestId.", null);
         }
@@ -93,7 +97,7 @@ public class DatabaseSchemaService {
      * Handle asset request with assetId
      */
     private DatabaseSchemaDTO handleAssetRequest(Long assetId, Boolean isAssetOwner, User currentUser, 
-                                               boolean hasAssetOwnerRole, boolean hasDeveloperRole) {
+                                               boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
         Asset asset = validateAsset(assetId);
         
         // If isAssetOwner is explicitly provided, use it directly
@@ -120,7 +124,7 @@ public class DatabaseSchemaService {
      * Handle explicit access type (isAssetOwner parameter provided)
      */
     private DatabaseSchemaDTO handleExplicitAccessType(Long assetId, Boolean isAssetOwner, User currentUser,
-                                                     boolean hasAssetOwnerRole, boolean hasDeveloperRole) {
+                                                     boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
         if (Boolean.TRUE.equals(isAssetOwner)) {
             if (!hasAssetOwnerRole) {
                 throw new DatabaseAccessException("Insufficient permissions. You need ASSET_OWNER role to access schema as asset owner.", null);
@@ -140,7 +144,7 @@ public class DatabaseSchemaService {
      * Handle auto-detect access type (isAssetOwner parameter not provided)
      */
     private DatabaseSchemaDTO handleAutoDetectAccess(Long assetId, User currentUser, Asset asset,
-                                                   boolean hasAssetOwnerRole, boolean hasDeveloperRole) {
+                                                   boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
         log.debug("isAssetOwner not provided, auto-detecting access type for asset: {}", assetId);
         
         // Try asset owner path first
@@ -176,11 +180,13 @@ public class DatabaseSchemaService {
     /**
      * Try developer path
      */
-    private DatabaseSchemaDTO tryDeveloperPath(Long assetId, User currentUser) {
+    private DatabaseSchemaDTO tryDeveloperPath(Long assetId, User currentUser) throws CommonUtils.CryptoException {
         log.debug("Checking for developer access request for asset: {}", assetId);
         try {
             return getSchemaForDeveloperByAssetId(assetId, currentUser);
         } catch (DatabaseAccessException e) {
+            throw e;
+        } catch (CommonUtils.CryptoException e) {
             throw e;
         } catch (Exception e) {
             log.error("Error checking developer access for asset {}: {}", assetId, e.getMessage());
@@ -213,7 +219,7 @@ public class DatabaseSchemaService {
     /**
      * Get schema for developer by assetId (finds access request automatically)
      */
-    private DatabaseSchemaDTO getSchemaForDeveloperByAssetId(Long assetId, User currentUser) {
+    private DatabaseSchemaDTO getSchemaForDeveloperByAssetId(Long assetId, User currentUser) throws CommonUtils.CryptoException {
         Asset asset = assetService.findById(assetId);
         if (asset == null) {
             throw new DatabaseAccessException("Asset not found: " + assetId, null);
@@ -233,8 +239,8 @@ public class DatabaseSchemaService {
                 .orElseThrow(() -> {
                     // Check if there are pending requests
                     boolean hasPending = requests.stream()
-                            .anyMatch(ar -> ar.getAssetApproverStatus() == ApprovalStatus.PENDING 
-                                    || ar.getDeveloperApproverStatus() == ApprovalStatus.PENDING);
+                            .anyMatch(ar -> ar.getAssetApproverStatus() == ApprovalStatus.REQUESTED
+                                    || ar.getAssetApproverStatus() == ApprovalStatus.APPROVAL_IN_PROGRESS);
                     
                     String errorMessage = hasPending 
                             ? "Access request for asset: " + assetId + " is pending approval. Please wait for approval."
@@ -259,11 +265,15 @@ public class DatabaseSchemaService {
      * Get database schema for a developer with access request validation
      */
     @Transactional(readOnly = true)
-    public DatabaseSchemaDTO getSchemaForDeveloper(Long requestId) {
+    public DatabaseSchemaDTO getSchemaForDeveloper(Long requestId) throws CommonUtils.CryptoException {
         log.debug("Fetching database schema for developer with request ID: {}", requestId);
         
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(requestId);
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
+        
+        // Encrypt temporary credential if needed
+        accessRequestService.encryptTemporaryCredential(credential, accessRequest);
+        
         assetValidationUtils.validateAccessRequestStatus(accessRequest);
         
         return fetchDatabaseSchema(accessRequest.getAsset(), credential);

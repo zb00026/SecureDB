@@ -1,10 +1,13 @@
 package com.verlake.dam.enums;
 
 public enum ApprovalStatus {
-    PENDING("Pending"),
+    REQUESTED("Requested"),
+    APPROVAL_IN_PROGRESS("Approval in progress"),
     APPROVED("Approved"),
     REJECTED("Rejected"),
-    CANCELLED("Cancelled");
+    RELINQUISHED_AFTER_APPROVED("Relinquished"),
+    RELINQUISHED_BEFORE_APPROVAL("Relinquished before Approval"),
+    EXPIRED("Expired");
 
     private final String displayName;
 

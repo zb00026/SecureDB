@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AccessRequestRepository extends JpaRepository<AccessRequest, Long> {
@@ -33,12 +34,19 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     List<AccessRequest> findByDeveloperApproverStatus(ApprovalStatus status);
     List<AccessRequest> findByAssetApproverStatus(ApprovalStatus status);
     
-    // Find pending requests (both statuses are PENDING)
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.assetApproverStatus = 'PENDING' AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
+    // Find pending requests (both statuses are REQUESTED)
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.assetApproverStatus = 'REQUESTED' AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
     List<AccessRequest> findPendingRequestsByAsset(@Param("asset") Asset asset);
+    
+    // Find pending requests for multiple assets (batch query)
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset.id IN :assetIds AND ar.assetApproverStatus = 'REQUESTED' AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
+    List<AccessRequest> findPendingRequestsByAssetIds(@Param("assetIds") List<Long> assetIds);
     
     // Find requests by asset and requestor
     @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.requestor = :requestor AND ar.expiryDate > CURRENT_TIMESTAMP AND ar.expiryHours > 0")
+    List<AccessRequest> findNotExpiredByAssetAndRequestor(@Param("asset") Asset asset, @Param("requestor") User requestor);
+
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.requestor = :requestor ORDER BY ar.id DESC")
     List<AccessRequest> findByAssetAndRequestor(@Param("asset") Asset asset, @Param("requestor") User requestor);
     
     // Find latest request for an asset and user
@@ -46,11 +54,11 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     List<AccessRequest> findLatestRequestByAssetAndRequestor(@Param("asset") Asset asset, @Param("requestor") User requestor);
     
     // Find all requests that need developer approval
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'PENDING' ORDER BY ar.requestTime ASC")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'REQUESTED' ORDER BY ar.requestTime ASC")
     List<AccessRequest> findRequestsNeedingDeveloperApproval();
     
     // Find all requests that need asset owner approval
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'APPROVED' AND ar.assetApproverStatus = 'PENDING' ORDER BY ar.requestTime ASC")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'APPROVED' AND ar.assetApproverStatus = 'REQUESTED' ORDER BY ar.requestTime ASC")
     List<AccessRequest> findRequestsNeedingAssetApproval();
     
     // Find all approved requests
@@ -62,7 +70,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     List<AccessRequest> findRejectedRequests();
     
     // Count pending requests for an asset
-    @Query("SELECT COUNT(ar) FROM AccessRequest ar WHERE ar.asset = :asset AND (ar.developerApproverStatus = 'PENDING' OR ar.assetApproverStatus = 'PENDING')")
+    @Query("SELECT COUNT(ar) FROM AccessRequest ar WHERE ar.asset = :asset AND (ar.developerApproverStatus = 'REQUESTED' OR ar.assetApproverStatus = 'REQUESTED')")
     Long countPendingRequestsForAsset(@Param("asset") Asset asset);
     
     // Find requests by multiple statuses
@@ -77,6 +85,19 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
            "AND ar.assetApproverStatus = 'APPROVED'")
     List<AccessRequest> findByExpiryDateBeforeAndAssetCredentialIsDeletedFalse(
             @Param("currentDate") LocalDateTime currentDate
+        );
+    
+    @Query("SELECT ar FROM AccessRequest ar " +
+           "JOIN ar.assetCredential ac " +
+           "WHERE ar.requestor = :requestor " +
+           "AND ar.expiryDate < :currentDate " +
+           "AND ac.isDeleted = false " +
+           "AND ac.userAccessType = :userAccessType " +
+           "AND (ar.developerApproverStatus != 'EXPIRED' AND ar.assetApproverStatus != 'EXPIRED')")
+    List<AccessRequest> findExpiredByRequestorAndUserAccessType(
+            @Param("requestor") User requestor,
+            @Param("currentDate") LocalDateTime currentDate,
+            @Param("userAccessType") String userAccessType
         );
 
     @Query("SELECT ar FROM AccessRequest ar " +
@@ -124,7 +145,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
            "AND ar.requestor = :requestor " +
            "AND ar.assetApproverStatus IN :statuses " +
            "AND ar.requestedUsername IS NOT NULL")
-    java.util.Optional<AccessRequest> findActiveUnixRequestByAssetAndRequestor(
+    Optional<AccessRequest> findActiveUnixRequestByAssetAndRequestor(
             @Param("asset") Asset asset, 
             @Param("requestor") User requestor, 
             @Param("statuses") List<ApprovalStatus> statuses);

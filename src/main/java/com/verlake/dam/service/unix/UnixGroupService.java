@@ -10,9 +10,12 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.terminal.TerminalSession;
 import com.verlake.dam.repository.unix.UnixGroupRepository;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.terminal.SSHConnectionService;
 import com.verlake.dam.service.terminal.TerminalService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.UnixCommandBuilder;
 import com.verlake.dam.exception.UnixGroupException;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +51,7 @@ public class UnixGroupService {
     private final UserService userService;
     private final SSHConnectionService sshConnectionService;
     private final TerminalService terminalService;
+    private final KeycloakService keycloakService;
 
     // Validation constants
     private static final Pattern GROUP_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._-]+$");
@@ -1745,26 +1749,147 @@ public class UnixGroupService {
     public void createGroupOnServer(Asset asset, String groupName, String description, String sessionId) throws IOException {
         log.info("Creating group on server: {} for asset: {} with sessionId: {}", groupName, asset.getId(), sessionId);
 
-        String command = String.format("sudo groupadd %s", groupName);
-        
-        if (sessionId != null && !sessionId.trim().isEmpty()) {
-            executeSSHCommandWithSession(asset, command, sessionId);
-        } else {
-            executeSSHCommand(asset, command);
+        // Find or use provided session ID to reuse it for both commands
+        String usedSessionId = findOrUseSessionId(asset, sessionId);
+
+        // Create reusable SSH connection if no session exists
+        SSHConnectionService.SSHConnection reusableConnection = null;
+        if (usedSessionId == null) {
+            reusableConnection = createReusableSSHConnection(asset);
+        }
+
+        try {
+            String command = String.format("sudo groupadd %s", groupName);
+            if (reusableConnection != null) {
+                executeCommandOnConnection(reusableConnection, command);
+            } else {
+                executeSSHCommandWithSession(asset, command, usedSessionId);
+            }
+            
+            // Note: groupmod doesn't support -c option for comments/descriptions on Linux
+            // Group descriptions are typically stored in /etc/group but can't be set via groupmod
+            // If description is needed, it would require manual editing of /etc/group
+            // For now, we skip setting the description to avoid errors and timeouts
+            if (description != null && !description.trim().isEmpty()) {
+                log.debug("Group description provided but not set (groupmod doesn't support -c option): {}", description);
+            }
+        } finally {
+            // Always disconnect reusable connection if we created one
+            if (reusableConnection != null) {
+                try {
+                    reusableConnection.disconnect();
+                    log.debug("Disconnected reusable SSH connection for asset: {}", asset.getId());
+                } catch (Exception e) {
+                    log.warn("Error disconnecting reusable SSH connection: {}", e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * Find existing session or use provided session ID to reuse for multiple commands
+     */
+    private String findOrUseSessionId(Asset asset, String providedSessionId) {
+        // If session ID is provided, use it
+        if (providedSessionId != null && !providedSessionId.trim().isEmpty()) {
+            return providedSessionId;
         }
         
-        if (description != null && !description.trim().isEmpty()) {
-            // Set group description (if supported)
-            String descCommand = String.format("sudo groupmod -c '%s' %s", description, groupName);
-            try {
-                if (sessionId != null && !sessionId.trim().isEmpty()) {
-                    executeSSHCommandWithSession(asset, descCommand, sessionId);
-                } else {
-                    executeSSHCommand(asset, descCommand);
-                }
-            } catch (IOException e) {
-                log.warn("Failed to set group description for {}: {}", groupName, e.getMessage());
+        // Try to find existing session for this asset
+        try {
+            String foundSessionId = terminalService.findActiveSessionForAsset(asset.getId());
+            if (foundSessionId != null) {
+                log.debug("Found existing session {} for asset {}, will reuse for multiple commands", 
+                        foundSessionId, asset.getId());
+                return foundSessionId;
             }
+        } catch (Exception e) {
+            log.debug("Could not find existing session for asset {}: {}", asset.getId(), e.getMessage());
+        }
+        
+        // No session found, return null - we'll create a reusable connection
+        return null;
+    }
+
+    /**
+     * Create a reusable SSH connection for multiple commands
+     */
+    private SSHConnectionService.SSHConnection createReusableSSHConnection(Asset asset) throws IOException {
+        try {
+            log.debug("Creating reusable SSH connection for asset: {}", asset.getId());
+            
+            // Get current user and credentials
+            User currentUser = userService.getCurrentUser();
+            AssetCredential sshCredential = assetService.getSSHCredentialsForAsset(asset.getId(), currentUser);
+            if (sshCredential == null) {
+                throw new IOException("No SSH credentials found for asset: " + asset.getId());
+            }
+            
+            String userKey = keycloakService.getUserKey();
+            if (userKey == null || userKey.isEmpty()) {
+                throw new IOException("User encryption key not available");
+            }
+            
+            // Create SSH connection
+            SSHConnectionService.SSHConnection connection = sshConnectionService.createSSHConnection(
+                    asset.getHostAddress(),
+                    asset.getPortNumber() != null ? Integer.parseInt(asset.getPortNumber()) : 22,
+                    sshCredential,
+                    userKey
+            );
+            
+            log.debug("Created reusable SSH connection for asset: {}", asset.getId());
+            return connection;
+        } catch (Exception e) {
+            log.error("Failed to create reusable SSH connection for asset {}: {}", asset.getId(), e.getMessage());
+            throw new IOException("Failed to create SSH connection: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute command on a reusable SSH connection
+     */
+    private String executeCommandOnConnection(SSHConnectionService.SSHConnection connection, String command) throws IOException {
+        StringBuilder output = new StringBuilder();
+        final Object outputLock = new Object(); // Dedicated lock object for synchronization
+        int timeoutMs = Constants.SSH_COMMAND_TIMEOUT_MS;
+        int checkIntervalMs = 100;
+
+        // Clear previous output and start output reader
+        connection.startOutputReader(data -> {
+            synchronized (outputLock) {
+                output.append(data);
+            }
+        });
+
+        try {
+            // Wait for prompt (connection ready)
+            Thread.sleep(500);
+            
+            // Send command
+            connection.sendInput(command + "\n");
+            
+            // Wait for command completion using shared helper method
+            boolean commandCompleted = sshConnectionService.waitForCommandCompletion(output, outputLock, command, timeoutMs, checkIntervalMs);
+            
+            if (!commandCompleted) {
+                log.warn("Command execution timed out after {}ms", timeoutMs);
+            }
+            
+            // Extract command output (remove command and prompt)
+            synchronized (outputLock) {
+                String fullOutput = output.toString();
+                // Extract only the command result (between command and prompt)
+                String result = fullOutput.replaceAll(".*" + Pattern.quote(command) + "\\s*\n?", "");
+                result = result.replaceAll("[$#].*$", "").trim();
+                return result;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Command execution interrupted", e);
+        } catch (Exception e) {
+            log.error("Failed to execute command on reusable connection: {}", command, e);
+            throw new IOException("Failed to execute command: " + e.getMessage(), e);
         }
     }
 

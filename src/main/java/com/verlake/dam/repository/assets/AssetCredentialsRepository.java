@@ -40,6 +40,8 @@ public interface AssetCredentialsRepository extends JpaRepository<AssetCredentia
 
     Optional<AssetCredential> findByUserAndAssetAndUserAccessType(User user, Asset asset, String userAccessType);
 
+    Optional<AssetCredential> findByUserIdAndAssetIdAndUserAccessType(Long userId, Long assetId, String userAccessType);
+
     List<AssetCredential> findByAssetAndUserAccessType(Asset asset, String userAccessType);
 
     List<AssetCredential> findByAssetIdAndUserAccessType(Long assetId, String userAccessType);

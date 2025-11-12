@@ -43,6 +43,11 @@ public class KeycloakService {
     
     // Cache SSO status to avoid repeated API calls
     private Boolean ssoEnabled = null;
+    
+    // Thread-local cache for user-key to avoid multiple calls in the same request
+    private static final ThreadLocal<String> userKeyCache = new ThreadLocal<>();
+    private static final ThreadLocal<Long> userKeyCacheTime = new ThreadLocal<>();
+    private static final long CACHE_TTL_MS = 5000; // Cache for 5 seconds
 
     public KeycloakService(@Value("${keycloak.auth-server-url}") String keycloakAuthServerUrl,
                            @Value("${spring.security.oauth2.client.registration.keycloak.client-id}") String clientId,
@@ -251,32 +256,125 @@ public class KeycloakService {
     }
 
     public String getUserKeyViaAccountApi(String jwtToken) {
+        int maxRetries = 3;
+        int retryDelayMs = 100;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            String result = attemptGetUserKey(jwtToken, attempt, maxRetries);
+            if (result != null) {
+                return result;
+            }
+            
+            if (attempt < maxRetries && !handleRetryDelay(attempt, retryDelayMs)) {
+                return null;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Attempt to get user key from Account API
+     */
+    private String attemptGetUserKey(String jwtToken, int attempt, int maxRetries) {
         try {
             ResponseEntity<Map<String, Object>> response = getAccountData(jwtToken);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                logNon2xxResponse(response.getStatusCode(), attempt, maxRetries);
                 return null;
             }
-
-            Map<String, Object> userData = response.getBody();
-            
-            // Get attributes
-            @SuppressWarnings("unchecked")
-            Map<String, Object> attributes = (Map<String, Object>) userData.get(Constants.KEYCLOAK_CLIENT_ATTRIBUTES);
-            if (attributes != null) {
-                @SuppressWarnings("unchecked")
-                List<String> userKeyList = (List<String>) attributes.get(Constants.KEYCLOAK_USER_KEY);
-                if (userKeyList != null && !userKeyList.isEmpty()) {
-                    return userKeyList.get(0);
-                }
-            }
-            
-            return null;
+            return extractUserKeyFromResponse(response.getBody());
+        } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
+            return handleUnauthorizedException(e, attempt, maxRetries);
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            return handleHttpClientException(e, attempt, maxRetries);
         } catch (Exception e) {
-            log.error("Failed to get user key via Account API. Error: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
-                "Failed to get user key via Account API: " + e.getMessage());
+            return handleGenericException(e, attempt, maxRetries);
         }
     }
+    
+    /**
+     * Extract user key from response body
+     */
+    private String extractUserKeyFromResponse(Map<String, Object> userData) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> attributes = (Map<String, Object>) userData.get(Constants.KEYCLOAK_CLIENT_ATTRIBUTES);
+        if (attributes != null) {
+            @SuppressWarnings("unchecked")
+            List<String> userKeyList = (List<String>) attributes.get(Constants.KEYCLOAK_USER_KEY);
+            if (userKeyList != null && !userKeyList.isEmpty()) {
+                return userKeyList.get(0);
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Handle 401 Unauthorized exception
+     */
+    private String handleUnauthorizedException(org.springframework.web.client.HttpClientErrorException.Unauthorized e, 
+                                               int attempt, int maxRetries) {
+        if (attempt < maxRetries) {
+            log.warn("Unauthorized access to Account API (401). Retrying (attempt {}/{}). Error: {}", 
+                    attempt, maxRetries, e.getMessage());
+            return null; // Signal to retry
+        }
+        log.warn("Unauthorized access to Account API (401) after {} attempts. Token may be expired or invalid. Error: {}", 
+                maxRetries, e.getMessage());
+        return null;
+    }
+    
+    /**
+     * Handle HttpClientException (4xx/5xx errors)
+     */
+    private String handleHttpClientException(org.springframework.web.client.HttpClientErrorException e, 
+                                             int attempt, int maxRetries) {
+        if (attempt < maxRetries && e.getStatusCode().value() >= 500) {
+            log.warn("Server error accessing Account API ({}). Retrying (attempt {}/{}). Error: {}", 
+                    e.getStatusCode(), attempt, maxRetries, e.getMessage());
+            return null; // Signal to retry
+        }
+        log.warn("Client error accessing Account API ({}). Error: {}", e.getStatusCode(), e.getMessage());
+        return null;
+    }
+    
+    /**
+     * Handle generic exception
+     */
+    private String handleGenericException(Exception e, int attempt, int maxRetries) {
+        if (attempt < maxRetries) {
+            log.warn("Failed to get user key via Account API (attempt {}/{}). Retrying. Error: {}", 
+                    attempt, maxRetries, e.getMessage());
+            return null; // Signal to retry
+        }
+        log.error("Failed to get user key via Account API after {} attempts. Error: {}", maxRetries, e.getMessage());
+        return null;
+    }
+    
+    /**
+     * Handle retry delay with exponential backoff
+     */
+    private boolean handleRetryDelay(int attempt, int retryDelayMs) {
+        try {
+            Thread.sleep((long) retryDelayMs * attempt);
+            return true;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            log.error(Constants.ERROR_THREAD_INTERRUPTED_DURING_RETRY_DELAY);
+            return false;
+        }
+    }
+    
+    /**
+     * Log non-2xx response
+     */
+    private void logNon2xxResponse(org.springframework.http.HttpStatusCode status, int attempt, int maxRetries) {
+        if (attempt < maxRetries) {
+            log.warn("Account API returned non-2xx status: {}. Retrying (attempt {}/{})", 
+                    status, attempt, maxRetries);
+        }
+    }
+    
 
     public void updateUserKeyViaAccountApi(String userId, String userKey, String jwtToken) {
         try {
@@ -327,16 +425,56 @@ public class KeycloakService {
     }
 
     public String getUserKey() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String jwtToken = null;
-
-        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
-            jwtToken = jwt.getTokenValue();
+        // Check thread-local cache first to avoid multiple calls in the same request
+        String cachedKey = userKeyCache.get();
+        Long cacheTime = userKeyCacheTime.get();
+        
+        if (cachedKey != null && cacheTime != null) {
+            long age = System.currentTimeMillis() - cacheTime;
+            if (age < CACHE_TTL_MS) {
+                log.debug("Returning cached user-key (age: {}ms)", age);
+                return cachedKey;
+            } else {
+                // Cache expired, clear it
+                userKeyCache.remove();
+                userKeyCacheTime.remove();
+            }
         }
-        if (jwtToken == null || jwtToken.isEmpty()) {
+        
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String jwtToken = null;
+
+            if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+                jwtToken = jwt.getTokenValue();
+            }
+            if (jwtToken == null || jwtToken.isEmpty()) {
+                log.debug("JWT token not available in security context");
+                return null;
+            }
+            
+            String userKey = getUserKeyViaAccountApi(jwtToken);
+            
+            // Cache the result if successful
+            if (userKey != null) {
+                userKeyCache.set(userKey);
+                userKeyCacheTime.set(System.currentTimeMillis());
+            }
+            
+            return userKey;
+        } catch (Exception e) {
+            // Handle any unexpected errors gracefully
+            log.warn("Failed to get user key. Error: {}", e.getMessage());
             return null;
         }
-        return getUserKeyViaAccountApi(jwtToken);
+    }
+    
+    /**
+     * Clear the thread-local cache (useful for testing or when token changes)
+     */
+    public void clearUserKeyCache() {
+        userKeyCache.remove();
+        userKeyCacheTime.remove();
     }
 
     private ResponseEntity<Map<String, Object>> getAccountData(String jwtToken) {

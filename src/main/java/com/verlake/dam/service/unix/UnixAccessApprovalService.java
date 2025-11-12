@@ -13,6 +13,7 @@ import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.service.terminal.SSHConnectionService;
+import com.verlake.dam.service.unix.SSHKeyPairService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
@@ -41,8 +42,8 @@ public class UnixAccessApprovalService {
     private final AssetCredentialsRepository assetCredentialsRepository;
     private final AuditTrailRepository auditTrailRepository;
     private final UserService userService;
-    private final SSHKeyPairService sshKeyPairService;
     private final SSHConnectionService sshConnectionService;
+    private final SSHKeyPairService sshKeyPairService;
     
     /**
      * Approve a Unix access request and create the user on the Unix system
@@ -56,10 +57,11 @@ public class UnixAccessApprovalService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
                         "Access request not found"));
         
-        // Validate status
-        if (request.getAssetApproverStatus() != ApprovalStatus.PENDING) {
+        // Validate status - can approve if REQUESTED or APPROVAL_IN_PROGRESS
+        if (request.getAssetApproverStatus() != ApprovalStatus.REQUESTED 
+                && request.getAssetApproverStatus() != ApprovalStatus.APPROVAL_IN_PROGRESS) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                    "Access request is not in pending status");
+                    "Access request is not in a pending status for approval");
         }
         
         // Validate approver is asset owner
@@ -79,14 +81,15 @@ public class UnixAccessApprovalService {
             // Add user to approved groups
             addUserToGroups(request, approvedGroupIds);
             
-            // Add public key to user
-            addPublicKeyToUser(request);
+            // Generate temporary SSH key pair and add public key to authorized_keys
+            String privateKey = generateAndAddSSHKeyPair(request);
             
-            // Create AssetCredential for developer
-            createDeveloperCredential(request);
-            
-            // Update request status
+            // Create AssetCredential for developer with unencrypted private key
+            // The private key will be encrypted later with developer's key when they access it
+            createDeveloperCredential(request, privateKey);
+
             request.setAssetApproverStatus(ApprovalStatus.APPROVED);
+
             request.setApprovedTime(LocalDateTime.now());
             request.setApprovedBy(approver);
             accessRequestRepository.save(request);
@@ -120,10 +123,11 @@ public class UnixAccessApprovalService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
                         "Access request not found"));
         
-        // Validate status
-        if (request.getAssetApproverStatus() != ApprovalStatus.PENDING) {
+        // Validate status - can approve if REQUESTED or APPROVAL_IN_PROGRESS
+        if (request.getAssetApproverStatus() != ApprovalStatus.REQUESTED 
+                && request.getAssetApproverStatus() != ApprovalStatus.APPROVAL_IN_PROGRESS) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                    "Access request is not in pending status");
+                    "Access request is not in a pending status for approval");
         }
         
         // Validate approver is asset owner
@@ -188,11 +192,59 @@ public class UnixAccessApprovalService {
             return; // User already exists, skip creation
         }
         
+        // Find bash executable path (common locations: /bin/bash, /usr/bin/bash)
+        String bashPath = findBashPath(asset);
+        log.debug("Using bash path: {} for user creation", bashPath);
+        
+        // Check if group with same name exists
+        String checkGroupCommand = String.format("getent group %s >/dev/null 2>&1 && echo 'GROUP_EXISTS' || echo 'GROUP_NOT_EXISTS'", username);
+        String groupCheckResult = executeSSHCommand(asset, checkGroupCommand);
+        boolean groupExists = groupCheckResult.contains("GROUP_EXISTS");
+        
         // Create user with home directory
-        String createUserCommand = String.format("sudo useradd -m -s /bin/bash %s", username);
+        // If group exists, use -g to add user to that group, otherwise let useradd create the group
+        String createUserCommand;
+        if (groupExists) {
+            createUserCommand = String.format("sudo useradd -m -s %s -g %s %s", bashPath, username, username);
+        } else {
+            createUserCommand = String.format("sudo useradd -m -s %s %s", bashPath, username);
+        }
         String result = executeSSHCommand(asset, createUserCommand);
         
         log.info("Unix user created: {}. Result: {}", username, result);
+    }
+    
+    /**
+     * Find the bash executable path on the remote system
+     * Tries common locations: /bin/bash, /usr/bin/bash
+     * Falls back to system default shell if bash is not found
+     */
+    private String findBashPath(Asset asset) throws Exception {
+        // Try common bash locations
+        String[] bashPaths = {"/bin/bash", "/usr/bin/bash"};
+        
+        for (String bashPath : bashPaths) {
+            String checkCommand = String.format("test -x %s && echo 'EXISTS' || echo 'NOT_EXISTS'", bashPath);
+            String result = executeSSHCommand(asset, checkCommand);
+            
+            if (result.contains("EXISTS")) {
+                log.debug("Found bash at: {}", bashPath);
+                return bashPath;
+            }
+        }
+        
+        // If bash not found, try to find it using which/whereis
+        String findBashCommand = "which bash 2>/dev/null || whereis -b bash 2>/dev/null | awk '{print $2}' | head -1 || echo ''";
+        String bashLocation = executeSSHCommand(asset, findBashCommand).trim();
+        
+        if (!bashLocation.isEmpty() && !bashLocation.contains("not found") && !bashLocation.contains("no bash")) {
+            log.debug("Found bash using which/whereis at: {}", bashLocation);
+            return bashLocation.trim();
+        }
+        
+        // Last resort: use system default shell (usually /bin/sh)
+        log.warn("Bash not found on system, using default shell /bin/sh");
+        return "/bin/sh";
     }
     
     /**
@@ -233,19 +285,20 @@ public class UnixAccessApprovalService {
     }
     
     /**
-     * Add public key to user's authorized_keys
+     * Generate temporary SSH key pair and add public key to user's authorized_keys
      */
-    private void addPublicKeyToUser(AccessRequest request) throws Exception {
+    private String generateAndAddSSHKeyPair(AccessRequest request) throws Exception {
         String username = request.getRequestedUsername();
-        String publicKey = request.getPublicKey();
         Asset asset = request.getAsset();
         
-        if (publicKey == null || publicKey.isEmpty()) {
-            log.info("No new public key to add for user: {}", username);
-            return; // User already has SSH credential, no new key to add
-        }
+        log.info("Generating temporary SSH key pair for Unix user: {}", username);
         
-        log.info("Adding public key to user: {}", username);
+        // Generate SSH key pair
+        SSHKeyPairService.SSHKeyPairResult keyPair = sshKeyPairService.generateKeyPair();
+        String publicKey = keyPair.getPublicKey();
+        String privateKey = keyPair.getPrivateKey();
+        
+        log.info("SSH key pair generated successfully. Fingerprint: {}", keyPair.getFingerprint());
         
         // Format public key with comment
         String formattedKey = sshKeyPairService.formatPublicKeyForAuthorizedKeys(publicKey, 
@@ -267,12 +320,16 @@ public class UnixAccessApprovalService {
         String result = executeSSHCommand(asset, addKeyCommand);
         
         log.info("Public key added to user {}. Result: {}", username, result);
+        
+        // Return unencrypted private key - will be encrypted later with developer's key
+        return privateKey;
     }
     
     /**
-     * Create AssetCredential for developer
+     * Create AssetCredential for developer with unencrypted private key
+     * The private key will be encrypted later with developer's key when they access it
      */
-    private void createDeveloperCredential(AccessRequest request) {
+    private void createDeveloperCredential(AccessRequest request, String privateKey) {
         // Check if credential already exists
         boolean credentialExists = assetCredentialsRepository
                 .findByAssetIdAndUserId(request.getAsset().getId(), request.getRequestor().getId())
@@ -280,6 +337,15 @@ public class UnixAccessApprovalService {
                 .anyMatch(cred -> Roles.DEVELOPER.getOriginalName().equals(cred.getUserAccessType()));
         
         if (credentialExists) {
+            AssetCredential devCredential = assetCredentialsRepository
+                    .findByUserIdAndAssetIdAndUserAccessType(request.getRequestor().getId(), request.getAsset().getId(), Roles.DEVELOPER.getOriginalName())
+                    .orElse(null);
+            if (devCredential != null) {
+                devCredential.setUsername(request.getRequestedUsername());
+                devCredential.setIsTemporaryPassword(true);
+                devCredential.setSshKeyFile(privateKey);
+                assetCredentialsRepository.saveAndFlush(devCredential);
+            }
             log.info("Developer credential already exists for user: {}", request.getRequestor().getEmail());
             return;
         }
@@ -288,14 +354,15 @@ public class UnixAccessApprovalService {
                 .asset(request.getAsset())
                 .user(request.getRequestor())
                 .username(request.getRequestedUsername())
-                .sshKeyFile(request.getEncryptedPrivateKey()) // Store encrypted private key
+                .sshKeyFile(privateKey) // Store unencrypted private key - will be encrypted with developer's key later
                 .userAccessType(Roles.DEVELOPER.getOriginalName())
                 .isDeleted(false)
                 .build();
         
         assetCredentialsRepository.save(developerCredential);
         
-        log.info("Developer credential created for user: {}", request.getRequestor().getEmail());
+        log.info("Developer credential created with SSH key pair for user: {}", 
+                request.getRequestor().getEmail());
     }
     
     /**

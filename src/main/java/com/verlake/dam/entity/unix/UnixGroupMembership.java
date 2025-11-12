@@ -36,7 +36,7 @@ public class UnixGroupMembership {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private ApprovalStatus status = ApprovalStatus.PENDING;
+    private ApprovalStatus status = ApprovalStatus.REQUESTED;
     
     @Column(name = "approved")
     @Builder.Default

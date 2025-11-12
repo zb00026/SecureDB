@@ -388,7 +388,7 @@ public class EmailService {
                 requestor,
                 asset,
                 emailTmplFile,
-                ApprovalStatus.PENDING,
+                ApprovalStatus.REQUESTED,
                 EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY,
                 newCredMapper);
     }
@@ -400,7 +400,7 @@ public class EmailService {
                 requestor,
                 asset,
                 emailTmplFile,
-                ApprovalStatus.PENDING,
+                ApprovalStatus.RELINQUISHED_BEFORE_APPROVAL,
                 EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY,
                 newCredMapper);
     }

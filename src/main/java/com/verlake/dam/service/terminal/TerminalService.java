@@ -6,6 +6,10 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.entity.terminal.TerminalSession;
 import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.repository.assets.AccessRequestRepository;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.SSHCommandUtils;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
@@ -61,13 +65,15 @@ public class TerminalService {
     
     // Track current command being typed for keyboard events
     private final ConcurrentMap<String, StringBuilder> currentCommandBuffers = new ConcurrentHashMap<>();
+    private final AssetCredentialsRepository assetCredentialsRepository;
+    private final AccessRequestRepository accessRequestRepository;
 
     /**
      * Create a new terminal session for a Unix server with JWT token authentication
      */
     public TerminalSession createSessionWithToken(Long assetId, String token, AuthProvider authProvider,
-            String clientIp, String userAgent) {
-        log.info("Creating terminal session with token for asset ID: {}", assetId);
+            String clientIp, String userAgent, String userAccessType) throws CommonUtils.CryptoException {
+        log.info("Creating terminal session with token for asset ID: {}, accessType: {}", assetId, userAccessType);
 
         // Authenticate user from token using AuthService
         User currentUser = authenticateUserFromToken(token, authProvider);
@@ -88,10 +94,19 @@ public class TerminalService {
             throw new IllegalArgumentException("Asset must be of type UNIX_SERVER");
         }
 
-        // Get SSH credentials for this user and asset
-        AssetCredential sshCredential = assetService.getSSHCredentialsForAsset(assetId, currentUser);
+        // Get SSH credentials for this user and asset with the specified access type
+        AssetCredential sshCredential = assetService.getSSHCredentialsForAsset(assetId, currentUser, userAccessType);
         if (sshCredential == null) {
-            throw new SecurityException("No SSH credentials found for this asset");
+            throw new SecurityException("No SSH credentials found for this asset with access type: " + userAccessType);
+        }
+        if (sshCredential.getIsTemporaryPassword()) {
+            String encryptedPassword = CommonUtils.encrypt(userKey, sshCredential.getSshKeyFile());
+            sshCredential.setSshKeyFile(encryptedPassword);
+            sshCredential.setIsTemporaryPassword(false);
+            assetCredentialsRepository.save(sshCredential);
+            
+            // Update AccessRequest isTempPassword flag
+            updateAccessRequestTempPasswordFlag(asset, currentUser);
         }
 
         // Use host and port from Asset entity, not from frontend parameters
@@ -126,6 +141,35 @@ public class TerminalService {
 
         log.info("Terminal session created successfully. Session ID: {}", sessionId);
         return session;
+    }
+    
+    /**
+     * Update AccessRequest isTempPassword flag when temporary SSH key is encrypted
+     */
+    private void updateAccessRequestTempPasswordFlag(Asset asset, User requestor) {
+        try {
+            // Find AccessRequest by asset and requestor
+            List<AccessRequest> accessRequests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
+            
+            if (!accessRequests.isEmpty()) {
+                // Find the most recent active access request with isTempPassword = true
+                AccessRequest accessRequest = accessRequests.stream()
+                        .filter(ar -> Boolean.TRUE.equals(ar.getIsTempPassword()))
+                        .findFirst()
+                        .orElse(null);
+                
+                if (accessRequest != null) {
+                    accessRequest.setIsTempPassword(false);
+                    accessRequestRepository.save(accessRequest);
+                    log.info("Updated AccessRequest isTempPassword flag for asset: {}, requestor: {}", 
+                            asset.getId(), requestor.getEmail());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error updating AccessRequest isTempPassword flag for asset: {}, requestor: {}", 
+                    asset.getId(), requestor.getEmail(), e);
+            // Don't throw exception - this is not critical for terminal session creation
+        }
     }
 
     /**
@@ -551,14 +595,14 @@ public class TerminalService {
         log.debug("Executing command on session {}: {}", sessionId, command);
 
         StringBuilder output = new StringBuilder();
-        boolean commandCompleted = false;
+        final Object outputLock = new Object(); // Dedicated lock object for synchronization
         int timeoutMs = 10000; // 10 second timeout
         int checkIntervalMs = 100; // Check every 100ms
-        int elapsedMs = 0;
+        boolean commandCompleted;
 
         // Set up a temporary output reader for this command
         sshConnection.startOutputReader(data -> {
-            synchronized (output) {
+            synchronized (outputLock) {
                 output.append(data);
             }
         });
@@ -568,28 +612,14 @@ public class TerminalService {
             sshConnection.sendInput(command + "\n");
 
             // Wait for command completion with timeout
-            while (!commandCompleted && elapsedMs < timeoutMs) {
-                Thread.sleep(checkIntervalMs);
-                elapsedMs += checkIntervalMs;
-
-                synchronized (output) {
-                    String currentOutput = output.toString();
-                    
-                    // Check if we have a prompt after the command (indicating completion)
-                    if (currentOutput.contains(command) && 
-                        (currentOutput.contains("$ ") || currentOutput.contains("# ") || 
-                         currentOutput.contains("~$") || currentOutput.contains("~#"))) {
-                        commandCompleted = true;
-                    }
-                }
-            }
+            commandCompleted = sshConnectionService.waitForCommandCompletion(output, outputLock, command, timeoutMs, checkIntervalMs);
 
             if (!commandCompleted) {
                 log.warn("Command execution timed out after {}ms", timeoutMs);
             }
 
             // Extract only the command output (between command and next prompt)
-            synchronized (output) {
+            synchronized (outputLock) {
                 String fullOutput = output.toString();
                 return extractCommandOutput(fullOutput, command);
             }

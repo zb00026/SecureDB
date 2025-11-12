@@ -55,11 +55,11 @@ public class AccessRequest {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "developer_approver_status")
-    private ApprovalStatus developerApproverStatus = ApprovalStatus.PENDING;
+    private ApprovalStatus developerApproverStatus = ApprovalStatus.REQUESTED;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "asset_approver_status")
-    private ApprovalStatus assetApproverStatus = ApprovalStatus.PENDING;
+    private ApprovalStatus assetApproverStatus = ApprovalStatus.REQUESTED;
 
     // This is used to check if the password is a temporary password for developer request when approver approves the access request
     @Column(name = "is_temp_password", columnDefinition = "tinyint(1)")

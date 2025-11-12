@@ -8,6 +8,7 @@ import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.assets.dto.PingResult;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.AssetCsvService;
 import com.verlake.dam.service.email.EmailService;
@@ -104,9 +105,8 @@ public class AssetController extends BaseAssetAccessController {
      * database directly
      */
     @GetMapping("/{id}/access")
-    @Override
     public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
-        return super.getAssetAccess(id);
+        return super.getAssetAccess(id, Roles.ASSET_OWNER.getOriginalName());
     }
 
     /**

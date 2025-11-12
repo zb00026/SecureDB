@@ -2,10 +2,10 @@ package com.verlake.dam.entity.assets.dto;
 
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.utils.SpringContext;
+import com.verlake.dam.utils.TimezoneConverter;
 import lombok.Builder;
 import lombok.Data;
-
-import java.time.LocalDateTime;
 
 /**
  * Summary DTO for AccessRequest that can be safely included in AssetDTO
@@ -20,8 +20,8 @@ public class AccessRequestSummaryDTO {
     private String rejectReason;
     private ApprovalStatus developerApproverStatus;
     private ApprovalStatus assetApproverStatus;
-    private LocalDateTime requestTime;
-    private LocalDateTime expiryDate;
+    private String requestTime; // Converted to system timezone string
+    private String expiryDate; // Converted to system timezone string
     private Integer expiryHours;
     private Boolean isTempPassword;
     
@@ -37,6 +37,8 @@ public class AccessRequestSummaryDTO {
             return null;
         }
         
+        TimezoneConverter timezoneConverter = SpringContext.getBean(TimezoneConverter.class);
+        
         return AccessRequestSummaryDTO.builder()
                 .id(accessRequest.getId())
                 .accessSql(accessRequest.getAccessSql())
@@ -44,8 +46,8 @@ public class AccessRequestSummaryDTO {
                 .rejectReason(accessRequest.getRejectReason())
                 .developerApproverStatus(accessRequest.getDeveloperApproverStatus())
                 .assetApproverStatus(accessRequest.getAssetApproverStatus())
-                .requestTime(accessRequest.getRequestTime())
-                .expiryDate(accessRequest.getExpiryDate())
+                .requestTime(timezoneConverter.convertToSystemTimezoneString(accessRequest.getRequestTime()))
+                .expiryDate(timezoneConverter.convertToSystemTimezoneString(accessRequest.getExpiryDate()))
                 .expiryHours(accessRequest.getExpiryHours())
                 .isTempPassword(accessRequest.getIsTempPassword())
                 .requestedUsername(accessRequest.getRequestedUsername())

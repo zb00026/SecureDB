@@ -9,6 +9,7 @@ import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.service.assets.AccessLevelService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
@@ -65,9 +66,8 @@ public class AccessRequestController extends BaseAssetAccessController {
      * Get real-time user access information for an asset by querying the target database directly
      */
     @GetMapping("/{id}/access")
-    @Override
     public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
-        return super.getAssetAccess(id);
+        return super.getAssetAccess(id, Roles.DEVELOPER.getOriginalName());
     }
 
     @Override

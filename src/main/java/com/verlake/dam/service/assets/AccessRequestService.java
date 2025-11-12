@@ -1,12 +1,12 @@
 package com.verlake.dam.service.assets;
 
 import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.enums.Roles;
@@ -14,27 +14,19 @@ import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.CommonUtils.CryptoException;
 
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
@@ -43,11 +35,6 @@ import com.verlake.dam.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
 @Service
 @Slf4j
@@ -174,7 +161,7 @@ public class AccessRequestService {
 
         // Check if this is an update to an existing request
         if (requestDTO.getRequestId() != null) {
-            List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
+            List<AccessRequest> requests = accessRequestRepository.findNotExpiredByAssetAndRequestor(asset, requestor);
             request = requests.isEmpty() ? null : requests.get(0);
         } else {
             request = new AccessRequest();
@@ -184,8 +171,8 @@ public class AccessRequestService {
         request.setRequestTime(LocalDateTime.now());
         request.setRequestReason(requestDTO.getRequestReason());
         request.setAccessSql(generateSql(accessLevelObjects));
-        request.setDeveloperApproverStatus(ApprovalStatus.PENDING);
-        request.setAssetApproverStatus(ApprovalStatus.PENDING);
+        request.setDeveloperApproverStatus(ApprovalStatus.REQUESTED);
+        request.setAssetApproverStatus(ApprovalStatus.REQUESTED);
         request.setIsTempPassword(true);
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
@@ -300,8 +287,8 @@ public class AccessRequestService {
 
     public AccessRequest createRequest(AccessRequest request) {
         request.setRequestTime(LocalDateTime.now());
-        request.setDeveloperApproverStatus(ApprovalStatus.PENDING);
-        request.setAssetApproverStatus(ApprovalStatus.PENDING);
+        request.setDeveloperApproverStatus(ApprovalStatus.REQUESTED);
+        request.setAssetApproverStatus(ApprovalStatus.REQUESTED);
         return accessRequestRepository.save(request);
     }
     public List<AccessRequest> getRequestsNeedingDeveloperApproval() {
@@ -345,12 +332,99 @@ public class AccessRequestService {
             throw new ResourceNotFoundException(Constants.getMessage("error.no.access.request"));
         }
 
-        AssetCredential devCredential = accessRequest.getAssetCredential();
+        // Get the developer (requestor) to find their credential
+        User developer = accessRequest.getRequestor();
+        if (developer == null) {
+            throw new ResourceNotFoundException("Developer not found for access request");
+        }
 
-        databaseAccessService.updateAccessRequestCredentialPassword(devCredential, credentialInfo.getPassword());
+        // Find and validate developer credential
+        AssetCredential devCredential = findDeveloperCredential(accessRequest, developer);
+
+        // Get developer's encryption key
+        String developerKey = getDeveloperEncryptionKey();
+
+        // Encrypt credential if it's temporary
+        if (Boolean.TRUE.equals(devCredential.getIsTemporaryPassword())) {
+            encryptCredential(devCredential, credentialInfo, accessRequest.getAsset(), developerKey);
+        }
+
+        // Save updated credential and access request
+        saveCredentialAndAccessRequest(devCredential, accessRequest);
+        return accessRequest;
+    }
+
+    /**
+     * Find and validate developer credential for the access request
+     */
+    private AssetCredential findDeveloperCredential(AccessRequest accessRequest, User developer) {
+        AssetCredential devCredential = assetCredentialsRepository
+                .findByAssetIdAndUserId(accessRequest.getAsset().getId(), developer.getId())
+                .stream()
+                .filter(cred -> Roles.DEVELOPER.getOriginalName().equals(cred.getUserAccessType()))
+                .findFirst()
+                .orElse(null);
+
+        if (devCredential == null) {
+            throw new ResourceNotFoundException("Developer credential not found for this access request");
+        }
+        return devCredential;
+    }
+
+    /**
+     * Get developer's encryption key
+     */
+    private String getDeveloperEncryptionKey() throws CryptoException {
+        String developerKey = keycloakService.getUserKey();
+        if (developerKey == null || developerKey.isEmpty()) {
+            throw new CryptoException("Developer encryption key not available");
+        }
+        return developerKey;
+    }
+
+    /**
+     * Encrypt credential based on asset type
+     */
+    private void encryptCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
+                                   Asset asset, String developerKey) throws CryptoException {
+        if (asset.getType() == AssetType.UNIX_SERVER) {
+            encryptUnixCredential(devCredential, credentialInfo, developerKey);
+        } else {
+            encryptDatabaseCredential(devCredential, credentialInfo, developerKey);
+        }
+    }
+
+    /**
+     * Encrypt Unix SSH key file
+     */
+    private void encryptUnixCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
+                                      String developerKey) throws CryptoException {
+        if (credentialInfo.getSshKeyFile() == null || credentialInfo.getSshKeyFile().isEmpty()) {
+            throw new IllegalArgumentException("SSH key file is required for Unix assets");
+        }
+        String encryptedSshKey = CommonUtils.encrypt(developerKey, credentialInfo.getSshKeyFile());
+        devCredential.setSshKeyFile(encryptedSshKey);
+    }
+
+    /**
+     * Encrypt database password
+     */
+    private void encryptDatabaseCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
+                                          String developerKey) throws CryptoException {
+        if (credentialInfo.getPassword() == null || credentialInfo.getPassword().isEmpty()) {
+            throw new IllegalArgumentException("Password is required for database assets");
+        }
+        String encryptedPassword = CommonUtils.encrypt(developerKey, credentialInfo.getPassword());
+        devCredential.setPassword(encryptedPassword);
+    }
+
+    /**
+     * Save credential and update access request flag
+     */
+    private void saveCredentialAndAccessRequest(AssetCredential devCredential, AccessRequest accessRequest) {
+        assetCredentialsRepository.save(devCredential);
         accessRequest.setIsTempPassword(false);
         accessRequestRepository.save(accessRequest);
-        return accessRequest;
     }
 
     public void relinquishAccess(Long accessRequestId)
@@ -358,6 +432,15 @@ public class AccessRequestService {
         AccessRequest accessRequest = findById(accessRequestId);
         if (accessRequest == null) {
             throw new ResourceNotFoundException(Constants.getMessage("error.no.access.request"));
+        }
+
+        // Determine if relinquished after approval or before approval
+        boolean wasApproved = accessRequest.getAssetApproverStatus() == ApprovalStatus.APPROVED;
+        
+        if (wasApproved) {
+            accessRequest.setAssetApproverStatus(ApprovalStatus.RELINQUISHED_AFTER_APPROVED);
+        } else {
+            accessRequest.setAssetApproverStatus(ApprovalStatus.RELINQUISHED_BEFORE_APPROVAL);
         }
 
         accessRequest.setExpiryDate(LocalDateTime.now());
@@ -369,46 +452,77 @@ public class AccessRequestService {
 
 
 
+    @Transactional(readOnly = true)
     public List<AccessRequest> getAssetRequestApprovals() {
         User currentUser = userService.getCurrentUser();
         List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserAndUserAccessType(currentUser, Roles.ASSET_OWNER.getOriginalName());
         
-        return assetCredentials.stream()
-                .map(credential -> {
-                    // Use different queries based on asset type
-                    List<AccessRequest> lstAccessRequest;
-                    if (credential.getAsset().getType() == com.verlake.dam.enums.AssetType.UNIX_SERVER) {
-                        // For Unix assets, use the Unix-specific query that fetches group memberships
-                        lstAccessRequest = accessRequestRepository.findPendingUnixRequestsForAssets(
-                                List.of(credential.getAsset().getId()), 
-                                com.verlake.dam.enums.ApprovalStatus.PENDING);
-                    } else {
-                        // For database assets, use the regular query
-                        lstAccessRequest = accessRequestRepository.findPendingRequestsByAsset(credential.getAsset());
-                    }
-                    
-                    Asset fullAsset = assetRepository.findById(credential.getAsset().getId())
-                            .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.asset.not.found.msg")));
-                    
-                    lstAccessRequest.forEach(request -> {
-                        AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
-                        request.setAssetDTO(assetDTO);
-                        request.setAssetApprovalsDTO(assetService.convertToApprovalsDTO(fullAsset));
-                        
-                        // Mask sensitive Unix data if this is a Unix access request
-                        if (request.getRequestedUsername() != null) {
-                            if (request.getPublicKey() != null) {
-                                request.setPublicKey(null);
-                            }
-                            if (request.getEncryptedPrivateKey() != null) {
-                                request.setEncryptedPrivateKey(null);
-                            }
-                        }
-                    });
-                    
-                    return lstAccessRequest;
-                })
-                .flatMap(List::stream)
+        if (assetCredentials.isEmpty()) {
+            return List.of();
+        }
+        
+        // Collect all asset IDs and separate by type
+        List<Long> unixAssetIds = assetCredentials.stream()
+                .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER)
+                .map(cred -> cred.getAsset().getId())
+                .toList();
+        
+        List<Asset> databaseAssets = assetCredentials.stream()
+                .filter(cred -> cred.getAsset().getType() != AssetType.UNIX_SERVER)
+                .map(AssetCredential::getAsset)
+                .toList();
+        
+        // Fetch all access requests upfront
+        List<AccessRequest> allAccessRequests = new java.util.ArrayList<>();
+        
+        if (!unixAssetIds.isEmpty()) {
+            List<AccessRequest> unixRequests = accessRequestRepository.findPendingUnixRequestsForAssets(
+                    unixAssetIds, 
+                    ApprovalStatus.REQUESTED);
+            allAccessRequests.addAll(unixRequests);
+        }
+        
+        // Fetch database asset requests (batch query)
+        if (!databaseAssets.isEmpty()) {
+            List<Long> databaseAssetIds = databaseAssets.stream()
+                    .map(Asset::getId)
+                    .toList();
+            List<AccessRequest> dbRequests = accessRequestRepository.findPendingRequestsByAssetIds(databaseAssetIds);
+            allAccessRequests.addAll(dbRequests);
+        }
+        
+        // Fetch all assets upfront to avoid N+1 queries
+        List<Long> allAssetIds = assetCredentials.stream()
+                .map(cred -> cred.getAsset().getId())
+                .toList();
+        Map<Long, Asset> assetMap = assetRepository.findAllById(allAssetIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Asset::getId, asset -> asset));
+        
+        // Process all access requests
+        for (AccessRequest request : allAccessRequests) {
+            Asset fullAsset = assetMap.get(request.getAsset().getId());
+            if (fullAsset == null) {
+                log.warn("Asset not found for access request ID: {}, asset ID: {}", request.getId(), request.getAsset().getId());
+                continue;
+            }
+            
+            AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
+            request.setAssetDTO(assetDTO);
+            request.setAssetApprovalsDTO(assetService.convertToApprovalsDTO(fullAsset));
+            
+            // Mask sensitive Unix data if this is a Unix access request
+            if (request.getRequestedUsername() != null) {
+                if (request.getPublicKey() != null) {
+                    request.setPublicKey(null);
+                }
+                if (request.getEncryptedPrivateKey() != null) {
+                    request.setEncryptedPrivateKey(null);
+                }
+            }
+        }
+        
+        // Sort by request time (descending)
+        return allAccessRequests.stream()
                 .sorted((a1, a2) -> a2.getRequestTime().compareTo(a1.getRequestTime()))
                 .toList();
     }
@@ -445,7 +559,14 @@ public class AccessRequestService {
         } else if (approvalStatus == ApprovalStatus.REJECTED) {
             accessRequest.setRejectReason(accessRequestDTO.getRejectReason());
         }
-        accessRequest.setAssetApproverStatus(approvalStatus);
+        
+        // Set asset approver status
+        // If approving, check if both approvers need to approve
+        if (approvalStatus == ApprovalStatus.APPROVED) {
+            accessRequest.setAssetApproverStatus(ApprovalStatus.APPROVED);
+        } else {
+            accessRequest.setAssetApproverStatus(approvalStatus);
+        }
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
         accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));
@@ -560,6 +681,86 @@ public class AccessRequestService {
         }
     }
 
+    /**
+     * Encrypt temporary password or SSH key file and update both credential and access request flags
+     * This method handles the common logic for encrypting temporary credentials when first accessed
+     * 
+     * Uses REQUIRES_NEW propagation to ensure writes are persisted even when called from read-only transactions
+     * 
+     * @param credential The asset credential with temporary password/SSH key
+     * @param accessRequest The access request associated with this credential
+     * @throws CryptoException if encryption fails
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void encryptTemporaryCredential(AssetCredential credential, AccessRequest accessRequest) throws CommonUtils.CryptoException {
+        if (!Boolean.TRUE.equals(credential.getIsTemporaryPassword())) {
+            return; // Not a temporary password, nothing to do
+        }
+        
+        String userKey = keycloakService.getUserKey();
+        if (userKey == null || userKey.isEmpty()) {
+            throw new CryptoException("User encryption key not available");
+        }
+        
+        // Encrypt password or SSH key file based on what's available
+        if (credential.getPassword() != null && !credential.getPassword().isEmpty()) {
+            // Database credential - encrypt password
+            String encryptedPassword = CommonUtils.encrypt(userKey, credential.getPassword());
+            credential.setPassword(encryptedPassword);
+        } else if (credential.getSshKeyFile() != null && !credential.getSshKeyFile().isEmpty()) {
+            // Unix SSH credential - encrypt SSH key file
+            String encryptedSshKey = CommonUtils.encrypt(userKey, credential.getSshKeyFile());
+            credential.setSshKeyFile(encryptedSshKey);
+        } else {
+            log.warn("Temporary credential found but neither password nor sshKeyFile is set for credential ID: {}", credential.getId());
+            return;
+        }
+        
+        // Update credential flags
+        credential.setIsTemporaryPassword(false);
+        assetCredentialsRepository.save(credential);
+        
+        // Update access request flag
+        if (accessRequest != null) {
+            accessRequest.setIsTempPassword(false);
+            accessRequestRepository.save(accessRequest);
+        }
+        
+        log.info("Encrypted temporary credential for credential ID: {}, accessRequest ID: {}", 
+                credential.getId(), accessRequest != null ? accessRequest.getId() : "N/A");
+    }
 
+    /**
+     * Update expired access requests to EXPIRED status for developers
+     * This is called when a developer logs in to ensure their expired requests are marked
+     * 
+     * @param user The developer user whose expired access requests should be updated
+     */
+    @Transactional
+    public void updateExpiredAccessRequests(User user) {
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            String developerAccessType = Roles.DEVELOPER.getOriginalName();
+            
+            List<AccessRequest> expiredRequests = accessRequestRepository
+                    .findExpiredByRequestorAndUserAccessType(user, now, developerAccessType);
+            
+            expiredRequests.forEach(ar -> {
+                ar.setDeveloperApproverStatus(ApprovalStatus.EXPIRED);
+                ar.setAssetApproverStatus(ApprovalStatus.EXPIRED);
+                accessRequestRepository.save(ar);
+                log.info("Updated access request ID: {} to EXPIRED status for developer: {}", 
+                        ar.getId(), user.getEmail());
+            });
+            
+            if (!expiredRequests.isEmpty()) {
+                log.info("Updated {} expired access requests to EXPIRED status for developer: {}", 
+                        expiredRequests.size(), user.getEmail());
+            }
+        } catch (Exception e) {
+            log.error("Failed to update expired access requests for developer {}: {}", 
+                    user != null ? user.getEmail() : "unknown", e.getMessage(), e);
+        }
+    }
 
 }

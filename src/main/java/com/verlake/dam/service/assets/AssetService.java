@@ -1,14 +1,9 @@
 package com.verlake.dam.service.assets;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import com.verlake.dam.entity.assets.AccessLevel;
 import com.verlake.dam.entity.assets.AssetApprover;
 import com.verlake.dam.entity.assets.dto.*;
-import com.verlake.dam.entity.firebase.NotificationMessage;
-import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.DatabaseAccessException;
@@ -16,11 +11,9 @@ import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
-import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-import jakarta.persistence.Access;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,23 +22,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
-import java.security.Key;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.AssetType;
-import com.verlake.dam.enums.UnixServerType;
 
 @Service
 @Slf4j
@@ -184,6 +175,7 @@ public class AssetService {
                         .user(owner)
                         .username(null)
                         .password(null)
+                        .isTemporaryPassword(true)
                         .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                         .build();
                 assetCredentialsRepository.save(credentials);
@@ -252,12 +244,26 @@ public class AssetService {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
 
-        // Soft delete the asset
-        asset.setDeleted(true);
-
-        // Wipe all credentials
+        // Get all credentials for this asset
+        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetId(asset.getId());
+        
+        // Delete asset objects for each credential
+        credentials.forEach(assetObjectRepository::deleteByAssetCredential);
+        
+        // Find all access requests for this asset
+        List<AccessRequest> accessRequests = accessRequestRepository.findByAsset(asset);
+        
+        // Delete access level objects for each access request
+        accessRequests.forEach(accessLevelObjectRepository::deleteByAccessRequest);
+        
+        // Delete all access requests for this asset
+        accessRequestRepository.deleteByAsset(asset);
+        
+        // Now safe to delete all credentials
         assetCredentialsRepository.deleteByAssetId(asset.getId());
 
+        // Soft delete the asset
+        asset.setDeleted(true);
         assetRepository.save(asset);
     }
 
@@ -266,6 +272,7 @@ public class AssetService {
                 .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
     }
 
+    @Transactional(readOnly = true)
     public AssetDTO findDTOById(Long id) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
@@ -279,9 +286,47 @@ public class AssetService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<AssetDTO> getAllAssetsWithFetchAccessTemplate() {
         List<Asset> lstAssets = assetRepository.findByDeletedFalse();
+        User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
+        
+        // Fetch all AccessRequests upfront in a single query to avoid N+1 and ResultSet closure issues
+        Map<Asset, LocalDateTime> assetToLatestRequestTime = accessRequestRepository
+                .findByRequestor(requestor)
+                .stream()
+                .filter(ar -> ar.getRequestTime() != null)
+                .collect(Collectors.groupingBy(
+                    AccessRequest::getAsset,
+                    Collectors.mapping(
+                        AccessRequest::getRequestTime,
+                        Collectors.maxBy(Comparator.naturalOrder())
+                    )
+                ))
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().orElse(null)
+                ));
+        
+        // Sort assets by AccessRequest requestTime before converting to DTO
         return lstAssets.stream()
+                .sorted((asset1, asset2) -> {
+                    LocalDateTime time1 = assetToLatestRequestTime.get(asset1);
+                    LocalDateTime time2 = assetToLatestRequestTime.get(asset2);
+                    
+                    if (time1 == null && time2 == null) {
+                        return 0;
+                    }
+                    if (time1 == null) {
+                        return 1; // nulls go to the end
+                    }
+                    if (time2 == null) {
+                        return -1; // nulls go to the end
+                    }
+                    return time2.compareTo(time1); // Descending order (newest first)
+                })
                 .map(this::convertToDTOWithFetchAccessTemplate)
                 .toList();
     }
@@ -294,7 +339,9 @@ public class AssetService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public AssetDTO convertToDTOByUserType(Asset asset, Roles role) {
+        // Fetch all data upfront to avoid ResultSet closure issues
         List<AssetCredential> credentials = assetCredentialsRepository.findByAssetAndUserAccessType(asset, role.getOriginalName());
         List<User> owners = credentials.stream()
                 .map(AssetCredential::getUser)
@@ -304,8 +351,10 @@ public class AssetService {
         List<User> approvers = assetApprovers.stream()
                 .map(AssetApprover::getUser)
                 .toList();
+        
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
-        List<AccessRequest> requests = accessRequestRepository.findByAssetAndRequestor(asset, requestor);
+        // Fetch access requests upfront before processing
+        List<AccessRequest> requests = accessRequestRepository.findNotExpiredByAssetAndRequestor(asset, requestor);
 
         AssetDTO dto = AssetDTO.fromEntity(asset);
         dto.setOwners(owners);
@@ -428,7 +477,7 @@ public class AssetService {
      * @throws AccessDeniedException if user has no valid credentials for the asset
      * @throws RuntimeException for technical errors
      */
-    public AssetAccessDTO getAssetAccess(Long assetId) {
+    public AssetAccessDTO getAssetAccess(Long assetId, String userAccessType) {
         logger.info("=== STARTING getAssetAccess for asset ID: {} ===", assetId);
         
         try {
@@ -436,7 +485,7 @@ public class AssetService {
             User currentUser = userService.getCurrentUser();
             logger.info("Current user: {} (ID: {})", currentUser.getEmail(), currentUser.getId());
 
-            AssetCredential userCredential = findUserCredentialForAsset(assetId, currentUser);
+            AssetCredential userCredential = findUserCredentialForAsset(assetId, currentUser, userAccessType);
             logger.info("Using credential: {} for asset access query", userCredential.getUsername());
 
             return databaseAccessService.fetchAssetUserAccess(asset, userCredential);
@@ -465,9 +514,9 @@ public class AssetService {
      * @return AssetCredential to use for database access
      * @throws AccessDeniedException if no valid credentials are found
      */
-    private AssetCredential findUserCredentialForAsset(Long assetId, User currentUser) {
+    private AssetCredential findUserCredentialForAsset(Long assetId, User currentUser, String userAccessType) {
         // First, try to find user's own credential
-        AssetCredential userCredential = findUserOwnCredential(assetId, currentUser);
+        AssetCredential userCredential = assetCredentialsRepository.findByUserIdAndAssetIdAndUserAccessType(currentUser.getId(), assetId, userAccessType).orElse(null);
         
         if (userCredential != null) {
             logger.info("Found user's own credential for asset ID: {}", assetId);
@@ -487,18 +536,7 @@ public class AssetService {
         throw new AccessDeniedException("User has no access to asset");
     }
 
-    /**
-     * Finds the user's own credential for the asset
-     */
-    private AssetCredential findUserOwnCredential(Long assetId, User currentUser) {
-        return assetCredentialsRepository
-            .findByAssetIdAndUserId(assetId, currentUser.getId())
-            .stream()
-            .filter(databaseConnectionUtils::hasValidPassword)
-            .findFirst()
-            .orElse(null);
-    }
-
+    
     /**
      * Finds the asset owner credential if the current user is an asset owner
      */
@@ -925,6 +963,7 @@ public class AssetService {
                 .user(currentUser)
                 .username(createDTO.getUsername())
                 .sshKeyFile(encryptedSSHKey)
+                .isTemporaryPassword(false)
                 .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                 .build();
         
@@ -937,6 +976,18 @@ public class AssetService {
      */
     public AssetCredential getSSHCredentialsForAsset(Long assetId, User user) {
         return assetCredentialsRepository.findByAssetIdAndUserId(assetId, user.getId())
+                .stream()
+                .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER && cred.getSshKeyFile() != null)
+                .findFirst()
+                .orElse(null);
+    }
+
+    public AssetCredential getSSHCredentialsForAsset(Long assetId, User user, String userAccessType) {
+        Asset asset = assetRepository.findById(assetId).orElse(null);
+        if (asset == null) {
+            return null;
+        }
+        return assetCredentialsRepository.findByUserAndAssetAndUserAccessType(user, asset, userAccessType)
                 .stream()
                 .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER && cred.getSshKeyFile() != null)
                 .findFirst()

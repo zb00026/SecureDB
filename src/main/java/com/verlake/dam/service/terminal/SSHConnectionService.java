@@ -759,14 +759,14 @@ public class SSHConnectionService {
     private String executeCommandWithCleanOutputOnConnection(SSHConnection connection, String command) throws IOException {
         StringBuilder output = new StringBuilder();
         StringBuilder commandOutput = new StringBuilder();
-        boolean commandCompleted = false;
+        final Object outputLock = new Object(); // Dedicated lock object for synchronization
+        boolean commandCompleted;
         int timeoutMs = Constants.SSH_COMMAND_TIMEOUT_MS; // 5 minute timeout
         int checkIntervalMs = 100; // Check every 100ms
-        int elapsedMs = 0;
 
         // Start output reader
         connection.startOutputReader(data -> {
-            synchronized (output) {
+            synchronized (outputLock) {
                 output.append(data);
             }
         });
@@ -785,25 +785,11 @@ public class SSHConnectionService {
         connection.sendInput(command + "\n");
 
         // Wait for command completion with timeout
-        while (!commandCompleted && elapsedMs < timeoutMs) {
-            try {
-                Thread.sleep(checkIntervalMs);
-                elapsedMs += checkIntervalMs;
-
-                synchronized (output) {
-                    String currentOutput = output.toString();
-                    
-                    // Check if we have a prompt after the command (indicating completion)
-                    if (currentOutput.contains(command) && 
-                        (currentOutput.contains("$ ") || currentOutput.contains("# ") || 
-                         currentOutput.contains("~$") || currentOutput.contains("~#"))) {
-                        commandCompleted = true;
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Command execution interrupted", e);
-            }
+        try {
+            commandCompleted = waitForCommandCompletion(output, outputLock, command, timeoutMs, checkIntervalMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Command execution interrupted", e);
         }
 
         if (!commandCompleted) {
@@ -811,7 +797,7 @@ public class SSHConnectionService {
         }
 
         // Extract only the command output (between command and next prompt)
-        synchronized (output) {
+        synchronized (outputLock) {
             String fullOutput = output.toString();
             commandOutput = extractCommandOutput(fullOutput, command);
         }
@@ -826,5 +812,44 @@ public class SSHConnectionService {
     private StringBuilder extractCommandOutput(String fullOutput, String command) {
         String result = SSHCommandUtils.extractCommandOutput(fullOutput, command);
         return new StringBuilder(result);
+    }
+
+    /**
+     * Wait for command completion on an SSH connection
+     * This method polls for command completion by checking if the output contains
+     * the command and a shell prompt (indicating completion)
+     * 
+     * @param output StringBuilder that accumulates command output
+     * @param outputLock Final lock object to synchronize on when accessing output (must not be a method parameter)
+     * @param command The command that was executed
+     * @param timeoutMs Timeout in milliseconds
+     * @param checkIntervalMs Interval between checks in milliseconds
+     * @return true if command completed, false if timed out
+     * @throws InterruptedException if interrupted while waiting
+     */
+    public boolean waitForCommandCompletion(StringBuilder output, final Object outputLock, String command, 
+                                            int timeoutMs, int checkIntervalMs) throws InterruptedException {
+        boolean commandCompleted = false;
+        int elapsedMs = 0;
+        
+        // Use a local final reference to the lock to avoid synchronizing on a parameter
+        final Object lock = outputLock;
+        
+        while (!commandCompleted && elapsedMs < timeoutMs) {
+            Thread.sleep(checkIntervalMs);
+            elapsedMs += checkIntervalMs;
+            
+            synchronized (lock) {
+                String currentOutput = output.toString();
+                // Check if we have a prompt after the command (indicating completion)
+                if (currentOutput.contains(command) && 
+                    (currentOutput.contains("$ ") || currentOutput.contains("# ") || 
+                     currentOutput.contains("~$") || currentOutput.contains("~#"))) {
+                    commandCompleted = true;
+                }
+            }
+        }
+        
+        return commandCompleted;
     }
 }

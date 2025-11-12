@@ -7,6 +7,7 @@ import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.entity.user.dto.ForgotPasswordRequestDTO;
 import com.verlake.dam.entity.user.dto.ResetPasswordRequestDTO;
 import com.verlake.dam.entity.user.dto.ResetPasswordValidationDTO;
+import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
@@ -28,6 +29,7 @@ import com.verlake.dam.service.auth.TokenService;
 import com.verlake.dam.service.auth.TokenServiceManager;
 import com.verlake.dam.service.firebase.FirebaseMessagingService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
 
 import org.slf4j.Logger;
@@ -75,6 +77,9 @@ public class AuthController {
     private AssetCredentialsRepository assetCredentialsRepository;
     @Autowired
     private UserService userService;
+    
+    @Autowired
+    private AccessRequestService accessRequestService;
 
     public AuthController(TokenServiceManager tokenServiceManager) {
         this.tokenServiceManager = tokenServiceManager;
@@ -115,6 +120,12 @@ public class AuthController {
                 processAssetOwnerCredentials();
             } else {
                 log.info("User is not asset owner, skipping credential processing");
+            }
+            
+            // Update expired access requests to EXPIRED status if user has developer role
+            if (user != null && user.getRoles() != null && 
+                user.getRoles().stream().anyMatch(role -> Roles.DEVELOPER.getOriginalName().equals(role.getName()))) {
+                accessRequestService.updateExpiredAccessRequests(user);
             }
             
             log.info("Step 5: Setting user in response DTO");
@@ -275,6 +286,9 @@ public class AuthController {
                         handleCredentialProcessingError(ownerCred, e);
                     }
                     devCred.setIsDeleted(true);
+                    accessRequest.setAssetApproverStatus(ApprovalStatus.EXPIRED);
+                    accessRequest.setDeveloperApproverStatus(ApprovalStatus.EXPIRED);
+                    accessRequestRepository.save(accessRequest);
                     assetCredentialsRepository.save(devCred);
                     log.info("Marked credential as deleted for user: {} due to expiration",
                             devCred.getUsername());

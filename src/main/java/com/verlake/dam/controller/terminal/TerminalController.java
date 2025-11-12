@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.enums.Roles;
 
 @Component
 @Slf4j
@@ -309,16 +310,29 @@ public class TerminalController extends TextWebSocketHandler {
             String token = (String) data.get(TERMINAL_TOKEN);
             String authProviderStr = (String) data.get(TERMINAL_AUTH_PROVIDER);
             Long assetId = data.get(TERMINAL_ASSET_ID) != null ? Long.valueOf(data.get(TERMINAL_ASSET_ID).toString()) : null;
+            String userAccessType = (String) data.get(Constants.WS_FIELD_USER_ACCESS_TYPE); // ASSET_OWNER or DEVELOPER
             
-            log.info("Handling authentication for asset: {}, provider: {}", assetId, authProviderStr);
+            log.info("Handling authentication for asset: {}, provider: {}, accessType: {}", assetId, authProviderStr, userAccessType);
             
             if (token == null || token.isEmpty()) {
                 sendErrorResponse(session, MSG_AUTHENTICATION_TOKEN_REQUIRED);
                 return;
             }
             
+            if (userAccessType == null || userAccessType.isEmpty()) {
+                sendErrorResponse(session, "userAccessType is required (ASSET_OWNER or DEVELOPER)");
+                return;
+            }
+            
+            // Validate userAccessType
+            if (!Roles.ASSET_OWNER.getOriginalName().equals(userAccessType) && 
+                !Roles.DEVELOPER.getOriginalName().equals(userAccessType)) {
+                sendErrorResponse(session, "Invalid userAccessType. Must be ASSET_OWNER or DEVELOPER");
+                return;
+            }
+            
             // Create terminal session with authenticated user
-            createAuthenticatedTerminalSession(session, assetId, token, authProviderStr);
+            createAuthenticatedTerminalSession(session, assetId, token, authProviderStr, userAccessType);
             
         } catch (Exception e) {
             log.error("Error handling authentication", e);
@@ -417,7 +431,7 @@ public class TerminalController extends TextWebSocketHandler {
     /**
      * Create authenticated terminal session - extracted from handleAuthentication
      */
-    private void createAuthenticatedTerminalSession(WebSocketSession session, Long assetId, String token, String authProviderStr) {
+    private void createAuthenticatedTerminalSession(WebSocketSession session, Long assetId, String token, String authProviderStr, String userAccessType) {
         try {
             AuthProvider authProvider = AuthProvider.valueOf(authProviderStr.toUpperCase());
             Map<String, String> metadata = getSessionMetadata(session);
@@ -425,10 +439,11 @@ public class TerminalController extends TextWebSocketHandler {
             TerminalSession terminalSession = terminalService.createSessionWithToken(
                 assetId, token, authProvider, 
                 metadata.get(Constants.SESSION_METADATA_CLIENT_IP), 
-                metadata.get(Constants.SESSION_METADATA_USER_AGENT)
+                metadata.get(Constants.SESSION_METADATA_USER_AGENT),
+                userAccessType
             );
             
-            updateSessionMetadata(session, assetId, terminalSession);
+            updateSessionMetadata(session, assetId, terminalSession, userAccessType);
             sendAuthenticationSuccessResponse(session, terminalSession);
             
             establishSSHConnectionAsync(session, terminalSession, metadata.get(Constants.CONNECTION_TYPE_FIELD));
@@ -458,16 +473,18 @@ public class TerminalController extends TextWebSocketHandler {
     /**
      * Update session metadata with terminal session information
      */
-    private void updateSessionMetadata(WebSocketSession session, Long assetId, TerminalSession terminalSession) {
+    private void updateSessionMetadata(WebSocketSession session, Long assetId, TerminalSession terminalSession, String userAccessType) {
         Map<String, String> existingMetadata = sessionMetadata.get(session.getId());
         if (existingMetadata != null) {
             existingMetadata.put(TERMINAL_ASSET_ID, assetId.toString());
             existingMetadata.put(TERMINAL_SESSION_ID, terminalSession.getSessionId());
+            existingMetadata.put(Constants.WS_FIELD_USER_ACCESS_TYPE, userAccessType);
         } else {
             // Fallback if metadata doesn't exist (shouldn't happen)
             Map<String, String> newMetadata = new ConcurrentHashMap<>();
             newMetadata.put(TERMINAL_ASSET_ID, assetId.toString());
             newMetadata.put(TERMINAL_SESSION_ID, terminalSession.getSessionId());
+            newMetadata.put(Constants.WS_FIELD_USER_ACCESS_TYPE, userAccessType);
             sessionMetadata.put(session.getId(), newMetadata);
         }
     }
@@ -535,10 +552,12 @@ public class TerminalController extends TextWebSocketHandler {
                     }
                 } catch (Exception e) {
                     log.error("Error forwarding SSH output to WebSocket", e);
+                    handleSSHConnectionError(session, e);
                 }
             });
         } catch (Exception e) {
             log.error("Error establishing SSH connection", e);
+            handleSSHConnectionError(session, e);
         }
     }
     

@@ -64,7 +64,7 @@ public class UnixAccessRequestService {
         User requestor = userService.getCurrentUser();
         
         // Check if user already has an active request for this asset
-        List<ApprovalStatus> activeStatuses = List.of(ApprovalStatus.PENDING, ApprovalStatus.APPROVED);
+        List<ApprovalStatus> activeStatuses = List.of(ApprovalStatus.REQUESTED, ApprovalStatus.APPROVAL_IN_PROGRESS, ApprovalStatus.APPROVED);
         accessRequestRepository.findActiveUnixRequestByAssetAndRequestor(asset, requestor, activeStatuses)
                 .ifPresent(existingRequest -> {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, 
@@ -119,7 +119,7 @@ public class UnixAccessRequestService {
         accessRequest.setRequestTime(LocalDateTime.now());
         accessRequest.setRequestReason(createDTO.getRequestReason());
         accessRequest.setDeveloperApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for developer
-        accessRequest.setAssetApproverStatus(ApprovalStatus.PENDING); // Needs asset owner approval
+        accessRequest.setAssetApproverStatus(ApprovalStatus.REQUESTED); // Needs asset owner approval
         accessRequest.setPublicKey(publicKey);
         accessRequest.setEncryptedPrivateKey(encryptedPrivateKey);
         accessRequest.setExpiryHours(createDTO.getExpirationHours() != null && createDTO.getExpirationHours() > 0 
@@ -141,7 +141,7 @@ public class UnixAccessRequestService {
             UnixGroupMembership membership = UnixGroupMembership.builder()
                     .accessRequest(savedRequest)
                     .unixGroup(group)
-                    .status(ApprovalStatus.PENDING)
+                    .status(ApprovalStatus.REQUESTED)
                     .approved(false)
                     .build();
             savedRequest.getGroupMemberships().add(membership);
@@ -230,7 +230,7 @@ public class UnixAccessRequestService {
             return new ArrayList<>();
         }
         
-        return accessRequestRepository.findPendingUnixRequestsForAssets(assetIds, ApprovalStatus.PENDING);
+        return accessRequestRepository.findPendingUnixRequestsForAssets(assetIds, ApprovalStatus.REQUESTED);
     }
     
     /**

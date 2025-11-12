@@ -989,6 +989,7 @@ public class Constants {
     public static final String WS_FIELD_SUGGESTIONS = "suggestions";
     public static final String WS_FIELD_PATH = "path";
     public static final String WS_FIELD_ACTION = "action";
+    public static final String WS_FIELD_USER_ACCESS_TYPE = "userAccessType";
     
     // SSH timeout constants (5 minutes)
     public static final int SSH_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -1013,4 +1014,7 @@ public class Constants {
     public static final String TIMEZONE_DISPLAY_PATTERN = "yyyy-MM-dd HH:mm:ss z";
     public static final String TIMEZONE_DATE_PATTERN = "yyyy-MM-dd";
     public static final String TIMEZONE_TIME_PATTERN = "HH:mm:ss";
+    
+    // Keycloak retry error messages
+    public static final String ERROR_THREAD_INTERRUPTED_DURING_RETRY_DELAY = "Thread interrupted during retry delay";
 }

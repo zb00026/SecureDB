@@ -6,14 +6,14 @@ import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.exception.QueryExecutionException;
+import com.verlake.dam.repository.assets.AccessRequestRepository;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.ai.DataMaskingService;
-import com.verlake.dam.utils.AuditDescriptionUtils;
-import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.DatabaseQueryUtils;
-import com.verlake.dam.utils.IpAddressUtils;
+import com.verlake.dam.utils.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -36,28 +36,44 @@ public class QueryExecutionService {
     private final AssetQueryChangeRequestService assetQueryChangeRequestService;
     private final AssetValidationUtils assetValidationUtils;
     private final ObjectMapper objectMapper;
+    private final KeycloakService keycloakService;
+    private final AccessRequestRepository accessRequestRepository;
+    private final AssetCredentialsRepository assetCredentialsRepository;
+    private final AccessRequestService accessRequestService;
 
     public QueryExecutionService(DatabaseAccessService databaseAccessService,
-                                UserService userService,
-                                DataMaskingService dataMaskingService,
-                                AuditTrailService auditTrailService,
-                                AssetQueryChangeRequestService assetQueryChangeRequestService,
-                                AssetValidationUtils assetValidationUtils) {
+                                 UserService userService,
+                                 DataMaskingService dataMaskingService,
+                                 AuditTrailService auditTrailService,
+                                 AssetQueryChangeRequestService assetQueryChangeRequestService,
+                                 AssetValidationUtils assetValidationUtils, 
+                                 KeycloakService keycloakService, 
+                                 AccessRequestRepository accessRequestRepository, 
+                                 AssetCredentialsRepository assetCredentialsRepository,
+                                 AccessRequestService accessRequestService) {
         this.databaseAccessService = databaseAccessService;
         this.userService = userService;
         this.dataMaskingService = dataMaskingService;
         this.auditTrailService = auditTrailService;
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.assetValidationUtils = assetValidationUtils;
+        this.keycloakService = keycloakService;
         this.objectMapper = new ObjectMapper();
+        this.accessRequestRepository = accessRequestRepository;
+        this.assetCredentialsRepository = assetCredentialsRepository;
+        this.accessRequestService = accessRequestService;
     }
 
     /**
      * Execute query for Developer with access request validation
      */
-    public Map<String, Object> executeQueryForDeveloper(AccessQueryDTO accessQueryDTO) {
+    public Map<String, Object> executeQueryForDeveloper(AccessQueryDTO accessQueryDTO) throws CommonUtils.CryptoException {
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(accessQueryDTO.getRequestId());
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
+        
+        // Encrypt temporary credential if needed
+        accessRequestService.encryptTemporaryCredential(credential, accessRequest);
+        
         assetValidationUtils.validateAccessRequestStatus(accessRequest);
 
         long startTime = System.currentTimeMillis();
