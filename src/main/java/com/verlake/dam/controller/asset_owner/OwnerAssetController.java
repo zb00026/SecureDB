@@ -12,6 +12,7 @@ import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.PingResult;
 import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.Roles;
@@ -25,6 +26,7 @@ import com.verlake.dam.service.assets.AssetQueryChangeRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseAccessService;
 import com.verlake.dam.service.assets.QueryExecutionService;
+import com.verlake.dam.service.assets.NaturalLanguageToSqlService;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
@@ -99,6 +101,9 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private QueryExecutionService queryExecutionService;
+
+    @Autowired
+    private NaturalLanguageToSqlService naturalLanguageToSqlService;
 
     @Autowired
     private UnixAccessRequestService unixAccessRequestService;
@@ -575,6 +580,34 @@ public class OwnerAssetController extends BaseAssetAccessController {
             
         } catch (Exception e) {
             logger.error("Error running query for Asset Owner {}: {}", currentUserEmail, e.getMessage(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    /**
+     * Convert natural language query to SQL for Asset Owner
+     * POST /api/asset_owner/assets/convert_nl_to_sql
+     */
+    @PostMapping("/convert_nl_to_sql")
+    public ResponseEntity<Map<String, Object>> convertNaturalLanguageToSql(@RequestBody NaturalLanguageQueryDTO request) {
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        logger.info("Asset Owner {} converting NL to SQL - assetId: {}, query: {}", 
+                currentUserEmail, request.getAssetId(), request.getNaturalLanguageQuery());
+        
+        try {
+            Map<String, Object> result = naturalLanguageToSqlService.convertNaturalLanguageToSqlForAssetOwner(request);
+            
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
+            response.putAll(result);
+            
+            logger.info("Asset Owner {} successfully converted NL to SQL for asset ID: {}", 
+                    currentUserEmail, request.getAssetId());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error converting NL to SQL for Asset Owner {}: {}", currentUserEmail, e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

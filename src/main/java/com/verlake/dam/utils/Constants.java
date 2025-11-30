@@ -154,6 +154,12 @@ public class Constants {
     public static final String GEMINI_GENERIC_ERROR_RESPONSE_KEY = "gemini.generic.error.response";
     public static final String GEMINI_MODEL_OVERLOADED_RESPONSE_KEY = "gemini.model.overloaded.response";
     
+    // Gemini AI NL to SQL error message keys
+    public static final String GEMINI_NL_SQL_LOCATION_RESTRICTION_KEY = "gemini.nl.sql.location.restriction";
+    public static final String GEMINI_NL_SQL_CIRCUIT_BREAKER_KEY = "gemini.nl.sql.circuit.breaker";
+    public static final String GEMINI_NL_SQL_GENERIC_ERROR_KEY = "gemini.nl.sql.generic.error";
+    public static final String GEMINI_NL_SQL_MODEL_OVERLOADED_KEY = "gemini.nl.sql.model.overloaded";
+    
     // Gemini AI error message patterns
     public static final String GEMINI_ERROR_MODEL_OVERLOADED = "model is overloaded";
     public static final String GEMINI_ERROR_QUOTA_EXCEEDED = "quota exceeded";

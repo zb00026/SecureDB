@@ -22,7 +22,9 @@ import org.springframework.web.server.ResponseStatusException;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.QueryExecutionService;
+import com.verlake.dam.service.assets.NaturalLanguageToSqlService;
 import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,17 +41,20 @@ public class AccessRequestController extends BaseAssetAccessController {
     private final AccessLevelService accessLevelService;
     private final UserService userService;
     private final QueryExecutionService queryExecutionService;
+    private final NaturalLanguageToSqlService naturalLanguageToSqlService;
 
     public AccessRequestController(AssetService assetService, 
                                  AccessRequestService accessRequestService,
                                  AccessLevelService accessLevelService,
                                  UserService userService,
-                                 QueryExecutionService queryExecutionService) {
+                                 QueryExecutionService queryExecutionService,
+                                 NaturalLanguageToSqlService naturalLanguageToSqlService) {
         super(assetService);
         this.accessRequestService = accessRequestService;
         this.accessLevelService = accessLevelService;
         this.userService = userService;
         this.queryExecutionService = queryExecutionService;
+        this.naturalLanguageToSqlService = naturalLanguageToSqlService;
     }
 
     @GetMapping
@@ -212,6 +217,34 @@ public class AccessRequestController extends BaseAssetAccessController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error running query for developer {}: {}", currentUserEmail, e.getMessage(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    /**
+     * Convert natural language query to SQL for Developer
+     * POST /api/developer/assets/convert_nl_to_sql
+     */
+    @PostMapping("/convert_nl_to_sql")
+    public ResponseEntity<Map<String, Object>> convertNaturalLanguageToSql(@RequestBody NaturalLanguageQueryDTO request) {
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        log.info("Developer {} converting NL to SQL - requestId: {}, query: {}", 
+                currentUserEmail, request.getRequestId(), request.getNaturalLanguageQuery());
+        
+        try {
+            Map<String, Object> result = naturalLanguageToSqlService.convertNaturalLanguageToSqlForDeveloper(request);
+            
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
+            response.putAll(result);
+            
+            log.info("Developer {} successfully converted NL to SQL via access request: {}", 
+                    currentUserEmail, request.getRequestId());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error converting NL to SQL for developer {}: {}", currentUserEmail, e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

@@ -307,6 +307,7 @@ public class AccessRequestService {
         return accessRequestRepository.findByRequestor(user);
     }
 
+    @Transactional(readOnly = true)
     public List<AccessRequest> getTemporaryCredentialRequests(User user) {
         return accessRequestRepository
                 .findByRequestorAndIsTempPasswordAndAssetApproverStatusAndIsDeletedFalseAndExpiryDateAfter(

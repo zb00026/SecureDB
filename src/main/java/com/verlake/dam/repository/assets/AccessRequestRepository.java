@@ -111,8 +111,9 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
             @Param("asset") Asset asset,
             @Param("userAccessType") String userAccessType);
 
-    @Query("SELECT ar FROM AccessRequest ar " +
-           "JOIN ar.assetCredential ac " +
+    @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
+           "JOIN FETCH ar.assetCredential ac " +
+           "JOIN FETCH ar.asset " +
            "WHERE ar.requestor = :requestor " +
            "AND ar.isTempPassword = :isTempPassword " +
            "AND ar.assetApproverStatus = :approvalStatus " +
