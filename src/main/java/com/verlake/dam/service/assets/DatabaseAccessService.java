@@ -38,6 +38,8 @@ import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -54,6 +56,9 @@ public class DatabaseAccessService {
     private final SecureRandom secureRandom = new SecureRandom();
     private final UserService userService;
     private final DatabaseConnectionUtils databaseConnectionUtils;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
             AssetCredentialsRepository assetCredentialsRepository,
@@ -88,14 +93,39 @@ public class DatabaseAccessService {
 
         String objectsJson = fetchDatabaseObjects(credential);
 
-        AssetObject assetObject = assetObjectRepository.findByAssetCredential(credential)
-                .orElse(new AssetObject());
+        // Find AssetObject using credential ID to avoid issues with temp credentials
+        // If credential is a temp credential (not managed), use its ID if available
+        // Otherwise, find by the credential reference
+        AssetObject assetObject;
+        if (credential.getId() != null) {
+            assetObject = assetObjectRepository.findByAssetCredential_Id(credential.getId())
+                    .orElse(new AssetObject());
+        } else {
+            assetObject = assetObjectRepository.findByAssetCredential(credential)
+                    .orElse(new AssetObject());
+        }
 
-        assetObject.setAssetCredential(credential);
-        assetObject.setAsset(credential.getAsset());
+        // Set the credential reference - use original credential if this is a temp credential
+        // For temp credentials, we need to reload the original from database
+        AssetCredential credentialToSave = credential;
+        if (credential.getId() != null && !entityManager.contains(credential)) {
+            // This is a temp credential, reload the original managed credential
+            credentialToSave = assetCredentialsRepository.findById(credential.getId())
+                    .orElse(credential);
+        }
+        
+        assetObject.setAssetCredential(credentialToSave);
+        assetObject.setAsset(credentialToSave.getAsset());
         assetObject.setObjectsJson(objectsJson);
 
         assetObjectRepository.save(assetObject);
+        
+        // Detach credential from persistence context to prevent saving decrypted password
+        // if credential was modified (e.g., password decrypted) during this operation
+        // Only detach if it's managed
+        if (entityManager.contains(credential)) {
+            entityManager.detach(credential);
+        }
     }
 
     private String fetchDatabaseObjects(AssetCredential credential) throws SQLException {
@@ -1687,12 +1717,67 @@ public class DatabaseAccessService {
 
         List<UserAccessDTO> users = fetchUsersByDatabaseType(asset, tempCredential);
 
-        log.info("Successfully fetched access information for {} users", users.size());
+        // Filter out internally generated usernames
+        Set<String> internallyGeneratedUsernames = getInternallyGeneratedUsernames(asset);
+        // Normalize usernames for comparison (remove quotes, lowercase for case-insensitive comparison)
+        Set<String> normalizedInternallyGeneratedUsernames = internallyGeneratedUsernames.stream()
+                .map(this::normalizeUsernameForComparison)
+                .collect(Collectors.toSet());
+        
+        List<UserAccessDTO> filteredUsers = users.stream()
+                .filter(user -> {
+                    String username = user.getUsername();
+                    if (username == null) {
+                        return false;
+                    }
+                    // Normalize username for comparison
+                    String normalizedUsername = normalizeUsernameForComparison(username);
+                    
+                    // Filter out usernames from database (case-insensitive, quote-insensitive comparison)
+                    if (normalizedInternallyGeneratedUsernames.contains(normalizedUsername)) {
+                        return false;
+                    }
+                    // Filter out usernames ending with 4 digits (pattern used for internally generated usernames)
+                    return username.matches(".*\\d{4}$");
+                })
+                .toList();
+
+        log.info("Successfully fetched access information for {} users ({} after filtering internally generated)", 
+                users.size(), filteredUsers.size());
         return new AssetAccessDTO(
                 asset.getId(),
                 asset.getName(),
                 asset.getDatabaseType().toString(),
-                users);
+                filteredUsers);
+    }
+    
+    /**
+     * Get set of internally generated usernames for an asset
+     * These are usernames created by the system with isTemporaryPassword = true
+     * Excludes asset owner credentials
+     */
+    private Set<String> getInternallyGeneratedUsernames(Asset asset) {
+        return assetCredentialsRepository.findByAssetId(asset.getId()).stream()
+                .filter(cred -> !Roles.ASSET_OWNER.getOriginalName().equals(cred.getUserAccessType()))
+                .map(AssetCredential::getUsername)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+    
+    /**
+     * Normalize username for comparison by removing quotes and converting to lowercase
+     * This handles PostgreSQL case sensitivity and quote differences
+     */
+    private String normalizeUsernameForComparison(String username) {
+        if (username == null) {
+            return "";
+        }
+        // Remove quotes (single, double, backticks) and convert to lowercase for case-insensitive comparison
+        return username.replace("\"", "")
+                      .replace("'", "")
+                      .replace("`", "")
+                      .toLowerCase()
+                      .trim();
     }
 
     /**
@@ -1957,7 +2042,7 @@ public class DatabaseAccessService {
             case MYSQL ->
                 "SELECT User FROM mysql.user WHERE account_locked = 'Y' AND User NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema')";
             case POSTGRESQL ->
-                "SELECT usename FROM pg_user WHERE NOT usecanlogin AND usename NOT LIKE 'pg_%' AND usename != 'postgres'";
+                "SELECT rolname FROM pg_roles WHERE NOT rolcanlogin AND rolname NOT LIKE 'pg_%' AND rolname != 'postgres'";
             case ORACLE ->
                 "SELECT username FROM dba_users WHERE account_status = 'LOCKED' AND username NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'SYSMAN', 'OUTLN')";
             case SQLSERVER ->

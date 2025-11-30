@@ -461,6 +461,7 @@ public class Constants {
     public static final String ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL = "error.admin.credential.cannot.be.null";
     public static final String ERROR_ADMIN_CREDENTIAL_NO_PASSWORD = "error.admin.credential.no.password";
     public static final String ERROR_ASSET_DATABASE_TYPE_NULL = "error.asset.database.type.null";
+    public static final String ERROR_ASSET_LOCKED = "error.asset.locked";
     public static final String ERROR_FAILED_TO_CONNECT_TO_DATABASE = "error.failed.to.connect.to.database";
     public static final String ERROR_FAILED_USER_LOCKOUT = "error.failed.user.lockout";
     public static final String ERROR_FAILED_USER_UNLOCK = "error.failed.user.unlock";
@@ -530,6 +531,12 @@ public class Constants {
     // Status constants
     public static final String STATUS_ACTIVE = "active";
     public static final String STATUS_INACTIVE = "inactive";
+    
+    // User status constants
+    public static final String USER_STATUS_ACTIVE = "Active";
+    public static final String USER_STATUS_INACTIVE = "Inactive";
+    public static final String USER_STATUS_INVITE_SENT = "Invite sent";
+    public static final String USER_STATUS_DELETED = "Deleted";
     
     // Masking strategy constants
     public static final String MASKING_STRATEGY_PARTIAL = "partial";
@@ -1023,4 +1030,13 @@ public class Constants {
     
     // Keycloak retry error messages
     public static final String ERROR_THREAD_INTERRUPTED_DURING_RETRY_DELAY = "Thread interrupted during retry delay";
+    
+    // Error message prefixes
+    public static final String ERROR_PREFIX_UNEXPECTED = "Unexpected error: ";
+    
+    // Timezone constants
+    public static final String TIMEZONE_UTC_OFFSET_DEFAULT = "(UTC+00:00)";
+    public static final String TIMEZONE_COUNTRY_AUSTRALIA = "Australia";
+    public static final String TIMEZONE_COUNTRY_UNITED_STATES = "United States";
+    public static final String TIMEZONE_COUNTRY_CANADA = "Canada";
 }

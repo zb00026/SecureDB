@@ -37,6 +37,12 @@ public class UserFilter extends PageRequestDTO implements FilterMetaData<User> {
         return (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             
+            // Always exclude deleted users
+            predicates.add(cb.or(
+                cb.isNull(root.get("deleted")),
+                cb.equal(root.get("deleted"), false)
+            ));
+            
             // If global search is provided, use it instead of individual field filters
             if (search != null && !search.trim().isEmpty()) {
                 addGlobalSearchPredicate(predicates, root, query, cb);

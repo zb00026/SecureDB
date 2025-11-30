@@ -159,7 +159,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @PostMapping("/{assetId}")
     public ResponseEntity<Map<String, Object>> updateAsset(@PathVariable long assetId, @RequestBody AssetDTO assetDTO) {
-        assetService.updateAsset(assetId, assetDTO);
+        assetService.updateAsset(assetId, assetDTO, false);
         return CommonUtils.getSuccessResponse();
     }
 
@@ -194,15 +194,62 @@ public class OwnerAssetController extends BaseAssetAccessController {
      * @return PingResult containing success status and response time
      */
     @PostMapping("/{id}/ping")
-    public ResponseEntity<PingResult> pingAsset(@PathVariable Long id) {
+    public ResponseEntity<PingResult> pingAsset(
+            @PathVariable Long id) {
         String currentUserEmail = CommonUtils.getEmailFromSession();
         logger.info("Asset owner {} pinging asset ID: {}", currentUserEmail, id);
         
-        PingResult result = assetService.pingAsset(id);
+        // Check if asset is locked
+        Asset asset = assetService.findById(id);
+        assetService.validateAssetNotLocked(asset, false);
+        
+        PingResult result = assetService.pingAsset(id, true);
         
         logger.info("Asset ping completed for asset ID: {} by owner: {}. Success: {}", 
                    id, currentUserEmail, result.isSuccess());
         
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Lock out users in the asset database (Asset Owner only)
+     * 
+     * @param id           Asset ID
+     * @param lockAllUsers If true, locks all database users including applications.
+     *                     If false, only locks Hagrid users.
+     */
+    @PostMapping("/{id}/lockout")
+    public ResponseEntity<Map<String, Object>> lockoutAssetUsers(
+            @PathVariable Long id) {
+
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        logger.info("Asset owner {} initiating lockout for asset ID: {}, lockAllUsers: {}",
+                currentUserEmail, id, true);
+
+        Map<String, Object> result = assetService.lockoutAssetUsers(id, true);
+
+        logger.info("Lockout completed successfully for asset ID: {} by owner: {}", id, currentUserEmail);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Unlock users in the asset database (Asset Owner only)
+     * 
+     * @param id             Asset ID
+     * @param unlockAllUsers If true, unlocks all database users. If false, only
+     *                       unlocks Hagrid users.
+     */
+    @PostMapping("/{id}/unlock")
+    public ResponseEntity<Map<String, Object>> unlockAssetUsers(
+            @PathVariable Long id) {
+
+        String currentUserEmail = CommonUtils.getEmailFromSession();
+        logger.info("Asset owner {} initiating unlock for asset ID: {}, unlockAllUsers: {}",
+                currentUserEmail, id, true);
+
+        Map<String, Object> result = assetService.unlockAssetUsers(id, true);
+
+        logger.info("Unlock completed successfully for asset ID: {} by owner: {}", id, currentUserEmail);
         return ResponseEntity.ok(result);
     }
 

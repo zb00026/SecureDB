@@ -62,7 +62,7 @@ public class AssetController extends BaseAssetAccessController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updateAsset(@PathVariable Long id, @RequestBody AssetDTO updateDTO) {
-        assetService.updateAsset(id, updateDTO);
+        assetService.updateAsset(id, updateDTO, true);
         return CommonUtils.getSuccessResponse();
     }
 
@@ -118,11 +118,12 @@ public class AssetController extends BaseAssetAccessController {
      */
     @PostMapping("/{id}/ping")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
-    public ResponseEntity<PingResult> pingAsset(@PathVariable Long id) {
+    public ResponseEntity<PingResult> pingAsset(
+            @PathVariable Long id) {
         String currentAdminEmail = CommonUtils.getEmailFromSession();
         logger.info("Admin {} pinging asset ID: {}", currentAdminEmail, id);
         
-        PingResult result = assetService.pingAsset(id);
+        PingResult result = assetService.pingAsset(id, true);
         
         logger.info("Asset ping completed for asset ID: {} by admin: {}. Success: {}", 
                    id, currentAdminEmail, result.isSuccess());
@@ -139,14 +140,13 @@ public class AssetController extends BaseAssetAccessController {
      */
     @PostMapping("/{id}/lockout")
     public ResponseEntity<Map<String, Object>> lockoutAssetUsers(
-            @PathVariable Long id,
-            @RequestParam(defaultValue = "false") boolean lockAllUsers) {
+            @PathVariable Long id) {
 
         String currentAdminEmail = CommonUtils.getEmailFromSession();
         logger.info("Admin {} initiating lockout for asset ID: {}, lockAllUsers: {}",
-                currentAdminEmail, id, lockAllUsers);
+                currentAdminEmail, id, false);
 
-        Map<String, Object> result = assetService.lockoutAssetUsers(id, lockAllUsers);
+        Map<String, Object> result = assetService.lockoutAssetUsers(id, false);
 
         logger.info("Lockout completed successfully for asset ID: {} by admin: {}", id, currentAdminEmail);
         return ResponseEntity.ok(result);
@@ -161,14 +161,13 @@ public class AssetController extends BaseAssetAccessController {
      */
     @PostMapping("/{id}/unlock")
     public ResponseEntity<Map<String, Object>> unlockAssetUsers(
-            @PathVariable Long id,
-            @RequestParam(defaultValue = "false") boolean unlockAllUsers) {
+            @PathVariable Long id) {
 
         String currentAdminEmail = CommonUtils.getEmailFromSession();
         logger.info("Admin {} initiating unlock for asset ID: {}, unlockAllUsers: {}",
-                currentAdminEmail, id, unlockAllUsers);
+                currentAdminEmail, id, false);
 
-        Map<String, Object> result = assetService.unlockAssetUsers(id, unlockAllUsers);
+        Map<String, Object> result = assetService.unlockAssetUsers(id, false);
 
         logger.info("Unlock completed successfully for asset ID: {} by admin: {}", id, currentAdminEmail);
         return ResponseEntity.ok(result);

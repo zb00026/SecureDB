@@ -64,7 +64,9 @@ public class AccessRequestController extends BaseAssetAccessController {
 
     @GetMapping("/{assetId}")
     public ResponseEntity<AssetDTO> getAsset(@PathVariable long assetId) {
-        return ResponseEntity.ok(assetService.findDTOById(assetId));
+        AssetDTO assetDTO = assetService.findDTOById(assetId);
+        // Note: Asset lock validation is done in service layer when accessing asset operations
+        return ResponseEntity.ok(assetDTO);
     }
 
     /**

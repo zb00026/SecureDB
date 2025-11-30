@@ -6,6 +6,7 @@ import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.AssetLockedException;
 import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
@@ -20,8 +21,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -29,6 +35,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -53,6 +60,10 @@ public class AssetService {
     private final DatabaseConnectionUtils databaseConnectionUtils;
     private final NotificationTaskRepository notificationTaskRepository;
     private final AccessLevelObjectRepository accessLevelObjectRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
+    
     private static final Logger logger = LoggerFactory.getLogger(AssetService.class);
 
     @Autowired
@@ -385,7 +396,7 @@ public class AssetService {
     }
 
     @Transactional
-    public void updateAsset(Long id, AssetDTO updateDTO) {
+    public void updateAsset(Long id, AssetDTO updateDTO, boolean needSkipDBName) {
         Asset asset = assetRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new IllegalArgumentException(Constants.getMessage(Constants.ASSET_NOT_FOUND)));
 
@@ -396,10 +407,12 @@ public class AssetService {
         asset.setUnixServerType(updateDTO.getUnixServerType());
         asset.setHostAddress(updateDTO.getHostAddress());
         asset.setPortNumber(updateDTO.getPortNumber());
-        asset.setDatabaseName(updateDTO.getDatabaseName());
+        if (!needSkipDBName) {
+            asset.setDatabaseName(updateDTO.getDatabaseName());
+        }
 
         // Ping the asset to test connectivity and catch any copy-paste errors in updated details
-        PingResult pingResult = pingAsset(asset);
+        PingResult pingResult = pingAsset(asset, needSkipDBName);
         
         if (!pingResult.isSuccess()) {
             String errorMessage = cleanErrorMessage(pingResult.getMessage());
@@ -453,8 +466,8 @@ public class AssetService {
 
     public AssetCredential findOwnerCredentialByAssetId(Long assetId) {
         User assetOwner = userService.getCurrentUser();
-        List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserId(assetId, assetOwner.getId());
-        return credentials.isEmpty() ? null : credentials.get(0);
+        return assetCredentialsRepository.findByUserIdAndAssetIdAndUserAccessType(assetOwner.getId(), assetId, Roles.ASSET_OWNER.getOriginalName())
+                                        .orElse(null);
     }
 
     public AssetCredential findCredentialById(Long credentialId) {
@@ -482,6 +495,10 @@ public class AssetService {
         
         try {
             Asset asset = findById(assetId);
+            
+            // Check if asset is locked
+            validateAssetNotLocked(asset, false);
+            
             User currentUser = userService.getCurrentUser();
             logger.info("Current user: {} (ID: {})", currentUser.getEmail(), currentUser.getId());
 
@@ -571,7 +588,7 @@ public class AssetService {
     @Transactional
     public Map<String, Object> lockoutAssetUsers(Long assetId, boolean lockAllUsers) {
         log.warn("=== CRITICAL SECURITY OPERATION: Asset lockout initiated ===");
-        log.warn("Asset ID: {}, Lock all users: {}, Admin: {}", 
+        log.warn("Asset ID: {}, Lock all users: {}, User: {}", 
                 assetId, lockAllUsers, CommonUtils.getEmailFromSession());
         
         // Defensive validation
@@ -582,16 +599,30 @@ public class AssetService {
         Asset asset = validateAssetAndAccess(assetId, "lockout");
         AssetCredential adminCredential = findAdminCredentialForAsset(asset);
         
+        User currentUser = userService.getCurrentUser();
+        boolean isAdmin = userService.hasRole(currentUser, Roles.ADMIN.getOriginalName());
+        
         try {
-            Map<String, Object> result = databaseAccessService.lockoutAssetUsers(asset, adminCredential, lockAllUsers);
+            Map<String, Object> result = new HashMap<>();
+            // For asset owner lockout, always lock all users (lockAllUsers parameter is ignored)
             
-            // Update asset locked status and lock type
-            asset.setLocked(true);
-            asset.setLockType(lockAllUsers ? LockType.LOCK_ALL_DB_USERS : LockType.LOCK_HAGRID_ONLY);
-            assetRepository.save(asset);
             
-            log.warn("Asset lockout completed successfully for asset: {} (ID: {})", 
-                    asset.getName(), assetId);
+            if (isAdmin && !lockAllUsers) {
+                // Admin lockout: set is_locked = true, lock_type = LOCK_HAGRID_ONLY
+                // Use update query to avoid cascading saves to related entities
+                assetRepository.updateLockStatus(assetId, true, LockType.LOCK_HAGRID_ONLY);
+            } else if (lockAllUsers) {
+                validateAssetNotLocked(asset, false);
+                result = databaseAccessService.lockoutAssetUsers(asset, adminCredential, true);
+                // Detach credential from persistence context to prevent saving decrypted password
+                entityManager.detach(adminCredential);
+                // Asset owner lockout: don't update is_locked, set lock_type = LOCK_ALL_DB_USERS
+                // Use update query to avoid cascading saves to related entities
+                assetRepository.updateLockType(assetId, LockType.LOCK_ALL_DB_USERS);
+            }
+            
+            log.warn("Asset lockout completed successfully for asset: {} (ID: {}) by {}", 
+                    asset.getName(), assetId, isAdmin ? "admin" : "asset owner");
             
             return result;
             
@@ -614,7 +645,7 @@ public class AssetService {
     @Transactional
     public Map<String, Object> unlockAssetUsers(Long assetId, boolean unlockAllUsers) {
         log.warn("=== CRITICAL SECURITY OPERATION: Asset unlock initiated ===");
-        log.warn("Asset ID: {}, Unlock all users: {}, Admin: {}", 
+        log.warn("Asset ID: {}, Unlock all users: {}, User: {}", 
                 assetId, unlockAllUsers, CommonUtils.getEmailFromSession());
         
         // Defensive validation
@@ -625,22 +656,103 @@ public class AssetService {
         Asset asset = validateAssetAndAccess(assetId, "unlock");
         AssetCredential adminCredential = findAdminCredentialForAsset(asset);
         
+        User currentUser = userService.getCurrentUser();
+        boolean isAdmin = userService.hasRole(currentUser, Roles.ADMIN.getOriginalName());
+        
         try {
-            Map<String, Object> result = databaseAccessService.unlockAssetUsers(asset, adminCredential, unlockAllUsers);
+            Map<String, Object> result = new HashMap<>();
+            // For asset owner unlock, always unlock all users (unlockAllUsers parameter is ignored)
+            if (isAdmin && !unlockAllUsers) {
+                // Admin unlock: set is_locked = false, clear lock_type
+                // Use update query to avoid cascading saves to related entities
+                assetRepository.updateLockStatus(assetId, false, null);
+            } else if (unlockAllUsers) {
+                validateAssetNotLocked(asset, false);
+                result = databaseAccessService.unlockAssetUsers(asset, adminCredential, true);
+                // Detach credential from persistence context to prevent saving decrypted password
+                entityManager.detach(adminCredential);
+                // Asset owner unlock: don't update is_locked, clear lock_type
+                // Use update query to avoid cascading saves to related entities
+                assetRepository.updateLockType(assetId, null);
+            }
             
-            // Update asset locked status and clear lock type
-            asset.setLocked(false);
-            asset.setLockType(null);
-            assetRepository.save(asset);
-            
-            log.warn("Asset unlock completed successfully for asset: {} (ID: {})", 
-                    asset.getName(), assetId);
+            log.warn("Asset unlock completed successfully for asset: {} (ID: {}) by {}", 
+                    asset.getName(), assetId, isAdmin ? "admin" : "asset owner");
             
             return result;
             
         } catch (Exception e) {
             log.error("CRITICAL: Asset unlock failed for asset ID: {} - {}", assetId, e.getMessage(), e);
             throw new DatabaseAccessException("Asset unlock failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Pings a Unix server by testing SSH port connectivity
+     * 
+     * @param asset The Unix server asset to ping
+     * @return PingResult containing success status and response time
+     */
+    private PingResult pingUnixServer(Asset asset) {
+        String host = asset.getHostAddress();
+        int port = 22; // Default SSH port
+        
+        // Use custom port if provided
+        if (asset.getPortNumber() != null && !asset.getPortNumber().isEmpty()) {
+            try {
+                port = Integer.parseInt(asset.getPortNumber());
+            } catch (NumberFormatException e) {
+                return PingResult.failure("Invalid port number: " + asset.getPortNumber());
+            }
+        }
+        
+        Instant startTime = Instant.now();
+        
+        try (Socket socket = new Socket()) {
+            // Set connection timeout to 5 seconds
+            socket.connect(new InetSocketAddress(host, port), 5000);
+            
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            log.info("Unix server {}:{} is reachable (response time: {}ms)", host, port, responseTime.toMillis());
+            
+            return PingResult.success(
+                String.format("SSH server reachable on %s:%d", host, port), 
+                responseTime.toMillis()
+            );
+            
+        } catch (IOException e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMessage = String.format("Cannot connect to SSH server %s:%d - %s", host, port, e.getMessage());
+            log.warn("Unix server connectivity test failed: {}", errorMessage);
+            
+            return PingResult.failure(errorMessage, responseTime.toMillis());
+        }
+    }
+
+    /**
+     * Validates that an asset is not locked
+     * 
+     * @param asset The asset to validate
+     * @throws AssetLockedException if the asset is locked
+     */
+    public void validateAssetNotLocked(Asset asset, boolean isDeveloper) {
+        if (asset == null) {
+            throw new IllegalArgumentException("Asset cannot be null");
+        }
+        
+        // Check if asset is locked by admin (is_locked = true)
+        if (asset.isLocked()) {
+            String message = Constants.getMessage(Constants.ERROR_ASSET_LOCKED) + 
+                           " (Asset: " + asset.getName() + ", ID: " + asset.getId() + ")";
+            throw new AssetLockedException(message);
+        }
+        
+        // Check if asset owner has locked all users (lock_type = LOCK_ALL_DB_USERS) and current user is developer
+        if (isDeveloper && asset.getLockType() == LockType.LOCK_ALL_DB_USERS) {
+            String message = Constants.getMessage(Constants.ERROR_ASSET_LOCKED) + 
+                           " (Asset: " + asset.getName() + ", ID: " + asset.getId() + 
+                           " - Locked by asset owner)";
+            throw new AssetLockedException(message);
         }
     }
 
@@ -655,8 +767,8 @@ public class AssetService {
         User currentUser = userService.getCurrentUser();
         
         // Additional security check - ensure user has admin role or is asset owner
-        if (!hasAdminAccess(currentUser, asset)) {
-            String errorMsg = String.format("User %s does not have admin access for %s operation on asset ID: %s", 
+        if (!hasOwnerAccess(currentUser, asset)) {
+            String errorMsg = String.format("User %s does not have asset owner role for %s operation on asset ID: %s", 
                                           currentUser.getEmail(), operation, assetId);
             log.error("SECURITY VIOLATION: {}", errorMsg);
             throw new SecurityException(errorMsg);
@@ -668,9 +780,9 @@ public class AssetService {
     /**
      * Checks if user has admin access (is admin or asset owner)
      */
-    private boolean hasAdminAccess(User user, Asset asset) {
+    private boolean hasOwnerAccess(User user, Asset asset) {
         // Check if user is system admin
-        if (user.getRoles().stream().anyMatch(role -> role.getName().equals(Roles.ADMIN.getOriginalName()))) {
+        if (userService.isAssetOwner(user)) {
             return true;
         }
         
@@ -708,13 +820,25 @@ public class AssetService {
     }
 
     /**
-     * Pings an asset to test connectivity without credentials
-     * This method can be used to verify that the asset's connection details are correct
+     * Pings an asset to test connectivity (backward compatibility - defaults to skip DB name)
      * 
      * @param asset The asset to ping
      * @return PingResult containing success status and response time
      */
     public PingResult pingAsset(Asset asset) {
+        return pingAsset(asset, true);
+    }
+
+    /**
+     * Pings an asset to test connectivity
+     * This method can be used to verify that the asset's connection details are correct
+     * 
+     * @param asset The asset to ping
+     * @param needSkipDBName If true, skips database name validation. If false and ASSET_OWNER credential exists,
+     *                       will test actual database connection to verify database name is correct.
+     * @return PingResult containing success status and response time
+     */
+    public PingResult pingAsset(Asset asset, boolean needSkipDBName) {
         if (asset == null) {
             return PingResult.failure("Asset is null");
         }
@@ -729,18 +853,93 @@ public class AssetService {
             return PingResult.failure(portValidationError);
         }
 
-        // For Unix Server assets, we don't need to ping database
-        if (asset.getType() == com.verlake.dam.enums.AssetType.UNIX_SERVER) {
-            // For Unix servers, just check if host is reachable via basic connectivity
-            // This is a simplified check - in production you might want to implement
-            // actual SSH connectivity testing
-            return PingResult.success("Unix server host address validated", 0);
+        // For Unix Server assets, test SSH connectivity
+        if (asset.getType() == AssetType.UNIX_SERVER) {
+            return pingUnixServer(asset);
         }
 
         if (asset.getDatabaseType() == null) {
             return PingResult.failure("Database type is not specified");
         }
 
+        // If needSkipDBName is false, try to use ASSET_OWNER credentials to test actual connection
+        if (!needSkipDBName) {
+            AssetCredential ownerCredential = findOwnerCredentialByAssetId(asset.getId());
+            
+            // Check if credential exists and belongs to current user
+            if (ownerCredential != null &&
+                databaseConnectionUtils.hasValidPassword(ownerCredential)) {
+                
+                return pingDatabaseWithCredentials(asset, ownerCredential);
+            }
+        }
+
+        // Default behavior: ping without credentials (just test server reachability)
+        return pingDatabaseWithoutCredentials(asset);
+    }
+
+    /**
+     * Pings a database asset with credentials to verify database name and connection
+     * 
+     * @param asset The database asset to ping
+     * @param credential The credential to use for connection
+     * @return PingResult containing success status and response time
+     */
+    private PingResult pingDatabaseWithCredentials(Asset asset, AssetCredential credential) {
+        String jdbcUrl = buildJdbcUrl(asset);
+        Instant startTime = Instant.now();
+        
+        try {
+            // Decrypt password
+            String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(credential);
+            
+            // Try to establish a connection with credentials
+            try (Connection connection = DriverManager.getConnection(jdbcUrl, credential.getUsername(), decryptedPassword)) {
+                // Connection successful - database name is correct and credentials are valid
+                Duration responseTime = Duration.between(startTime, Instant.now());
+                
+                // Verify we can access the database by checking if it's valid
+                boolean isValid = connection.isValid(5); // 5 second timeout
+                
+                if (isValid) {
+                    log.info("Database connection successful for asset: {} (database: {})", 
+                            asset.getName(), asset.getDatabaseName());
+                    return PingResult.success(
+                        String.format("Database connection successful (database: %s)", asset.getDatabaseName()), 
+                        responseTime.toMillis()
+                    );
+                } else {
+                    return PingResult.failure("Connection established but database validation failed", 
+                            responseTime.toMillis());
+                }
+            }
+        } catch (SQLException e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMessage = e.getMessage();
+            
+            // Check for database name errors
+            if (isDatabaseNameError(errorMessage)) {
+                return PingResult.failure("Database name error: " + errorMessage, responseTime.toMillis());
+            } else if (isAuthenticationError(errorMessage)) {
+                return PingResult.failure("Authentication failed: " + errorMessage, responseTime.toMillis());
+            } else if (isConnectionError(errorMessage)) {
+                return PingResult.failure("Connection failed: " + errorMessage, responseTime.toMillis());
+            } else {
+                return PingResult.failure("Database connection error: " + errorMessage, responseTime.toMillis());
+            }
+        } catch (Exception e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            return PingResult.failure(Constants.ERROR_PREFIX_UNEXPECTED + e.getMessage(), responseTime.toMillis());
+        }
+    }
+
+    /**
+     * Pings a database asset without credentials (just tests server reachability)
+     * 
+     * @param asset The database asset to ping
+     * @return PingResult containing success status and response time
+     */
+    private PingResult pingDatabaseWithoutCredentials(Asset asset) {
         String jdbcUrl = buildJdbcUrl(asset);
         Instant startTime = Instant.now();
         
@@ -776,27 +975,29 @@ public class AssetService {
                 return PingResult.failure("Server configuration issue: " + errorMessage, responseTime.toMillis());
             } else {
                 // Other errors
-                return PingResult.failure("Unexpected error: " + errorMessage, responseTime.toMillis());
+                return PingResult.failure(Constants.ERROR_PREFIX_UNEXPECTED + errorMessage, responseTime.toMillis());
             }
         } catch (Exception e) {
             Duration responseTime = Duration.between(startTime, Instant.now());
-            return PingResult.failure("Unexpected error: " + e.getMessage(), responseTime.toMillis());
+            return PingResult.failure(Constants.ERROR_PREFIX_UNEXPECTED + e.getMessage(), responseTime.toMillis());
         }
     }
 
     /**
-     * Pings an existing asset to test connectivity without credentials
+     * Pings an existing asset to test connectivity
      * This method can be used to verify that the asset's connection details are correct
      * 
      * @param assetId The ID of the asset to ping
+     * @param needSkipDBName If true, skips database name validation. If false and ASSET_OWNER credential exists,
+     *                       will test actual database connection to verify database name is correct.
      * @return PingResult containing success status and response time
      * @throws IllegalArgumentException if asset not found
      */
-    public PingResult pingAsset(Long assetId) {
+    public PingResult pingAsset(Long assetId, boolean needSkipDBName) {
         Asset asset = findById(assetId);
-        log.info("Pinging asset: {} (ID: {})", asset.getName(), assetId);
+        log.info("Pinging asset: {} (ID: {}), needSkipDBName: {}", asset.getName(), assetId, needSkipDBName);
         
-        PingResult result = pingAsset(asset);
+        PingResult result = pingAsset(asset, needSkipDBName);
         
         if (result.isSuccess()) {
             log.info("Asset ping successful: {} - {} ({}ms)", 
@@ -807,6 +1008,18 @@ public class AssetService {
         }
         
         return result;
+    }
+
+    /**
+     * Pings an existing asset to test connectivity without credentials (backward compatibility)
+     * This method can be used to verify that the asset's connection details are correct
+     * 
+     * @param assetId The ID of the asset to ping
+     * @return PingResult containing success status and response time
+     * @throws IllegalArgumentException if asset not found
+     */
+    public PingResult pingAsset(Long assetId) {
+        return pingAsset(assetId, true);
     }
 
     /**
@@ -890,6 +1103,23 @@ public class AssetService {
     }
 
     /**
+     * Checks if the error message indicates a database name error
+     */
+    private boolean isDatabaseNameError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        
+        String lowerMessage = errorMessage.toLowerCase();
+        return lowerMessage.contains("unknown database") ||
+               (lowerMessage.contains("database") && lowerMessage.contains("does not exist")) ||
+               (lowerMessage.contains("database") && lowerMessage.contains("not found")) ||
+               (lowerMessage.contains("catalog") && lowerMessage.contains("does not exist")) ||
+               lowerMessage.contains("invalid database name") ||
+               (lowerMessage.contains("database name") && lowerMessage.contains("invalid"));
+    }
+
+    /**
      * Checks if the SQL exception is connection-related
      */
     private boolean isConnectionError(String errorMessage) {
@@ -918,8 +1148,8 @@ public class AssetService {
         
         String cleaned = errorMessage;
         // Remove common prefixes that add no value
-        if (cleaned.startsWith("Unexpected error: ")) {
-            cleaned = cleaned.substring("Unexpected error: ".length());
+        if (cleaned.startsWith(Constants.ERROR_PREFIX_UNEXPECTED)) {
+            cleaned = cleaned.substring(Constants.ERROR_PREFIX_UNEXPECTED.length());
         } else if (cleaned.startsWith("Connection failed: ")) {
             cleaned = cleaned.substring("Connection failed: ".length());
         }

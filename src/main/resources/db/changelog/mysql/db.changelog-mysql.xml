@@ -518,4 +518,14 @@
         <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL', 'EXPIRED')"/>
     </changeSet>
 
+    <!-- Add deleted field to users table for soft delete -->
+    <changeSet id="mysql-add-deleted-field-to-users" author="admin" dbms="mysql">
+        <comment>Add deleted field to users table for soft delete functionality</comment>
+        <addColumn tableName="users">
+            <column name="deleted" type="tinyint(1)" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
 </databaseChangeLog> 

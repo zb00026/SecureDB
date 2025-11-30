@@ -57,6 +57,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.GONE).body(errorResponse); // 410 Gone - resource is no longer available
     }
 
+    // Handle Asset Locked Exceptions
+    @ExceptionHandler(AssetLockedException.class)
+    public ResponseEntity<Map<String, String>> handleAssetLockedException(AssetLockedException ex, WebRequest request) {
+        Map<String, String> errorResponse = new HashMap<>();
+        log.warn("Asset locked: {}", ex.getMessage());
+        errorResponse.put(Constants.ERROR_FIELD_ERROR, ex.getMessage());
+        errorResponse.put(Constants.ERROR_FIELD_DETAILS, "The asset is currently locked. Please contact the asset owner or administrator to unlock it.");
+        return ResponseEntity.status(HttpStatus.LOCKED).body(errorResponse); // 423 Locked
+    }
+
     // Handle IllegalArgumentException (for access request not approved, etc.)
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {

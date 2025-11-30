@@ -123,8 +123,7 @@ public class AuthController {
             }
             
             // Update expired access requests to EXPIRED status if user has developer role
-            if (user != null && user.getRoles() != null && 
-                user.getRoles().stream().anyMatch(role -> Roles.DEVELOPER.getOriginalName().equals(role.getName()))) {
+            if (userService.hasRole(user, Roles.DEVELOPER.getOriginalName())) {
                 accessRequestService.updateExpiredAccessRequests(user);
             }
             
@@ -258,12 +257,26 @@ public class AuthController {
 
     private void processCredential(AssetCredential cred, String userKey) {
         try {
+            // Create a temporary credential with decrypted password instead of modifying the original
+            // This prevents JPA from tracking the credential as dirty and saving decrypted password
+            AssetCredential tempCredential = new AssetCredential();
+            tempCredential.setId(cred.getId()); // Set ID so updateAssetObjects can find the AssetObject
+            tempCredential.setAsset(cred.getAsset());
+            tempCredential.setUsername(cred.getUsername());
+            tempCredential.setUser(cred.getUser());
+            tempCredential.setUserAccessType(cred.getUserAccessType());
+            tempCredential.setIsTemporaryPassword(cred.getIsTemporaryPassword());
+            tempCredential.setIsDeleted(cred.getIsDeleted());
+            
             if (!cred.getIsTemporaryPassword()) {
                 String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
-                cred.setPassword(decryptedPassword);
+                tempCredential.setPassword(decryptedPassword);
+            } else {
+                tempCredential.setPassword(cred.getPassword());
             }
+            
             if (cred.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
-                databaseAccessService.updateAssetObjects(cred);
+                databaseAccessService.updateAssetObjects(tempCredential);
             }
             processExpiredDeveloperCredential(cred);
         } catch (Exception e) {

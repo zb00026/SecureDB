@@ -142,6 +142,7 @@ public class UserService {
 
     public List<User> getAdminRoleUsers() {
         return userRepository.findAll().stream()
+                .filter(user -> (user.getDeleted() == null || !user.getDeleted()))
                 .filter(user -> user.getRoles().stream()
                         .anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName())))
                 .toList();
@@ -333,8 +334,8 @@ public class UserService {
     }
 
     /**
-     * Deletes a user using database CASCADE DELETE constraints
-     * The database automatically handles deletion of related records
+     * Soft deletes a user by setting the deleted flag to true
+     * This allows the same email to be used again for new users
      * @param userId The ID of the user to delete
      */
     @Transactional
@@ -343,27 +344,37 @@ public class UserService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
                         Constants.getMessage("user.not.found", userId)));
         
-        log.info(Constants.LOG_USER_CASCADE_DELETE_START, userId, user.getEmail());
+        if (Boolean.TRUE.equals(user.getDeleted())) {
+            log.warn("User ID: {} ({}) is already deleted", userId, user.getEmail());
+            return;
+        }
+        
+        log.info("Soft deleting user ID: {} ({})", userId, user.getEmail());
         
         try {
-            // Database CASCADE DELETE handles the rest automatically:
-            // - NotificationTask (receiver_id, sender_id)
-            // - AccessRequest (requestor_id)
-            // - AssetCredential (user_id)
-            // - AssetApprover (user_id)
-            // - AccessLevelObject (requestor_id)
-            // - AssetQueryChangeRequest (requestor_id)
-            userRepository.delete(user);
+            // Soft delete by setting deleted flag to true
+            user.setDeleted(true);
+            // Also deactivate the user
+            user.setIsActive(false);
+            userRepository.save(user);
             
-            log.info(Constants.LOG_USER_CASCADE_DELETE_SUCCESS, userId, user.getEmail());
+            log.info("Successfully soft deleted user ID: {} ({})", userId, user.getEmail());
             
         } catch (Exception e) {
-            log.error("Error during cascade deletion of user ID: {} ({})", userId, user.getEmail(), e);
+            log.error("Error during soft deletion of user ID: {} ({})", userId, user.getEmail(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
                     Constants.getMessage("error.user.cascade.delete.failed") + ": " + e.getMessage(), e);
         }
     }
 
+    public boolean hasRole(User user, String roleName) {
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        
+        return user.getRoles().stream()
+                .anyMatch(role -> roleName.equals(role.getName()));
+    }
     /**
      * Check if user has asset owner role or admin role
      * @param user The user to check
@@ -374,9 +385,7 @@ public class UserService {
             return false;
         }
         
-        return user.getRoles().stream()
-                .anyMatch(role -> Roles.ASSET_OWNER.getOriginalName().equals(role.getName()) || 
-                                 Roles.ADMIN.getOriginalName().equals(role.getName()));
+        return hasRole(user, Roles.ASSET_OWNER.getOriginalName()) || hasRole(user, Roles.ADMIN.getOriginalName());
     }
 
 }

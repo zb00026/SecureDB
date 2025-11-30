@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 /**
  * Shared service for query execution logic used by both Developer and Asset Owner controllers
@@ -35,6 +36,7 @@ public class QueryExecutionService {
     private final AuditTrailService auditTrailService;
     private final AssetQueryChangeRequestService assetQueryChangeRequestService;
     private final AssetValidationUtils assetValidationUtils;
+    private final AssetService assetService;
     private final ObjectMapper objectMapper;
     private final KeycloakService keycloakService;
     private final AccessRequestRepository accessRequestRepository;
@@ -46,7 +48,8 @@ public class QueryExecutionService {
                                  DataMaskingService dataMaskingService,
                                  AuditTrailService auditTrailService,
                                  AssetQueryChangeRequestService assetQueryChangeRequestService,
-                                 AssetValidationUtils assetValidationUtils, 
+                                 AssetValidationUtils assetValidationUtils,
+                                 AssetService assetService,
                                  KeycloakService keycloakService, 
                                  AccessRequestRepository accessRequestRepository, 
                                  AssetCredentialsRepository assetCredentialsRepository,
@@ -57,6 +60,7 @@ public class QueryExecutionService {
         this.auditTrailService = auditTrailService;
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.assetValidationUtils = assetValidationUtils;
+        this.assetService = assetService;
         this.keycloakService = keycloakService;
         this.objectMapper = new ObjectMapper();
         this.accessRequestRepository = accessRequestRepository;
@@ -70,6 +74,9 @@ public class QueryExecutionService {
     public Map<String, Object> executeQueryForDeveloper(AccessQueryDTO accessQueryDTO) throws CommonUtils.CryptoException {
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(accessQueryDTO.getRequestId());
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
+        
+        // Check if asset is locked
+        assetService.validateAssetNotLocked(accessRequest.getAsset(), true);
         
         // Encrypt temporary credential if needed
         accessRequestService.encryptTemporaryCredential(credential, accessRequest);
@@ -102,6 +109,10 @@ public class QueryExecutionService {
      */
     public Map<String, Object> executeQueryForAssetOwner(AccessQueryDTO accessQueryDTO) {
         Asset asset = assetValidationUtils.validateAssetOwnership(accessQueryDTO.getAssetId());
+        
+        // Check if asset is locked
+        assetService.validateAssetNotLocked(asset, false);
+        
         AssetCredential credential = assetValidationUtils.validateAssetOwnerCredential(asset);
         
         long startTime = System.currentTimeMillis();
@@ -337,7 +348,7 @@ public class QueryExecutionService {
             // Get all roles as a comma-separated string for masking policy matching
             return currentUser.getRoles().stream()
                     .map(role -> role.getName())
-                    .collect(java.util.stream.Collectors.joining(","));
+                    .collect(Collectors.joining(","));
         }
         
         /**
@@ -350,7 +361,7 @@ public class QueryExecutionService {
             
             return currentUser.getRoles().stream()
                     .map(role -> role.getName())
-                    .collect(java.util.stream.Collectors.toList());
+                    .collect(Collectors.toList());
         }
 
         public String getAuditAction() {

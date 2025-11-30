@@ -114,6 +114,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.assetCredential ac " +
            "JOIN FETCH ar.asset " +
+           "JOIN FETCH ar.requestor " +
            "WHERE ar.requestor = :requestor " +
            "AND ar.isTempPassword = :isTempPassword " +
            "AND ar.assetApproverStatus = :approvalStatus " +

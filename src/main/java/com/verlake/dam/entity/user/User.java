@@ -61,6 +61,9 @@ public class User {
     @Column(name = "approver_id")
     private Long approverId;
 
+    @Column(name = "deleted", columnDefinition = "tinyint(1) default 0")
+    private Boolean deleted = false;
+
     @Transient
     private UserApproverDTO approver;
 
@@ -83,5 +86,25 @@ public class User {
         userApproverDTO.setLastName(this.getLastName());
         userApproverDTO.setEmail(this.getEmail());
         return userApproverDTO;
+    }
+
+    /**
+     * Get user status based on active state and invite code
+     * @return "Active" if user is active, "Invite sent" if user has invite code but not active, "Inactive" otherwise
+     */
+    @Transient
+    public String getStatus() {
+        if (Boolean.TRUE.equals(this.deleted)) {
+            return com.verlake.dam.utils.Constants.USER_STATUS_DELETED;
+        }
+        if (Boolean.TRUE.equals(this.isActive)) {
+            return com.verlake.dam.utils.Constants.USER_STATUS_ACTIVE;
+        }
+        // If user is not active but has invite code, it means invite was sent
+        if (this.inviteCode != null && !this.inviteCode.isEmpty()) {
+            return com.verlake.dam.utils.Constants.USER_STATUS_INVITE_SENT;
+        }
+        // Otherwise, user is inactive (was activated but then deactivated)
+        return com.verlake.dam.utils.Constants.USER_STATUS_INACTIVE;
     }
 }

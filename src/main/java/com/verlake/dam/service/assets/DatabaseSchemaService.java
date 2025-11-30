@@ -63,8 +63,8 @@ public class DatabaseSchemaService {
                 assetId, requestId, isAssetOwner);
         
         User currentUser = userService.getCurrentUser();
-        boolean hasAssetOwnerRole = hasRole(currentUser, Roles.ASSET_OWNER.getOriginalName());
-        boolean hasDeveloperRole = hasRole(currentUser, Roles.DEVELOPER.getOriginalName());
+        boolean hasAssetOwnerRole = userService.hasRole(currentUser, Roles.ASSET_OWNER.getOriginalName());
+        boolean hasDeveloperRole = userService.hasRole(currentUser, Roles.DEVELOPER.getOriginalName());
         
         log.debug("Current user roles - AssetOwner: {}, Developer: {}", hasAssetOwnerRole, hasDeveloperRole);
         
@@ -99,6 +99,9 @@ public class DatabaseSchemaService {
     private DatabaseSchemaDTO handleAssetRequest(Long assetId, Boolean isAssetOwner, User currentUser, 
                                                boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
         Asset asset = validateAsset(assetId);
+        
+        // Check if asset is locked
+        assetService.validateAssetNotLocked(asset, !hasAssetOwnerRole);
         
         // If isAssetOwner is explicitly provided, use it directly
         if (isAssetOwner != null) {
@@ -225,6 +228,9 @@ public class DatabaseSchemaService {
             throw new DatabaseAccessException("Asset not found: " + assetId, null);
         }
         
+        // Check if asset is locked
+        assetService.validateAssetNotLocked(asset, true);
+        
         List<AccessRequest> requests = accessRequestRepository.findLatestRequestByAssetAndRequestor(asset, currentUser);
         
         if (requests.isEmpty()) {
@@ -254,14 +260,6 @@ public class DatabaseSchemaService {
     }
     
     /**
-     * Check if user has a specific role
-     */
-    private boolean hasRole(User user, String roleName) {
-        return user.getRoles().stream()
-                .anyMatch(role -> roleName.equalsIgnoreCase(role.getName()));
-    }
-
-    /**
      * Get database schema for a developer with access request validation
      */
     @Transactional(readOnly = true)
@@ -270,6 +268,9 @@ public class DatabaseSchemaService {
         
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(requestId);
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
+        
+        // Check if asset is locked
+        assetService.validateAssetNotLocked(accessRequest.getAsset(), true);
         
         // Encrypt temporary credential if needed
         accessRequestService.encryptTemporaryCredential(credential, accessRequest);
@@ -295,6 +296,9 @@ public class DatabaseSchemaService {
         if (asset == null) {
             throw new DatabaseAccessException("Asset not found: " + assetId, null);
         }
+        
+        // Check if asset is locked
+        assetService.validateAssetNotLocked(asset, true);
         
         // Get credential directly from asset_credentials table by assetId, userId, and userAccessType = "Asset Owner"
         AssetCredential credential = assetCredentialsRepository
