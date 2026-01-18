@@ -1175,29 +1175,38 @@ public class AssetService {
             throw new SecurityException("User is not an asset owner for this asset");
         }
         
-        // Encrypt the SSH key file
-        String userKey = keycloakService.getUserKey();
-        if (userKey == null || userKey.isEmpty()) {
-            throw new SecurityException("User encryption key not available");
-        }
-        
-        String encryptedSSHKey;
-        try {
-            encryptedSSHKey = CommonUtils.encrypt(userKey, createDTO.getSshKeyFile());
-        } catch (CommonUtils.CryptoException e) {
-            throw new SecurityException("Failed to encrypt SSH key", e);
-        }
-        
-        AssetCredential credential = AssetCredential.builder()
+        AssetCredential.AssetCredentialBuilder credentialBuilder = AssetCredential.builder()
                 .asset(asset)
                 .user(currentUser)
                 .username(createDTO.getUsername())
-                .sshKeyFile(encryptedSSHKey)
                 .isTemporaryPassword(false)
-                .userAccessType(Roles.ASSET_OWNER.getOriginalName())
-                .build();
+                .userAccessType(Roles.ASSET_OWNER.getOriginalName());
         
-        return assetCredentialsRepository.save(credential);
+        // Handle AWS Secrets Manager or traditional SSH key
+        if (createDTO.getAwsSecretsManagerKey() != null && !createDTO.getAwsSecretsManagerKey().trim().isEmpty()) {
+            // Store AWS Secrets Manager key
+            credentialBuilder.awsSecretsManagerKey(createDTO.getAwsSecretsManagerKey());
+            credentialBuilder.sshKeyFile(null); // Clear SSH key file
+        } else if (createDTO.getSshKeyFile() != null && !createDTO.getSshKeyFile().trim().isEmpty()) {
+            // Encrypt the SSH key file
+            String userKey = keycloakService.getUserKey();
+            if (userKey == null || userKey.isEmpty()) {
+                throw new SecurityException("User encryption key not available");
+            }
+            
+            String encryptedSSHKey;
+            try {
+                encryptedSSHKey = CommonUtils.encrypt(userKey, createDTO.getSshKeyFile());
+            } catch (CommonUtils.CryptoException e) {
+                throw new SecurityException("Failed to encrypt SSH key", e);
+            }
+            credentialBuilder.sshKeyFile(encryptedSSHKey);
+            credentialBuilder.awsSecretsManagerKey(null); // Clear AWS Secrets Manager key
+        } else {
+            throw new IllegalArgumentException("Either sshKeyFile or awsSecretsManagerKey must be provided");
+        }
+        
+        return assetCredentialsRepository.save(credentialBuilder.build());
     }
     
     

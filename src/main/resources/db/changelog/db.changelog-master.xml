@@ -43,6 +43,7 @@
     <include file="db/changelog/common/db.042-changelog-add-system-settings.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.044-changelog-add-local-retention-to-s3-settings.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.043-changelog-add-audit-descriptions.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.045-changelog-add-aws-secrets-manager-key.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

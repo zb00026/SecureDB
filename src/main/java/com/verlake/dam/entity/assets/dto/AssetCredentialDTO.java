@@ -19,4 +19,5 @@ public class AssetCredentialDTO {
     private String sshKeyFile; // For Unix Server assets
     private String userAccessType; // For both database and SSH credentials
     private AssetType assetType; // To distinguish between DATABASE and UNIX_SERVER
+    private String awsSecretsManagerKey; // AWS Secrets Manager key for credential storage
 }

@@ -9,12 +9,6 @@ import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -65,11 +59,11 @@ public class DatabaseConnectionUtils {
      */
     public Connection getConnectionFromAssetCredential(AssetCredential credential) throws SQLException {
         if (credential == null) {
-            throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL), null);
         }
         
         if (credential.getAsset() == null) {
-            throw new DatabaseAccessException(Constants.getMessage("error.asset.cannot.be.null"), null);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ASSET_CANNOT_BE_NULL), null);
         }
         
         String jdbcUrl = buildJdbcUrl(credential.getAsset());
@@ -85,7 +79,7 @@ public class DatabaseConnectionUtils {
      */
     public String decryptCredentialPassword(AssetCredential credential) {
         if (credential == null) {
-            throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL), null);
         }
         
         if (credential.getPassword() == null || credential.getPassword().trim().isEmpty()) {
@@ -146,9 +140,44 @@ public class DatabaseConnectionUtils {
      * @return true if credential has a valid password, false otherwise
      */
     public boolean hasValidPassword(AssetCredential credential) {
-        return credential != null && 
-               credential.getPassword() != null && 
-               !credential.getPassword().trim().isEmpty();
+        if (credential == null) {
+            return false;
+        }
+        
+        return credential.getPassword() != null && !credential.getPassword().trim().isEmpty();
+    }
+    
+    /**
+     * Decrypts SSH private key using the user's key from Keycloak
+     * 
+     * @param credential The credential containing encrypted SSH key
+     * @return Decrypted SSH private key
+     * @throws DatabaseAccessException if decryption fails or credential is invalid
+     */
+    public String decryptSSHPrivateKey(AssetCredential credential) {
+        if (credential == null) {
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL), null);
+        }
+        
+        if (credential.getSshKeyFile() == null || credential.getSshKeyFile().trim().isEmpty()) {
+            log.warn("Credential ID: {} has no SSH key file", credential.getId());
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), null);
+        }
+        
+        String userKey = keycloakService.getUserKey();
+        
+        try {
+            log.debug("Decrypting SSH private key for credential ID: {}", credential.getId());
+            return CommonUtils.decrypt(userKey, credential.getSshKeyFile());
+        } catch (CommonUtils.CryptoException e) {
+            log.warn("Failed to decrypt SSH private key for credential ID: {} - {}", 
+                     credential.getId(), e.getClass().getSimpleName());
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
+        } catch (Exception e) {
+            log.error("Unexpected error during SSH private key decryption for credential ID: {}", 
+                      credential.getId(), e);
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
+        }
     }
     
     /**

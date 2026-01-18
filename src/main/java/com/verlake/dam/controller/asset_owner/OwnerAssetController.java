@@ -53,6 +53,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import com.verlake.dam.exception.EncryptionException;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -98,7 +99,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private DatabaseAccessService databaseAccessService;
-
+    
     @Autowired
     private QueryExecutionService queryExecutionService;
 
@@ -415,59 +416,104 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @PostMapping("/credentials/{credentialId}")
     public ResponseEntity<Map<String, Object>> setCredentialInfo(@PathVariable Long credentialId, @RequestBody AssetCredentialDTO credentialInfo) {
-        AssetCredential existingCredential = assetService.findCredentialById(credentialId);
-        if (existingCredential == null) {
+        AssetCredential existingCredential = validateCredentialExists(credentialId);
+        Asset asset = existingCredential.getAsset();
+        
+        CredentialPair credentials = extractCredentials(credentialInfo);
+        
+        String jdbcUrl = buildJdbcUrlForAsset(asset);
+        validateDatabaseConnection(jdbcUrl, credentials.username(), credentials.password());
+        
+        saveCredentialWithPassword(existingCredential, credentials);
+        
+        return CommonUtils.getSuccessResponse();
+    }
+    
+    /**
+     * Validates that credential exists
+     */
+    private AssetCredential validateCredentialExists(Long credentialId) {
+        AssetCredential credential = assetService.findCredentialById(credentialId);
+        if (credential == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Asset Credential not found in database");
         }
-
-        Asset asset = existingCredential.getAsset();
-        String host = asset.getHostUrl();
+        return credential;
+    }
+    
+    /**
+     * Credential pair record
+     */
+    private record CredentialPair(String username, String password) {}
+    
+    /**
+     * Extracts credentials from DTO
+     */
+    private CredentialPair extractCredentials(AssetCredentialDTO credentialInfo) {
         String username = credentialInfo.getUsername();
         String password = credentialInfo.getPassword();
-
-        String jdbcUrl;
-        switch (asset.getDatabaseType()) {
-            case MYSQL:
-                jdbcUrl = "jdbc:mysql://" + host;
-                break;
-            case POSTGRESQL:
-                jdbcUrl = "jdbc:postgresql://" + host;
-                break;
-            case ORACLE:
-                jdbcUrl = "jdbc:oracle:thin:@" + host;
-                break;
-            case SQLSERVER:
-                // Add SSL parameters for MSSQL to match application configuration
-                jdbcUrl = "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
-                break;
-            default:
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported database type");
+        
+        if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "Username and password are required");
         }
-
-        // Validate the database connection
+        
+        return new CredentialPair(username, password);
+    }
+    
+    /**
+     * Builds JDBC URL for the asset based on database type
+     */
+    private String buildJdbcUrlForAsset(Asset asset) {
+        String host = asset.getHostUrl();
+        
+        return switch (asset.getDatabaseType()) {
+            case MYSQL -> "jdbc:mysql://" + host;
+            case POSTGRESQL -> "jdbc:postgresql://" + host;
+            case ORACLE -> "jdbc:oracle:thin:@" + host;
+            case SQLSERVER -> "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported database type");
+        };
+    }
+    
+    /**
+     * Validates database connection
+     */
+    private void validateDatabaseConnection(String jdbcUrl, String username, String password) {
         try (Connection connection = DriverManager.getConnection(jdbcUrl, username, password)) {
-            if (connection != null) {
-                if (authProvider.contains(Constants.AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
-                    existingCredential.setUsername(username);
-                    existingCredential.setPassword(password);
-                    databaseAccessService.updateAssetObjects(existingCredential);
-                    String userKey = keycloakService.getUserKey();
-                    if(userKey != null && !userKey.isEmpty()) {
-                        password = encryptPasswordWithKey(userKey, password);
-                    }
-                }
-                existingCredential.setUsername(username);
-                existingCredential.setPassword(password);
-                existingCredential.setIsTemporaryPassword(false);
-                assetService.saveCredential(existingCredential);
-                return CommonUtils.getSuccessResponse();
-            } else {
+            if (connection == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connection failed: Unknown error");
             }
         } catch (SQLException e) {
-            // Connection failed
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connection failed: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Saves credential with encrypted password
+     */
+    private void saveCredentialWithPassword(AssetCredential existingCredential, CredentialPair credentials) {
+        existingCredential.setUsername(credentials.username());
+        
+        String encryptedPassword = credentials.password();
+        
+        if (authProvider.contains(Constants.AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
+            existingCredential.setPassword(credentials.password());
+            try {
+                databaseAccessService.updateAssetObjects(existingCredential);
+            } catch (SQLException e) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Failed to update asset objects: " + e.getMessage());
+            }
+            
+            String userKey = keycloakService.getUserKey();
+            if (userKey != null && !userKey.isEmpty()) {
+                encryptedPassword = encryptPasswordWithKey(userKey, credentials.password());
+            }
+        }
+        
+        existingCredential.setPassword(encryptedPassword);
+        existingCredential.setIsTemporaryPassword(false);
+        assetService.saveCredential(existingCredential);
     }
 
     private String encryptPasswordWithKey(String userKey, String password) {
@@ -492,6 +538,12 @@ public class OwnerAssetController extends BaseAssetAccessController {
     public ResponseEntity<AssetCredentialDTO> createSSHCredentials(@PathVariable Long assetId, 
                                                                @RequestBody AssetCredentialDTO createDTO) {
         createDTO.setAssetId(assetId);
+        
+        if (createDTO.getSshKeyFile() == null || createDTO.getSshKeyFile().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                    "sshKeyFile is required");
+        }
+        
         AssetCredential credential = assetService.createSSHCredential(assetId, createDTO);
         
         AssetCredentialDTO result = AssetCredentialDTO.builder()
@@ -511,42 +563,63 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @PutMapping("/ssh-credentials/{id}")
     public ResponseEntity<AssetCredentialDTO> updateSSHCredentials(@PathVariable Long id, 
                                                                @RequestBody AssetCredentialDTO updateDTO) {
-        AssetCredential existingCredential = assetService.findCredentialById(id);
-        if (existingCredential == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
-        }
+        AssetCredential existingCredential = validateSshCredentialExists(id);
         
-        // Update fields
         if (updateDTO.getUsername() != null) {
             existingCredential.setUsername(updateDTO.getUsername());
         }
         
-        if (updateDTO.getSshKeyFile() != null) {
-            // Encrypt the new SSH key file
-            String userKey = keycloakService.getUserKey();
-            if (userKey == null || userKey.isEmpty()) {
-                throw new SecurityException("User encryption key not available");
-            }
-            try {
-                String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
-                existingCredential.setSshKeyFile(encryptedSSHKey);
-                existingCredential.setIsTemporaryPassword(false);
-            } catch (CommonUtils.CryptoException e) {
-                throw new SecurityException("Failed to encrypt SSH key", e);
-            }
+        if (updateDTO.getSshKeyFile() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                "sshKeyFile is required");
         }
         
+        updateSshKeyFromFile(existingCredential, updateDTO);
+        
         assetService.saveCredential(existingCredential);
+        return ResponseEntity.ok(buildSshCredentialResponse(existingCredential));
+    }
+    
+    /**
+     * Validates that SSH credential exists
+     */
+    private AssetCredential validateSshCredentialExists(Long id) {
+        AssetCredential credential = assetService.findCredentialById(id);
+        if (credential == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
+        }
+        return credential;
+    }
+    
+    /**
+     * Updates SSH key from encrypted file
+     */
+    private void updateSshKeyFromFile(AssetCredential existingCredential, AssetCredentialDTO updateDTO) {
+        String userKey = keycloakService.getUserKey();
+        if (userKey == null || userKey.isEmpty()) {
+            throw new EncryptionException("User encryption key not available");
+        }
         
-        AssetCredentialDTO result = AssetCredentialDTO.builder()
-                .assetId(existingCredential.getAsset().getId())
-                .username(existingCredential.getUsername())
-                .sshKeyFile(existingCredential.getSshKeyFile())
-                .userAccessType(existingCredential.getUserAccessType())
-                .assetType(existingCredential.getAsset().getType())
-                .build();
-        
-        return ResponseEntity.ok(result);
+        try {
+            String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
+            existingCredential.setSshKeyFile(encryptedSSHKey);
+            existingCredential.setIsTemporaryPassword(false);
+        } catch (CommonUtils.CryptoException e) {
+            throw new EncryptionException("Failed to encrypt SSH key", e);
+        }
+    }
+    
+    /**
+     * Builds SSH credential response DTO
+     */
+    private AssetCredentialDTO buildSshCredentialResponse(AssetCredential credential) {
+        return AssetCredentialDTO.builder()
+            .assetId(credential.getAsset().getId())
+            .username(credential.getUsername())
+            .sshKeyFile(credential.getSshKeyFile())
+            .userAccessType(credential.getUserAccessType())
+            .assetType(credential.getAsset().getType())
+            .build();
     }
 
     /**

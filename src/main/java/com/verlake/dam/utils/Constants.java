@@ -447,6 +447,7 @@ public class Constants {
     public static final String ERROR_NO_ACCESS_REQUEST = "error.no.access.request";
     public static final String ERROR_ASSET_NOT_FOUND_MSG = "error.asset.not.found.msg";
     public static final String ERROR_ACCESS_REQUEST_NOT_FOUND_MSG = "error.access.request.not.found.msg";
+    public static final String ACCESS_REQUEST_NOT_FOUND = "Access request not found";
     public static final String ERROR_NEW_CREDENTIAL_NOT_FOUND = "error.new.credential.not.found";
     public static final String NOTIFICATION_TITLE_APPROVAL_RESULT = "notification.title.approval.result";
     public static final String ERROR_NO_VALID_CREDENTIALS = "error.no.valid.credentials";
@@ -1022,6 +1023,8 @@ public class Constants {
     // System Settings Keys
     public static final String SYSTEM_TIMEZONE_KEY = "system.timezone";
     public static final String DEFAULT_TIMEZONE = "UTC";
+    public static final String AWS_SECRETS_MANAGER_ENABLED_KEY = "aws.secrets.manager.enabled";
+    public static final String AWS_SECRETS_MANAGER_ENABLED_DEFAULT = "false";
     
     // Timezone formatting patterns
     public static final String TIMEZONE_DISPLAY_PATTERN = "yyyy-MM-dd HH:mm:ss z";

@@ -38,6 +38,10 @@ public class SystemSettingsService {
     public static final String TIMEZONE_SETTING_KEY = Constants.SYSTEM_TIMEZONE_KEY;
     public static final String DEFAULT_TIMEZONE = Constants.DEFAULT_TIMEZONE;
     
+    // Constants for AWS Secrets Manager setting
+    public static final String AWS_SECRETS_MANAGER_ENABLED_KEY = Constants.AWS_SECRETS_MANAGER_ENABLED_KEY;
+    public static final String AWS_SECRETS_MANAGER_ENABLED_DEFAULT = Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT;
+    
     /**
      * Get system timezone setting
      */
@@ -52,6 +56,22 @@ public class SystemSettingsService {
     public SystemSettings updateTimezone(String timezone) {
         validateTimezone(timezone);
         return updateSetting(TIMEZONE_SETTING_KEY, timezone, "System-wide timezone setting for all timestamps");
+    }
+    
+    /**
+     * Get AWS Secrets Manager enabled setting
+     */
+    public boolean isAWSSecretsManagerEnabled() {
+        return Boolean.parseBoolean(getSettingValue(AWS_SECRETS_MANAGER_ENABLED_KEY, AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+    }
+    
+    /**
+     * Update AWS Secrets Manager enabled setting
+     */
+    @Transactional
+    public SystemSettings updateAWSSecretsManagerEnabled(boolean enabled) {
+        return updateSetting(AWS_SECRETS_MANAGER_ENABLED_KEY, String.valueOf(enabled), 
+                "Enable/disable AWS Secrets Manager integration for asset credentials");
     }
     
     /**

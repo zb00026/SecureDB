@@ -5,6 +5,7 @@ import com.verlake.dam.utils.Constants;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -77,11 +78,14 @@ public class SecurityConfiguration {
         }
         
         authorize
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Allow CORS preflight OPTIONS requests
                 .requestMatchers("/public/**", "/api/auth/**", "/api/firebase/notifications/**",
                         "/api/license/status", "/api/auth/validateResetToken").permitAll()
+                .requestMatchers("/api/freshdesk/health", "/api/freshdesk/auth").permitAll() // Allow Freshdesk health check and auth endpoint
                 .requestMatchers("/ws/terminal/connect").permitAll() // Allow WebSocket connections
                 .requestMatchers("/ws/unix-groups").permitAll() // Allow Unix group WebSocket connections
                 .requestMatchers("/api/settings/timezone/**").permitAll() // Allow timezone APIs for all users
+                .requestMatchers("/api/freshdesk/**").hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name()) // Freshdesk endpoints require DEVELOPER role
                 .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                 .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())
                 .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.APPROVER.name())
@@ -99,7 +103,9 @@ public class SecurityConfiguration {
     
     private void logAuthorizationRules() {
         log.info("Configuring authorization rules:");
+        log.info("  - Permitting OPTIONS requests (CORS preflight)");
         log.info("  - Permitting all: /public/**, /api/auth/**, /api/firebase/notifications/**, /api/license/status, /api/auth/validateResetToken");
+        log.info("  - Freshdesk public endpoints: /api/freshdesk/health, /api/freshdesk/auth");
         log.info("  - Admin paths: /api{}", Roles.ADMIN.getAvailablePath());
         log.info("  - AI Chat paths: /api/ai/chat/** (Admin only)");
         log.info("  - Asset Owner paths: /api/asset_owner/assets/**");
@@ -108,6 +114,7 @@ public class SecurityConfiguration {
         log.info("  - Auditor paths: /api{}", Roles.AUDITOR.getAvailablePath());
         log.info("  - Asset Owner paths: /api{}", Roles.ASSET_OWNER.getAvailablePath());
         log.info("  - Audit trails: /api/audit-trails/**");
+        log.info("  - Freshdesk endpoints (except auth/health): /api/freshdesk/** (DEVELOPER role required)");
         log.info("  - All other requests: DENY ALL");
     }
     
@@ -170,8 +177,20 @@ public class SecurityConfiguration {
             log.info("Creating JWT decoder...");
         }
         
+        // Build Keycloak JWKS URI from issuer URI
+        // Format: {issuer-uri}/protocol/openid-connect/certs
+        String keycloakJwksUri = keycloakIssuerUri + "/protocol/openid-connect/certs";
+        
+        if (detailedLogging) {
+            log.info("Keycloak JWKS URI: {}", keycloakJwksUri);
+        }
+        
         return new CompositeJwtDecoder(
+                // Try explicit JWKS URI first (more reliable)
+                NimbusJwtDecoder.withJwkSetUri(keycloakJwksUri).build(),
+                // Fallback to issuer location auto-discovery
                 JwtDecoders.fromIssuerLocation(keycloakIssuerUri),
+                // Google decoder
                 NimbusJwtDecoder.withJwkSetUri(jwksUri).build()
         );
     }

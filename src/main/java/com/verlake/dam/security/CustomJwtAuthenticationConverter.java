@@ -51,18 +51,30 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
             log.info("Converting JWT for subject: {}", jwt.getSubject());
         }
         
-        Collection<? extends GrantedAuthority> authorities = extractAuthorities(jwt);
-        
-        JwtAuthenticationToken token = new JwtAuthenticationToken(jwt, authorities);
-        
-        if (detailedLogging) {
-            log.info("Created JwtAuthenticationToken with authorities: {}", authorities);
-            log.info("=== CustomJwtAuthenticationConverter.convert SUCCESS ===");
-        } else {
-            log.info("JWT conversion completed with {} authorities", authorities.size());
+        try {
+            Collection<? extends GrantedAuthority> authorities = extractAuthorities(jwt);
+            
+            if (authorities == null) {
+                log.warn("extractAuthorities returned null, using empty authorities");
+                authorities = java.util.Collections.emptyList();
+            }
+            
+            JwtAuthenticationToken token = new JwtAuthenticationToken(jwt, authorities);
+            
+            if (detailedLogging) {
+                log.info("Created JwtAuthenticationToken with {} authorities: {}", authorities.size(), authorities);
+                log.info("=== CustomJwtAuthenticationConverter.convert SUCCESS ===");
+            } else {
+                log.info("JWT conversion completed with {} authorities", authorities.size());
+            }
+            
+            return token;
+        } catch (Exception e) {
+            log.error("Error converting JWT token: {}", e.getMessage(), e);
+            // Return token with empty authorities to allow authorization check to happen
+            // This ensures we get 403 (Forbidden) instead of 401 (Unauthorized) if user lacks permissions
+            return new JwtAuthenticationToken(jwt, java.util.Collections.emptyList());
         }
-        
-        return token;
     }
 
     protected Collection<? extends GrantedAuthority> extractAuthorities(Jwt jwt) {
@@ -83,19 +95,40 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
         if (detailedLogging) {
             log.info("Fetching user from database by email: {}", email);
         }
-        User user = userService.findByEmail(email);
         
-        if (user != null) {
-            Collection<? extends GrantedAuthority> dbAuthorities = extractAuthoritiesFromUser(user, detailedLogging);
-            if (dbAuthorities != null) {
-                return dbAuthorities;
+        try {
+            User user = userService.findByEmail(email);
+            
+            if (user != null) {
+                if (detailedLogging) {
+                    log.info("User found in database: ID={}, Email={}, Active={}", 
+                        user.getId(), user.getEmail(), user.getIsActive());
+                }
+                
+                Collection<? extends GrantedAuthority> dbAuthorities = extractAuthoritiesFromUser(user, detailedLogging);
+                if (dbAuthorities != null && !dbAuthorities.isEmpty()) {
+                    if (detailedLogging) {
+                        log.info("Returning {} authorities from database", dbAuthorities.size());
+                    }
+                    return dbAuthorities;
+                } else {
+                    log.warn("User found but has no roles assigned. Email: {}", email);
+                }
+            } else {
+                log.warn("User not found in database for email: {}", email);
             }
-        } else if (detailedLogging) {
-            log.warn("User not found in database for email: {}", email);
+        } catch (Exception e) {
+            log.error("Error fetching user from database for email: {}", email, e);
         }
 
         // Fallback to JWT roles if no roles found in the database
-        return getFallbackJwtAuthorities(jwt, detailedLogging, "JWT ROLES");
+        // Always return at least an empty collection to ensure authentication succeeds
+        // Authorization will then check roles and return 403 if needed
+        Collection<? extends GrantedAuthority> fallbackAuthorities = getFallbackJwtAuthorities(jwt, detailedLogging, "JWT ROLES");
+        if (detailedLogging) {
+            log.info("Using fallback JWT authorities: {}", fallbackAuthorities);
+        }
+        return fallbackAuthorities;
     }
     
     private String extractEmailFromJwt(Jwt jwt, boolean detailedLogging) {

@@ -55,4 +55,7 @@ public class AssetCredential {
     
     @Column(name = "ssh_key_file", columnDefinition = "LONGTEXT")
     private String sshKeyFile; // For Unix Server assets
+    
+    @Column(name = "aws_secrets_manager_key", length = 500)
+    private String awsSecretsManagerKey; // AWS Secrets Manager key for credential storage
 } 

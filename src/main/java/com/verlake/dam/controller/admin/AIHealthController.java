@@ -23,7 +23,7 @@ public class AIHealthController {
     public AIHealthController(GeminiAIService geminiAIService) {
         this.geminiAIService = geminiAIService;
     }
-    
+
     /**
      * Get AI service health status
      */

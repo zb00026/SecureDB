@@ -41,3 +41,12 @@ out/
 
 ### Cursor Rules ###
 .cursorrules
+
+### Environment Files ###
+# Ignore all .env files (contain sensitive credentials)
+.env
+.env.*
+!.env.example
+scripts/.env
+scripts/.env.*
+!scripts/env.example
