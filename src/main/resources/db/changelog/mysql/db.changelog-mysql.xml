@@ -40,9 +40,9 @@
     <!-- Update existing tables created in common changelogs to use ENUM -->
     <changeSet id="mysql-update-asset-type-enums" author="admin" dbms="mysql">
         <modifyDataType tableName="assets" columnName="type" newDataType="ENUM('DATABASE')"/>
-        <modifyDataType tableName="assets" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER')"/>
+        <modifyDataType tableName="assets" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER', 'MONGODB')"/>
         <modifyDataType tableName="access_levels" columnName="asset_type" newDataType="ENUM('DATABASE')"/>
-        <modifyDataType tableName="access_levels" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER')"/>
+        <modifyDataType tableName="access_levels" columnName="database_type" newDataType="ENUM('MYSQL', 'POSTGRESQL', 'ORACLE', 'SQLSERVER', 'MONGODB')"/>
     </changeSet>
 
     <!-- Update asset type enum to include UNIX_SERVER -->

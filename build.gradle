@@ -48,6 +48,13 @@ dependencies {
 	runtimeOnly 'mysql:mysql-connector-java:8.+'
 	implementation 'org.postgresql:postgresql:42.+'
 	runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc:12.+'
+	// MongoDB driver - complete dependency set
+	// mongodb-driver-sync includes core and bson transitively, but we explicitly add them
+	// to ensure they're on the classpath at runtime
+	// Note: StreamFactory class is in mongodb-driver-core
+	implementation 'org.mongodb:mongodb-driver-sync:4.+'
+	implementation 'org.mongodb:mongodb-driver-core:4.+'
+	implementation 'org.mongodb:bson:4.+'
 	
 	implementation 'org.projectlombok:lombok:1.+'
 	annotationProcessor 'org.projectlombok:lombok:1.+'
@@ -190,5 +197,12 @@ configurations {
 	configureEach {
 		// Exclude log4j-to-slf4j globally
 		exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+	}
+	// Force MongoDB driver versions to ensure consistency
+	all {
+		resolutionStrategy {
+			force 'org.mongodb:mongodb-driver-core:4.+'
+			force 'org.mongodb:bson:4.+'
+		}
 	}
 }

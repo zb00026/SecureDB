@@ -53,14 +53,22 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-import com.verlake.dam.exception.EncryptionException;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
+import com.verlake.dam.enums.DatabaseType;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.springframework.data.domain.Page;
@@ -99,7 +107,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private DatabaseAccessService databaseAccessService;
-    
+
     @Autowired
     private QueryExecutionService queryExecutionService;
 
@@ -216,8 +224,6 @@ public class OwnerAssetController extends BaseAssetAccessController {
      * Lock out users in the asset database (Asset Owner only)
      * 
      * @param id           Asset ID
-     * @param lockAllUsers If true, locks all database users including applications.
-     *                     If false, only locks Hagrid users.
      */
     @PostMapping("/{id}/lockout")
     public ResponseEntity<Map<String, Object>> lockoutAssetUsers(
@@ -237,8 +243,6 @@ public class OwnerAssetController extends BaseAssetAccessController {
      * Unlock users in the asset database (Asset Owner only)
      * 
      * @param id             Asset ID
-     * @param unlockAllUsers If true, unlocks all database users. If false, only
-     *                       unlocks Hagrid users.
      */
     @PostMapping("/{id}/unlock")
     public ResponseEntity<Map<String, Object>> unlockAssetUsers(
@@ -416,104 +420,216 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @PostMapping("/credentials/{credentialId}")
     public ResponseEntity<Map<String, Object>> setCredentialInfo(@PathVariable Long credentialId, @RequestBody AssetCredentialDTO credentialInfo) {
-        AssetCredential existingCredential = validateCredentialExists(credentialId);
-        Asset asset = existingCredential.getAsset();
-        
-        CredentialPair credentials = extractCredentials(credentialInfo);
-        
-        String jdbcUrl = buildJdbcUrlForAsset(asset);
-        validateDatabaseConnection(jdbcUrl, credentials.username(), credentials.password());
-        
-        saveCredentialWithPassword(existingCredential, credentials);
-        
-        return CommonUtils.getSuccessResponse();
-    }
-    
-    /**
-     * Validates that credential exists
-     */
-    private AssetCredential validateCredentialExists(Long credentialId) {
-        AssetCredential credential = assetService.findCredentialById(credentialId);
-        if (credential == null) {
+        AssetCredential existingCredential = assetService.findCredentialById(credentialId);
+        if (existingCredential == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Asset Credential not found in database");
         }
-        return credential;
-    }
-    
-    /**
-     * Credential pair record
-     */
-    private record CredentialPair(String username, String password) {}
-    
-    /**
-     * Extracts credentials from DTO
-     */
-    private CredentialPair extractCredentials(AssetCredentialDTO credentialInfo) {
+
+        Asset asset = existingCredential.getAsset();
+        String host = asset.getHostUrl();
         String username = credentialInfo.getUsername();
         String password = credentialInfo.getPassword();
-        
         if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
                 "Username and password are required");
         }
-        
-        return new CredentialPair(username, password);
-    }
-    
-    /**
-     * Builds JDBC URL for the asset based on database type
-     */
-    private String buildJdbcUrlForAsset(Asset asset) {
-        String host = asset.getHostUrl();
-        
-        return switch (asset.getDatabaseType()) {
-            case MYSQL -> "jdbc:mysql://" + host;
-            case POSTGRESQL -> "jdbc:postgresql://" + host;
-            case ORACLE -> "jdbc:oracle:thin:@" + host;
-            case SQLSERVER -> "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported database type");
-        };
-    }
-    
-    /**
-     * Validates database connection
-     */
-    private void validateDatabaseConnection(String jdbcUrl, String username, String password) {
+
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return setMongoDBCredentialInfo(existingCredential, asset, username, password);
+        }
+
+        // For other databases, use JDBC
+        String jdbcUrl;
+        switch (asset.getDatabaseType()) {
+            case MYSQL:
+                jdbcUrl = "jdbc:mysql://" + host;
+                break;
+            case POSTGRESQL:
+                jdbcUrl = "jdbc:postgresql://" + host;
+                break;
+            case ORACLE:
+                jdbcUrl = "jdbc:oracle:thin:@" + host;
+                break;
+            case SQLSERVER:
+                // Add SSL parameters for MSSQL to match application configuration
+                jdbcUrl = "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
+                break;
+            default:
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported database type");
+        }
+
+        // Validate the database connection
         try (Connection connection = DriverManager.getConnection(jdbcUrl, username, password)) {
-            if (connection == null) {
+            if (connection != null) {
+                return saveCredentialAfterValidation(existingCredential, username, password);
+            } else {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connection failed: Unknown error");
             }
         } catch (SQLException e) {
+            // Connection failed
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connection failed: " + e.getMessage());
         }
     }
-    
+
     /**
-     * Saves credential with encrypted password
+     * Sets MongoDB credential information and validates the connection
      */
-    private void saveCredentialWithPassword(AssetCredential existingCredential, CredentialPair credentials) {
-        existingCredential.setUsername(credentials.username());
+    private ResponseEntity<Map<String, Object>> setMongoDBCredentialInfo(
+            AssetCredential existingCredential, Asset asset, String username, String password) {
         
-        String encryptedPassword = credentials.password();
-        
-        if (authProvider.contains(Constants.AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
-            existingCredential.setPassword(credentials.password());
-            try {
-                databaseAccessService.updateAssetObjects(existingCredential);
-            } catch (SQLException e) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
-                    "Failed to update asset objects: " + e.getMessage());
-            }
+        try {
+            // Build MongoDB connection string with proper URL encoding
+            String connectionString = buildMongoConnectionStringWithAuth(asset, username, password);
             
-            String userKey = keycloakService.getUserKey();
-            if (userKey != null && !userKey.isEmpty()) {
-                encryptedPassword = encryptPasswordWithKey(userKey, credentials.password());
+            // Validate the MongoDB connection
+            try (MongoClient client = MongoClients.create(connectionString)) {
+                // Get the database instance
+                String databaseName = asset.getDatabaseName();
+                if (databaseName == null || databaseName.isEmpty()) {
+                    databaseName = Constants.MONGODB_ADMIN_DATABASE; // Default to admin database
+                }
+                
+                MongoDatabase database = client.getDatabase(databaseName);
+                
+                // Test connection by running a simple command (ping)
+                database.runCommand(new Document(Constants.MONGODB_COMMAND_PING, 1));
+                
+                // Connection successful - save credentials
+                return saveCredentialAfterValidation(existingCredential, username, password);
+            }
+        } catch (Exception e) {
+            // Connection failed
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MongoDB connection failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Builds MongoDB connection string with proper URL encoding and authSource parameter
+     * Handles special characters in username and password by URL encoding them
+     */
+    private String buildMongoConnectionStringWithAuth(Asset asset, String username, String password) {
+        StringBuilder connectionString = new StringBuilder("mongodb://");
+        
+        // URL encode username and password to handle special characters (e.g., #, @, etc.)
+        String encodedUsername = URLEncoder.encode(username, StandardCharsets.UTF_8);
+        String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8);
+        
+        // Add credentials
+        connectionString.append(encodedUsername).append(":").append(encodedPassword).append("@");
+        
+        // Add host address
+        String hostAddress = asset.getHostAddress();
+        if (hostAddress != null && !hostAddress.isEmpty()) {
+            connectionString.append(hostAddress);
+        } else {
+            // Fallback to hostUrl if hostAddress is not set
+            String hostUrl = asset.getHostUrl();
+            if (hostUrl != null && !hostUrl.isEmpty()) {
+                // Remove protocol prefix if present
+                hostUrl = hostUrl.replaceFirst("^mongodb://", "").replaceFirst("^mongodb\\+srv://", "");
+                // Extract host part (before / or ?)
+                String host = hostUrl.split("/")[0].split("\\?")[0];
+                connectionString.append(host);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MongoDB host address is required");
             }
         }
         
-        existingCredential.setPassword(encryptedPassword);
+        // Add port if present
+        String portNumber = asset.getPortNumber();
+        if (portNumber != null && !portNumber.isEmpty() && !hasPortInConnectionString(connectionString.toString())) {
+            // Check if port is already in hostAddress (avoid ReDoS by using simple string operations)
+            connectionString.append(":").append(portNumber);
+            
+        }
+        
+        // Add database name if present
+        String databaseName = asset.getDatabaseName();
+        if (databaseName != null && !databaseName.isEmpty()) {
+            connectionString.append("/").append(databaseName);
+        }
+        
+        // Add authSource parameter (use database name from asset, or default to admin)
+        // This is important for MongoDB authentication - authSource specifies which database contains the user
+        String authSource = (databaseName != null && !databaseName.isEmpty()) ? databaseName : "admin";
+        connectionString.append("?authSource=").append(authSource);
+        
+        return connectionString.toString();
+    }
+
+    /**
+     * Checks if a MongoDB connection string already contains a port number.
+     * Uses simple string operations to avoid ReDoS vulnerabilities.
+     * 
+     * @param connectionString The connection string to check (format: mongodb://user:pass@host[:port])
+     * @return true if a port number is already present, false otherwise
+     */
+    private boolean hasPortInConnectionString(String connectionString) {
+        int atIndex = connectionString.indexOf('@');
+        if (atIndex < 0) {
+            return false;
+        }
+        
+        // Check if there's a colon after @ followed by digits (port number)
+        String afterAt = connectionString.substring(atIndex + 1);
+        int colonIndex = afterAt.indexOf(':');
+        if (colonIndex < 0 || colonIndex >= afterAt.length() - 1) {
+            return false;
+        }
+        
+        // Extract the potential port part (between : and / or ? or end)
+        String afterColon = afterAt.substring(colonIndex + 1);
+        int slashIndex = afterColon.indexOf('/');
+        int questionIndex = afterColon.indexOf('?');
+        int endIndex = afterColon.length();
+        if (slashIndex >= 0) {
+            endIndex = Math.min(endIndex, slashIndex);
+        }
+        if (questionIndex >= 0) {
+            endIndex = Math.min(endIndex, questionIndex);
+        }
+        
+        if (endIndex <= 0) {
+            return false;
+        }
+        
+        // Check if the potential port is all digits
+        String potentialPort = afterColon.substring(0, endIndex);
+        return !potentialPort.isEmpty() && potentialPort.chars().allMatch(Character::isDigit);
+    }
+
+    /**
+     * Saves credential after successful database connection validation
+     * Handles Keycloak authentication provider encryption if needed
+     * 
+     * @param existingCredential The credential to save
+     * @param username The username to set
+     * @param password The password to set (will be encrypted if Keycloak provider)
+     * @return Success response
+     */
+    private ResponseEntity<Map<String, Object>> saveCredentialAfterValidation(
+            AssetCredential existingCredential, String username, String password) {
+        if (authProvider.contains(Constants.AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
+            existingCredential.setUsername(username);
+            existingCredential.setPassword(password);
+            try {
+                databaseAccessService.updateAssetObjects(existingCredential);
+            } catch (SQLException e) {
+                logger.error("Failed to update asset objects for credential: {}", e.getMessage(), e);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Failed to update asset objects: " + e.getMessage());
+            }
+            String userKey = keycloakService.getUserKey();
+            if (userKey != null && !userKey.isEmpty()) {
+                password = encryptPasswordWithKey(userKey, password);
+            }
+        }
+        existingCredential.setUsername(username);
+        existingCredential.setPassword(password);
         existingCredential.setIsTemporaryPassword(false);
         assetService.saveCredential(existingCredential);
+        return CommonUtils.getSuccessResponse();
     }
 
     private String encryptPasswordWithKey(String userKey, String password) {
@@ -538,12 +654,6 @@ public class OwnerAssetController extends BaseAssetAccessController {
     public ResponseEntity<AssetCredentialDTO> createSSHCredentials(@PathVariable Long assetId, 
                                                                @RequestBody AssetCredentialDTO createDTO) {
         createDTO.setAssetId(assetId);
-        
-        if (createDTO.getSshKeyFile() == null || createDTO.getSshKeyFile().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                    "sshKeyFile is required");
-        }
-        
         AssetCredential credential = assetService.createSSHCredential(assetId, createDTO);
         
         AssetCredentialDTO result = AssetCredentialDTO.builder()
@@ -563,63 +673,42 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @PutMapping("/ssh-credentials/{id}")
     public ResponseEntity<AssetCredentialDTO> updateSSHCredentials(@PathVariable Long id, 
                                                                @RequestBody AssetCredentialDTO updateDTO) {
-        AssetCredential existingCredential = validateSshCredentialExists(id);
+        AssetCredential existingCredential = assetService.findCredentialById(id);
+        if (existingCredential == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
+        }
         
+        // Update fields
         if (updateDTO.getUsername() != null) {
             existingCredential.setUsername(updateDTO.getUsername());
         }
         
-        if (updateDTO.getSshKeyFile() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                "sshKeyFile is required");
+        if (updateDTO.getSshKeyFile() != null) {
+            // Encrypt the new SSH key file
+            String userKey = keycloakService.getUserKey();
+            if (userKey == null || userKey.isEmpty()) {
+                throw new SecurityException("User encryption key not available");
+            }
+            try {
+                String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
+                existingCredential.setSshKeyFile(encryptedSSHKey);
+                existingCredential.setIsTemporaryPassword(false);
+            } catch (CommonUtils.CryptoException e) {
+                throw new SecurityException("Failed to encrypt SSH key", e);
+            }
         }
-        
-        updateSshKeyFromFile(existingCredential, updateDTO);
         
         assetService.saveCredential(existingCredential);
-        return ResponseEntity.ok(buildSshCredentialResponse(existingCredential));
-    }
-    
-    /**
-     * Validates that SSH credential exists
-     */
-    private AssetCredential validateSshCredentialExists(Long id) {
-        AssetCredential credential = assetService.findCredentialById(id);
-        if (credential == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
-        }
-        return credential;
-    }
-    
-    /**
-     * Updates SSH key from encrypted file
-     */
-    private void updateSshKeyFromFile(AssetCredential existingCredential, AssetCredentialDTO updateDTO) {
-        String userKey = keycloakService.getUserKey();
-        if (userKey == null || userKey.isEmpty()) {
-            throw new EncryptionException("User encryption key not available");
-        }
         
-        try {
-            String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
-            existingCredential.setSshKeyFile(encryptedSSHKey);
-            existingCredential.setIsTemporaryPassword(false);
-        } catch (CommonUtils.CryptoException e) {
-            throw new EncryptionException("Failed to encrypt SSH key", e);
-        }
-    }
-    
-    /**
-     * Builds SSH credential response DTO
-     */
-    private AssetCredentialDTO buildSshCredentialResponse(AssetCredential credential) {
-        return AssetCredentialDTO.builder()
-            .assetId(credential.getAsset().getId())
-            .username(credential.getUsername())
-            .sshKeyFile(credential.getSshKeyFile())
-            .userAccessType(credential.getUserAccessType())
-            .assetType(credential.getAsset().getType())
-            .build();
+        AssetCredentialDTO result = AssetCredentialDTO.builder()
+                .assetId(existingCredential.getAsset().getId())
+                .username(existingCredential.getUsername())
+                .sshKeyFile(existingCredential.getSshKeyFile())
+                .userAccessType(existingCredential.getUserAccessType())
+                .assetType(existingCredential.getAsset().getType())
+                .build();
+        
+        return ResponseEntity.ok(result);
     }
 
     /**

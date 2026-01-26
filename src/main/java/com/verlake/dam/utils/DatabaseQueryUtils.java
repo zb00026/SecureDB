@@ -34,6 +34,7 @@ public class DatabaseQueryUtils {
             case MYSQL -> "`" + cleaned + "`";
             case POSTGRESQL, ORACLE -> "\"" + cleaned + "\"";
             case SQLSERVER -> "[" + cleaned + "]";
+            case MONGODB -> cleaned; // MongoDB doesn't use quotes for identifiers
         };
     }
     
@@ -67,6 +68,7 @@ public class DatabaseQueryUtils {
             case MYSQL, POSTGRESQL -> "LIMIT " + limit;
             case SQLSERVER -> "TOP " + limit;
             case ORACLE -> ""; // Oracle uses ROWNUM in WHERE clause
+            case MONGODB -> ".limit(" + limit + ")"; // MongoDB uses .limit() method
         };
     }
     
@@ -91,6 +93,8 @@ public class DatabaseQueryUtils {
             
             case ORACLE -> String.format("SELECT %s FROM %s WHERE %s IS NOT NULL AND ROWNUM = 1", 
                 wrappedField, wrappedTable, wrappedField);
+            case MONGODB -> String.format("db.%s.findOne({%s: {$ne: null}})", 
+                wrappedTable, wrappedField); // MongoDB query syntax
         };
     }
     
@@ -119,6 +123,9 @@ public class DatabaseQueryUtils {
             case ORACLE -> String.format(
                 "SELECT 1 FROM USER_TABLES WHERE TABLE_NAME = '%s'", 
                 tableName.toUpperCase());
+            case MONGODB -> String.format(
+                "db.getCollectionNames().indexOf('%s') !== -1", 
+                tableName); // MongoDB collection existence check
         };
     }
     
@@ -148,6 +155,9 @@ public class DatabaseQueryUtils {
             case ORACLE -> String.format(
                 "SELECT 1 FROM USER_TAB_COLUMNS WHERE TABLE_NAME = '%s' AND COLUMN_NAME = '%s'", 
                 tableName.toUpperCase(), columnName.toUpperCase());
+            case MONGODB -> String.format(
+                "Object.keys(db.%s.findOne({}) || {}).indexOf('%s') !== -1", 
+                tableName, columnName); // MongoDB field existence check
         };
     }
     

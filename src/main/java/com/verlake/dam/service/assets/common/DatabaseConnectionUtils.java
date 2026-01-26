@@ -2,6 +2,7 @@ package com.verlake.dam.service.assets.common;
 
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
@@ -29,9 +30,10 @@ public class DatabaseConnectionUtils {
     
     /**
      * Builds JDBC URL based on asset database type and host information
+     * Note: MongoDB uses connection strings, not JDBC URLs
      * 
      * @param asset The asset containing database connection information
-     * @return Complete JDBC URL string
+     * @return Complete JDBC URL string (or MongoDB connection string format)
      * @throws DatabaseAccessException if database type is not supported
      */
     public String buildJdbcUrl(Asset asset) {
@@ -44,18 +46,56 @@ public class DatabaseConnectionUtils {
             case POSTGRESQL -> Constants.JDBC_POSTGRESQL_URL + asset.getHostUrl();
             case ORACLE -> Constants.JDBC_ORACLE_URL + asset.getHostUrl();
             case SQLSERVER -> Constants.JDBC_SQLSERVER_URL + asset.getHostUrl() + Constants.JDBC_SQLSERVER_SSL_PARAMS;
+            case MONGODB -> buildMongoConnectionString(asset);
             default -> throw new DatabaseAccessException(
                     Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + asset.getDatabaseType(), null);
         };
     }
     
     /**
+     * Builds MongoDB connection string
+     * Format: mongodb://[username:password@]host[:port][/database]?authSource=database
+     * authSource is set to the database name from the asset, or 'admin' if not specified
+     * 
+     * @param asset The asset containing MongoDB connection information
+     * @return MongoDB connection string
+     */
+    private String buildMongoConnectionString(Asset asset) {
+        StringBuilder connectionString = new StringBuilder(Constants.MONGODB_CONNECTION_URL);
+        
+        // Add host
+        if (asset.getHostAddress() != null && !asset.getHostAddress().isEmpty()) {
+            connectionString.append(asset.getHostAddress());
+        }
+        
+        // Add port if present
+        if (asset.getPortNumber() != null && !asset.getPortNumber().isEmpty()) {
+            connectionString.append(":").append(asset.getPortNumber());
+        }
+        
+        // Add database name if present
+        if (asset.getDatabaseName() != null && !asset.getDatabaseName().isEmpty()) {
+            connectionString.append("/").append(asset.getDatabaseName());
+        }
+        
+        // Add authSource parameter (use database name from asset, or default to admin)
+        // This is important for MongoDB authentication - authSource specifies which database contains the user
+        String authSource = (asset.getDatabaseName() != null && !asset.getDatabaseName().isEmpty()) 
+            ? asset.getDatabaseName() 
+            : "admin";
+        connectionString.append("?authSource=").append(authSource);
+        
+        return connectionString.toString();
+    }
+    
+    /**
      * Creates a database connection using the provided credential
+     * Note: MongoDB is not supported by this method - use MongoDBConnectionUtils instead
      * 
      * @param credential The credential containing connection information
-     * @return Database connection
+     * @return Database connection (JDBC Connection)
      * @throws SQLException if connection fails
-     * @throws DatabaseAccessException if credential or asset is invalid
+     * @throws DatabaseAccessException if credential or asset is invalid, or if MongoDB is used
      */
     public Connection getConnectionFromAssetCredential(AssetCredential credential) throws SQLException {
         if (credential == null) {
@@ -64,6 +104,13 @@ public class DatabaseConnectionUtils {
         
         if (credential.getAsset() == null) {
             throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ASSET_CANNOT_BE_NULL), null);
+        }
+        
+        // MongoDB doesn't use JDBC - throw exception to indicate this method cannot be used
+        if (credential.getAsset().getDatabaseType() == DatabaseType.MONGODB) {
+            throw new DatabaseAccessException(
+                "MongoDB connections must use MongoDBConnectionUtils.createMongoClient() instead of JDBC Connection", 
+                null);
         }
         
         String jdbcUrl = buildJdbcUrl(credential.getAsset());

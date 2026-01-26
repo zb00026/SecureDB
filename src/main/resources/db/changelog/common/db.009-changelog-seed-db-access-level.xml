@@ -334,4 +334,73 @@
 
     </changeSet>
 
+    <changeSet id="seed-access-levels-mongodb" author="admin">
+        <!-- MongoDB Collection Level Permissions -->
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="COLLECTION"/>
+            <column name="templates" value="READ"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;read&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="COLLECTION"/>
+            <column name="templates" value="READWRITE"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;readWrite&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="COLLECTION"/>
+            <column name="templates" value="DBADMIN"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;dbAdmin&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="COLLECTION"/>
+            <column name="templates" value="USERADMIN"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;userAdmin&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+
+        <!-- MongoDB Database Level Permissions -->
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="DATABASE"/>
+            <column name="templates" value="FULL ACCESS"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;dbOwner&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="DATABASE"/>
+            <column name="templates" value="READ ACCESS"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;read&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="DATABASE"/>
+            <column name="templates" value="READWRITE ACCESS"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;readWrite&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="DATABASE"/>
+            <column name="templates" value="DBADMIN ACCESS"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;dbAdmin&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="DATABASE"/>
+            <column name="templates" value="USERADMIN ACCESS"/>
+            <column name="access_template" value="db.grantRolesToUser(&quot;$USER&quot;, [{role: &quot;userAdmin&quot;, db: &quot;$DATABASE&quot;}])"/>
+        </insert>
+    </changeSet>
+
 </databaseChangeLog>

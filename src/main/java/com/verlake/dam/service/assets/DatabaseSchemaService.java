@@ -21,6 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.*;
 import java.util.*;
 
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.MongoIterable;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
+import org.bson.Document;
+
 @Service
 @Slf4j
 public class DatabaseSchemaService {
@@ -317,6 +324,11 @@ public class DatabaseSchemaService {
      * Fetch database schema using the provided credential
      */
     private DatabaseSchemaDTO fetchDatabaseSchema(Asset asset, AssetCredential credential) {
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return fetchMongoDBSchema(asset, credential);
+        }
+        
         AssetCredential tempCredential = databaseConnectionUtils.createDecryptedTempCredential(credential);
         
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
@@ -339,6 +351,86 @@ public class DatabaseSchemaService {
             log.error("Failed to fetch database schema for asset: {}", asset.getId(), e);
             throw new DatabaseAccessException("Failed to fetch database schema: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Fetch MongoDB schema (collections) using the provided credential
+     */
+    private DatabaseSchemaDTO fetchMongoDBSchema(Asset asset, AssetCredential credential) {
+        AssetCredential tempCredential = databaseConnectionUtils.createDecryptedTempCredential(credential);
+        
+        try {
+            // Get MongoDB database using utility
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(tempCredential);
+            String databaseName = mongoDb.getName();
+            
+            // List all collections (similar to tables in SQL databases)
+            List<String> collections = MongoDBConnectionUtils.listCollections(mongoDb);
+            
+            // Convert collections to TableSchemaDTO format
+            List<TableSchemaDTO> tables = new ArrayList<>();
+            for (String collectionName : collections) {
+                // For MongoDB, we don't have column information in the same way as SQL databases
+                // Collections are schema-less, so we create a basic table schema
+                List<ColumnSchemaDTO> columns = inferMongoDBCollectionSchema(mongoDb, collectionName);
+                
+                tables.add(TableSchemaDTO.builder()
+                        .tableName(collectionName)
+                        .tableType("COLLECTION")
+                        .tableComment(null)
+                        .columns(columns)
+                        .columnCount(columns.size())
+                        .schema(null) // MongoDB doesn't use schemas
+                        .build());
+            }
+            
+            int totalColumns = tables.stream()
+                    .mapToInt(TableSchemaDTO::getColumnCount)
+                    .sum();
+            
+            return DatabaseSchemaDTO.builder()
+                    .databaseName(databaseName)
+                    .tables(tables)
+                    .totalTables(tables.size())
+                    .totalColumns(totalColumns)
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("Failed to fetch MongoDB schema for asset: {}", asset.getId(), e);
+            throw new DatabaseAccessException("Failed to fetch MongoDB schema: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Infers schema for a MongoDB collection by analyzing a sample document
+     * 
+     * @param mongoDb The MongoDB database
+     * @param collectionName The name of the collection
+     * @return List of column schemas inferred from the sample document
+     */
+    private List<ColumnSchemaDTO> inferMongoDBCollectionSchema(MongoDatabase mongoDb, String collectionName) {
+        List<ColumnSchemaDTO> columns = new ArrayList<>();
+        
+        try {
+            Document sampleDoc = mongoDb.getCollection(collectionName).find().first();
+            if (sampleDoc != null) {
+                // Create columns based on sample document keys
+                for (String key : sampleDoc.keySet()) {
+                    Object value = sampleDoc.get(key);
+                    String dataType = value != null ? value.getClass().getSimpleName() : "Object";
+                    
+                    columns.add(ColumnSchemaDTO.builder()
+                            .columnName(key)
+                            .dataType(dataType)
+                            .isNullable(true) // MongoDB fields are always nullable
+                            .build());
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not infer schema for collection {}: {}", collectionName, e.getMessage());
+        }
+        
+        return columns;
     }
 
     /**

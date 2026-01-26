@@ -44,6 +44,12 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
 
 @Service
 @Slf4j
@@ -142,6 +148,7 @@ public class AssetService {
                     .user(owner)
                     .username(null)
                     .password(null)
+                    .isTemporaryPassword(true)  // New asset owners start with temporary password
                     .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                     .build();
             assetCredentialsRepository.save(credentials);
@@ -186,7 +193,7 @@ public class AssetService {
                         .user(owner)
                         .username(null)
                         .password(null)
-                        .isTemporaryPassword(true)
+                        .isTemporaryPassword(true)  // New asset owners start with temporary password
                         .userAccessType(Roles.ASSET_OWNER.getOriginalName())
                         .build();
                 assetCredentialsRepository.save(credentials);
@@ -886,6 +893,11 @@ public class AssetService {
      * @return PingResult containing success status and response time
      */
     private PingResult pingDatabaseWithCredentials(Asset asset, AssetCredential credential) {
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return pingMongoDBWithCredentials(asset, credential);
+        }
+        
         String jdbcUrl = buildJdbcUrl(asset);
         Instant startTime = Instant.now();
         
@@ -940,6 +952,11 @@ public class AssetService {
      * @return PingResult containing success status and response time
      */
     private PingResult pingDatabaseWithoutCredentials(Asset asset) {
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return pingMongoDBWithoutCredentials(asset);
+        }
+        
         String jdbcUrl = buildJdbcUrl(asset);
         Instant startTime = Instant.now();
         
@@ -1023,6 +1040,173 @@ public class AssetService {
     }
 
     /**
+     * Pings a MongoDB asset with credentials to verify database name and connection
+     * 
+     * @param asset The MongoDB asset to ping
+     * @param credential The credential to use for connection
+     * @return PingResult containing success status and response time
+     */
+    private PingResult pingMongoDBWithCredentials(Asset asset, AssetCredential credential) {
+        Instant startTime = Instant.now();
+        
+        try {
+            // Check if MongoDB driver classes are available
+            PingResult driverCheckResult = checkMongoDBDriverAvailabilityWithErrorHandling(startTime);
+            if (driverCheckResult != null) {
+                return driverCheckResult;
+            }
+            
+            // Decrypt password
+            String decryptedPassword = databaseConnectionUtils.decryptCredentialPassword(credential);
+            
+            // Build MongoDB connection string with credentials
+            String connectionString = MongoDBConnectionUtils.buildMongoConnectionString(
+                asset, 
+                credential.getUsername(), 
+                decryptedPassword
+            );
+            
+            // Try to establish a connection with credentials
+            try (MongoClient client = MongoClients.create(connectionString)) {
+                // Get the database instance
+                String databaseName = asset.getDatabaseName();
+                if (databaseName == null || databaseName.isEmpty()) {
+                    databaseName = Constants.MONGODB_ADMIN_DATABASE; // Default to admin database
+                }
+                
+                MongoDatabase database = client.getDatabase(databaseName);
+                
+                // Test connection by running a simple command (ping)
+                database.runCommand(new Document(Constants.MONGODB_COMMAND_PING, 1));
+                
+                Duration responseTime = Duration.between(startTime, Instant.now());
+                log.info("MongoDB connection successful for asset: {} (database: {})", 
+                        asset.getName(), databaseName);
+                return PingResult.success(
+                    String.format("MongoDB connection successful (database: %s)", databaseName), 
+                    responseTime.toMillis()
+                );
+            }
+        } catch (NoClassDefFoundError e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMsg = "MongoDB driver classes not found. Please rebuild the project: " + e.getMessage();
+            log.error(errorMsg, e);
+            return PingResult.failure(errorMsg, responseTime.toMillis());
+        } catch (Exception e) {
+            return handleMongoDBPingError(e, startTime);
+        }
+    }
+    
+    /**
+     * Checks if MongoDB driver classes are available
+     * 
+     * @throws ClassNotFoundException if MongoDB driver is not found
+     */
+    private void checkMongoDBDriverAvailability() throws ClassNotFoundException {
+        Class.forName("com.mongodb.client.MongoClients");
+    }
+    
+    /**
+     * Checks MongoDB driver availability and returns failure result if driver is not found
+     * 
+     * @param startTime The start time for response time calculation
+     * @return PingResult with failure if driver not found, null if driver is available
+     */
+    private PingResult checkMongoDBDriverAvailabilityWithErrorHandling(Instant startTime) {
+        try {
+            checkMongoDBDriverAvailability();
+            return null; // Driver is available
+        } catch (ClassNotFoundException e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMsg = "MongoDB driver not found on classpath. Please rebuild the project after adding MongoDB dependencies.";
+            log.error(errorMsg);
+            return PingResult.failure(errorMsg, responseTime.toMillis());
+        }
+    }
+    
+    /**
+     * Handles MongoDB ping errors and returns appropriate PingResult
+     * 
+     * @param e The exception that occurred
+     * @param startTime The start time for response time calculation
+     * @return PingResult with error details
+     */
+    private PingResult handleMongoDBPingError(Exception e, Instant startTime) {
+        Duration responseTime = Duration.between(startTime, Instant.now());
+        String errorMessage = e.getMessage();
+        
+        if (errorMessage != null && errorMessage.contains(Constants.MONGODB_ERROR_AUTHENTICATION)) {
+            return PingResult.failure("MongoDB authentication failed: " + errorMessage, responseTime.toMillis());
+        } else if (errorMessage != null && (errorMessage.contains(Constants.MONGODB_ERROR_CONNECTION) || errorMessage.contains(Constants.MONGODB_ERROR_TIMEOUT))) {
+            return PingResult.failure("MongoDB connection failed: " + errorMessage, responseTime.toMillis());
+        } else {
+            return PingResult.failure("MongoDB connection error: " + errorMessage, responseTime.toMillis());
+        }
+    }
+
+    /**
+     * Pings a MongoDB asset without credentials (just tests server reachability)
+     * 
+     * @param asset The MongoDB asset to ping
+     * @return PingResult containing success status and response time
+     */
+    private PingResult pingMongoDBWithoutCredentials(Asset asset) {
+        Instant startTime = Instant.now();
+        
+        try {
+            // Check if MongoDB driver classes are available
+            PingResult driverCheckResult = checkMongoDBDriverAvailabilityWithErrorHandling(startTime);
+            if (driverCheckResult != null) {
+                return driverCheckResult;
+            }
+            
+            // Build MongoDB connection string without credentials
+            String connectionString = buildMongoConnectionString(asset);
+            
+            // Try to establish a connection without credentials
+            return establishMongoDBConnectionWithoutCredentials(connectionString, startTime);
+        } catch (NoClassDefFoundError e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMsg = "MongoDB driver classes not found. Please rebuild the project: " + e.getMessage();
+            log.error(errorMsg, e);
+            return PingResult.failure(errorMsg, responseTime.toMillis());
+        } catch (Exception e) {
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            String errorMessage = e.getMessage();
+            
+            // If it's an authentication error, that's expected - server is reachable
+            if (errorMessage != null && errorMessage.contains(Constants.MONGODB_ERROR_AUTHENTICATION)) {
+                return PingResult.success("MongoDB server reachable (authentication required)", responseTime.toMillis());
+            } else if (errorMessage != null && (errorMessage.contains(Constants.MONGODB_ERROR_CONNECTION) || errorMessage.contains(Constants.MONGODB_ERROR_TIMEOUT))) {
+                return PingResult.failure("MongoDB connection failed: " + errorMessage, responseTime.toMillis());
+            } else {
+                // For other errors, still consider it as server reachable if we got a response
+                return PingResult.success("MongoDB server reachable", responseTime.toMillis());
+            }
+        }
+    }
+    
+    /**
+     * Establishes MongoDB connection without credentials and pings the server
+     * 
+     * @param connectionString The MongoDB connection string
+     * @param startTime The start time for response time calculation
+     * @return PingResult containing success status and response time
+     */
+    private PingResult establishMongoDBConnectionWithoutCredentials(String connectionString, Instant startTime) {
+        // MongoDB allows connections without auth for testing server reachability
+        try (MongoClient client = MongoClients.create(connectionString)) {
+            // Try to ping the server (this works even without authentication on some MongoDB setups)
+            // Use admin database for ping test
+            MongoDatabase adminDb = client.getDatabase(Constants.MONGODB_ADMIN_DATABASE);
+            adminDb.runCommand(new Document(Constants.MONGODB_COMMAND_PING, 1));
+            
+            Duration responseTime = Duration.between(startTime, Instant.now());
+            return PingResult.success("MongoDB server reachable", responseTime.toMillis());
+        }
+    }
+
+    /**
      * Builds the JDBC URL for an asset
      * 
      * @param asset The asset to build URL for
@@ -1034,8 +1218,42 @@ public class AssetService {
             case POSTGRESQL -> Constants.JDBC_POSTGRESQL_URL + asset.getHostUrl();
             case ORACLE -> Constants.JDBC_ORACLE_URL + asset.getHostUrl();
             case SQLSERVER -> Constants.JDBC_SQLSERVER_URL + asset.getHostUrl() + Constants.JDBC_SQLSERVER_SSL_PARAMS;
+            case MONGODB -> buildMongoConnectionString(asset);
             default -> throw new IllegalArgumentException("Unsupported database type: " + asset.getDatabaseType());
         };
+    }
+    
+    /**
+     * Builds MongoDB connection string without credentials (for ping tests)
+     * Format: mongodb://host[:port][/database]?authSource=database
+     * authSource is set to the database name from the asset, or 'admin' if not specified
+     * 
+     * @param asset The asset containing MongoDB connection information
+     * @return MongoDB connection string
+     */
+    private String buildMongoConnectionString(Asset asset) {
+        StringBuilder connectionString = new StringBuilder(Constants.MONGODB_CONNECTION_URL);
+        
+        if (asset.getHostAddress() != null && !asset.getHostAddress().isEmpty()) {
+            connectionString.append(asset.getHostAddress());
+        }
+        
+        if (asset.getPortNumber() != null && !asset.getPortNumber().isEmpty()) {
+            connectionString.append(":").append(asset.getPortNumber());
+        }
+        
+        if (asset.getDatabaseName() != null && !asset.getDatabaseName().isEmpty()) {
+            connectionString.append("/").append(asset.getDatabaseName());
+        }
+        
+        // Add authSource parameter (use database name from asset, or default to admin)
+        // This is important for MongoDB authentication - authSource specifies which database contains the user
+        String authSource = (asset.getDatabaseName() != null && !asset.getDatabaseName().isEmpty()) 
+            ? asset.getDatabaseName() 
+            : Constants.MONGODB_ADMIN_DATABASE;
+        connectionString.append("?authSource=").append(authSource);
+        
+        return connectionString.toString();
     }
 
     /**
@@ -1046,7 +1264,7 @@ public class AssetService {
         
         String message = errorMessage.toLowerCase();
         return message.contains("access denied") ||
-               message.contains("authentication") ||
+               message.contains(Constants.MONGODB_ERROR_AUTHENTICATION) ||
                message.contains("login failed") ||
                message.contains("invalid credentials") ||
                message.contains("user") && message.contains("password") ||
@@ -1134,7 +1352,7 @@ public class AssetService {
                message.contains("connection reset") ||
                message.contains("host not found") ||
                message.contains("connection failed") ||
-               message.contains("timeout") ||
+               message.contains(Constants.MONGODB_ERROR_TIMEOUT) ||
                message.contains("unable to connect");
     }
 

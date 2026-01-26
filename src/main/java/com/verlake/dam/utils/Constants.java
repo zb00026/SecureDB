@@ -286,6 +286,73 @@ public class Constants {
     public static final String JDBC_POSTGRESQL_URL = "jdbc:postgresql://";
     public static final String JDBC_SQLSERVER_URL = "jdbc:sqlserver://";
     public static final String JDBC_ORACLE_URL = "jdbc:oracle:thin:@";
+    public static final String MONGODB_CONNECTION_URL = "mongodb://";
+    public static final String MONGODB_ADMIN_DATABASE = "admin";
+    
+    // MongoDB command names
+    public static final String MONGODB_COMMAND_USERS_INFO = "usersInfo";
+    public static final String MONGODB_COMMAND_CREATE_USER = "createUser";
+    public static final String MONGODB_COMMAND_UPDATE_USER = "updateUser";
+    public static final String MONGODB_COMMAND_GRANT_ROLES_TO_USER = "grantRolesToUser";
+    public static final String MONGODB_COMMAND_REVOKE_ROLES_FROM_USER = "revokeRolesFromUser";
+    public static final String MONGODB_COMMAND_DROP_USER = "dropUser";
+    public static final String MONGODB_COMMAND_PING = "ping";
+    
+    // MongoDB document field names
+    public static final String MONGODB_FIELD_USERS = "users";
+    public static final String MONGODB_FIELD_ROLES = "roles";
+    public static final String MONGODB_FIELD_USER = "user";
+    public static final String MONGODB_FIELD_PWD = "pwd";
+    public static final String MONGODB_FIELD_ROLE = "role";
+    public static final String MONGODB_FIELD_DB = "db";
+    
+    // MongoDB error message keywords
+    public static final String MONGODB_ERROR_AUTHENTICATION = "authentication";
+    public static final String MONGODB_ERROR_TIMEOUT = "timeout";
+    public static final String MONGODB_ERROR_CONNECTION = "connection";
+    
+    // MongoDB role names
+    public static final String MONGODB_ROLE_DB_OWNER = "dbOwner";
+    public static final String MONGODB_ROLE_USER_ADMIN = "userAdmin";
+    public static final String MONGODB_ROLE_READ = "read";
+    
+    // Query result field names
+    public static final String QUERY_RESULT_FIELD_RESULT = "result";
+    public static final String QUERY_RESULT_FIELD_QUERY = "query";
+    public static final String QUERY_RESULT_FIELD_HEADERS = "headers";
+    public static final String QUERY_RESULT_FIELD_SUCCESS = "success";
+    public static final String QUERY_RESULT_FIELD_OPERATION = "operation";
+    public static final String QUERY_RESULT_FIELD_ASSET_ID = "assetId";
+    public static final String QUERY_RESULT_FIELD_ASSET_NAME = "assetName";
+    public static final String QUERY_RESULT_FIELD_DATABASE_TYPE = "databaseType";
+    public static final String QUERY_RESULT_FIELD_ASSET_LOCKED = "assetLocked";
+    public static final String QUERY_RESULT_FIELD_FAILED_USERS = "failedUsers";
+    public static final String QUERY_RESULT_FIELD_SKIPPED_USERS = "skippedUsers";
+    public static final String QUERY_RESULT_FIELD_FAILED_COUNT = "failedCount";
+    public static final String QUERY_RESULT_FIELD_SKIPPED_COUNT = "skippedCount";
+    public static final String QUERY_RESULT_OPERATION_UNLOCK = "unlock";
+    public static final String QUERY_RESULT_FIELD_TOTAL_USERS = "totalUsers";
+    public static final String PERMISSION_CHECK_TYPE_USER_MANAGEMENT_PERMISSIONS = "User management permissions";
+    
+    // Lockout operation field names
+    public static final String LOCKOUT_FIELD_SUCCESS = "success";
+    public static final String LOCKOUT_FIELD_OPERATION = "operation";
+    public static final String LOCKOUT_FIELD_ASSET_ID = "assetId";
+    public static final String LOCKOUT_FIELD_ASSET_NAME = "assetName";
+    public static final String LOCKOUT_FIELD_DATABASE_TYPE = "databaseType";
+    public static final String LOCKOUT_FIELD_ASSET_LOCKED = "assetLocked";
+    public static final String LOCKOUT_FIELD_FAILED_USERS = "failedUsers";
+    public static final String LOCKOUT_FIELD_SKIPPED_USERS = "skippedUsers";
+    public static final String LOCKOUT_FIELD_FAILED_COUNT = "failedCount";
+    public static final String LOCKOUT_FIELD_SKIPPED_COUNT = "skippedCount";
+    public static final String LOCKOUT_OPERATION_LOCKOUT = "lockout";
+    public static final String LOCKOUT_OPERATION_UNLOCK = "unlock";
+    public static final String LOCKOUT_FIELD_LOCK_ALL_USERS = "lockAllUsers";
+    public static final String LOCKOUT_FIELD_UNLOCK_ALL_USERS = "unlockAllUsers";
+    
+    // Permission check types
+    public static final String PERMISSION_CHECK_TYPE_USER_MANAGEMENT_PERMISSIONS_VALUE = "user management Permissions";
+    public static final String PERMISSION_USER_MANAGEMENT_PERMISSIONS = "User management permissions";
 
     // MSSQL-specific URL suffix with SSL parameters
     public static final String JDBC_SQLSERVER_SSL_PARAMS = ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
@@ -500,7 +567,7 @@ public class Constants {
     public static final String ERROR_DUPLICATE_ASSET_NAME_CSV = "duplicate asset name in CSV: {0}";
     public static final String ERROR_ASSET_NAME_ALREADY_EXISTS_SYSTEM = "asset name already exists in system: {0}";
     public static final String ERROR_INVALID_ASSET_TYPE = "invalid asset type: '{0}'. Available types: DATABASE";
-    public static final String ERROR_INVALID_DATABASE_TYPE = "invalid database type: '{0}'. Available types: MYSQL, POSTGRESQL, SQLSERVER, ORACLE";
+    public static final String ERROR_INVALID_DATABASE_TYPE = "invalid database type: '{0}'. Available types: MYSQL, POSTGRESQL, SQLSERVER, ORACLE, MONGODB";
     public static final String ERROR_USER_NOT_ASSET_OWNER = "user '{0}' does not have ASSET_OWNER role";
     public static final String ERROR_FIELD_REQUIRED = "{0} is required";
     public static final String ERROR_FIELD_REQUIRED_KEY = "error.field.required";

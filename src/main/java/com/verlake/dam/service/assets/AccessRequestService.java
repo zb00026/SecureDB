@@ -128,6 +128,10 @@ public class AccessRequestService {
                     .replace(Constants.SQL_PLACEHOLDER_ON_DBO_BRACKET, "ON [$SCHEMA].")
                     .replace("ON dbo.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
                     .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
+            case MONGODB:
+                // MongoDB doesn't use SQL, return template as-is or handle MongoDB-specific syntax
+                return template
+                    .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
                     
             case MYSQL:
                 return template

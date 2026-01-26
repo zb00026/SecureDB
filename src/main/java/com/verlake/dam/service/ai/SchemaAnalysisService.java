@@ -9,13 +9,16 @@ import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseAccessService;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import lombok.extern.slf4j.Slf4j;
 import com.verlake.dam.enums.SensitiveCategory;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import com.mongodb.client.MongoDatabase;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -149,6 +152,11 @@ public class SchemaAnalysisService {
      * @throws DatabaseAccessException if asset connection fails
      */
     private List<TableSchema> getAssetSchema(Asset asset, boolean includeSampleData) throws SQLException {
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return getMongoDBSchema(asset, includeSampleData);
+        }
+        
         List<TableSchema> tables = new ArrayList<>();
         
         try (Connection connection = getAssetConnection(asset)) {
@@ -192,6 +200,11 @@ public class SchemaAnalysisService {
      * @throws DatabaseAccessException if asset connection fails
      */
     private List<TableSchema> getSpecificTablesSchema(Asset asset, List<String> tableNames) throws SQLException {
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return getMongoDBSchemaForCollections(asset, tableNames, enableSampleData);
+        }
+        
         List<TableSchema> tables = new ArrayList<>();
         
         try (Connection connection = getAssetConnection(asset)) {
@@ -523,6 +536,17 @@ public class SchemaAnalysisService {
     public List<FieldSuggestion> validateAndHydrateSuggestions(Asset asset, List<FieldSuggestion> suggestions) {
         if (suggestions == null || suggestions.isEmpty()) return new ArrayList<>();
         
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            try {
+                Map<String, Map<String, String>> tableToColumns = buildMongoDBTableColumnMap(asset);
+                return validateSuggestionsAgainstSchema(suggestions, tableToColumns);
+            } catch (Exception e) {
+                log.error("Database error validating MongoDB suggestions against schema for asset {}: {}", asset.getId(), e.getMessage());
+                throw new DatabaseAccessException("Failed to validate MongoDB suggestions against schema for asset ID: " + asset.getId(), e);
+            }
+        }
+        
         try (Connection connection = getAssetConnection(asset)) {
             Map<String, Map<String, String>> tableToColumns = buildTableColumnMap(connection, asset);
             return validateSuggestionsAgainstSchema(suggestions, tableToColumns);
@@ -533,6 +557,78 @@ public class SchemaAnalysisService {
             log.error("Unexpected error validating suggestions against schema for asset {}: {}", asset.getId(), e.getMessage());
             throw new DatabaseAccessException("Unexpected error validating suggestions against schema for asset ID: " + asset.getId(), e);
         }
+    }
+    
+    /**
+     * Build MongoDB table to column mapping
+     * 
+     * @param asset The asset to build mapping for
+     * @return Map of collection names to field mappings
+     * @throws DatabaseAccessException if MongoDB connection fails
+     */
+    private Map<String, Map<String, String>> buildMongoDBTableColumnMap(Asset asset) {
+        try {
+            // Get asset owner's credential
+            AssetCredential ownerCredential = assetService.findOwnerCredentialByAssetId(asset.getId());
+            if (ownerCredential == null) {
+                throw new DatabaseAccessException("No asset credential found for asset: " + asset.getId(), null);
+            }
+            
+            // Create decrypted temp credential
+            AssetCredential tempCredential = databaseConnectionUtils.createDecryptedTempCredential(ownerCredential);
+            
+            // Get MongoDB database using utility
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(tempCredential);
+            
+            // List all collections
+            List<String> collections = MongoDBConnectionUtils.listCollections(mongoDb);
+            
+            Map<String, Map<String, String>> tableToColumns = new HashMap<>();
+            
+            for (String collectionName : collections) {
+                // Skip system collections
+                if (isSystemTable(collectionName, DatabaseType.MONGODB)) {
+                    continue;
+                }
+                
+                // Get fields from a sample document
+                Map<String, String> fields = getMongoDBCollectionFields(mongoDb, collectionName);
+                tableToColumns.put(collectionName.toLowerCase(), fields);
+            }
+            
+            return tableToColumns;
+        } catch (Exception e) {
+            log.error("Database error building MongoDB table column map for asset {}: {}", asset.getId(), e.getMessage());
+            throw new DatabaseAccessException("Failed to build MongoDB table column map for asset ID: " + asset.getId(), e);
+        }
+    }
+    
+    /**
+     * Get fields from a MongoDB collection by sampling a document
+     * 
+     * @param mongoDb MongoDB database
+     * @param collectionName Collection name
+     * @return Map of field names to data types
+     */
+    private Map<String, String> getMongoDBCollectionFields(MongoDatabase mongoDb, String collectionName) {
+        Map<String, String> fields = new HashMap<>();
+        
+        try {
+            // Get a sample document to infer fields
+            Document sampleDoc = mongoDb.getCollection(collectionName).find().first();
+            
+            if (sampleDoc != null) {
+                for (String key : sampleDoc.keySet()) {
+                    Object value = sampleDoc.get(key);
+                    String dataType = value != null ? value.getClass().getSimpleName() : "Object";
+                    fields.put(key.toLowerCase(), dataType);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not infer fields for MongoDB collection {}: {}", collectionName, e.getMessage());
+        }
+        
+        return fields;
     }
     
     /**
@@ -751,14 +847,147 @@ public class SchemaAnalysisService {
     }
     
     /**
+     * Get MongoDB schema (collections) for an asset
+     * 
+     * @param asset The asset to get schema for
+     * @param includeSampleData Whether to collect sample data for fields
+     * @return List of table schemas
+     * @throws DatabaseAccessException if MongoDB connection fails
+     */
+    private List<TableSchema> getMongoDBSchema(Asset asset, boolean includeSampleData) {
+        try {
+            // Get asset owner's credential
+            AssetCredential ownerCredential = assetService.findOwnerCredentialByAssetId(asset.getId());
+            if (ownerCredential == null) {
+                throw new DatabaseAccessException("No asset credential found for asset: " + asset.getId(), null);
+            }
+            
+            // Create decrypted temp credential
+            AssetCredential tempCredential = databaseConnectionUtils.createDecryptedTempCredential(ownerCredential);
+            
+            // Get MongoDB database using utility
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(tempCredential);
+            
+            // List all collections (similar to tables in SQL databases)
+            List<String> collections = MongoDBConnectionUtils.listCollections(mongoDb);
+            
+            // Convert collections to TableSchema format
+            List<TableSchema> tables = new ArrayList<>();
+            for (String collectionName : collections) {
+                // Skip system collections
+                if (isSystemTable(collectionName, DatabaseType.MONGODB)) {
+                    continue;
+                }
+                
+                TableSchema table = createMongoDBTableSchema(mongoDb, collectionName, includeSampleData);
+                tables.add(table);
+            }
+            
+            return tables;
+        } catch (Exception e) {
+            log.error("Failed to get MongoDB schema for asset {}: {}", asset.getId(), e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to get MongoDB schema for asset ID: " + asset.getId(), e);
+        }
+    }
+    
+    /**
+     * Get MongoDB schema for specific collections
+     * 
+     * @param asset The asset to get schema for
+     * @param collectionNames List of collection names to get schema for
+     * @param includeSampleData Whether to collect sample data for fields
+     * @return List of table schemas
+     * @throws DatabaseAccessException if MongoDB connection fails
+     */
+    private List<TableSchema> getMongoDBSchemaForCollections(Asset asset, List<String> collectionNames, boolean includeSampleData) {
+        try {
+            // Get asset owner's credential
+            AssetCredential ownerCredential = assetService.findOwnerCredentialByAssetId(asset.getId());
+            if (ownerCredential == null) {
+                throw new DatabaseAccessException("No asset credential found for asset: " + asset.getId(), null);
+            }
+            
+            // Create decrypted temp credential
+            AssetCredential tempCredential = databaseConnectionUtils.createDecryptedTempCredential(ownerCredential);
+            
+            // Get MongoDB database using utility
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(tempCredential);
+            
+            // Convert collections to TableSchema format
+            List<TableSchema> tables = new ArrayList<>();
+            for (String collectionName : collectionNames) {
+                TableSchema table = createMongoDBTableSchema(mongoDb, collectionName, includeSampleData);
+                tables.add(table);
+            }
+            
+            return tables;
+        } catch (Exception e) {
+            log.error("Failed to get MongoDB schema for collections {} in asset {}: {}", collectionNames, asset.getId(), e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to get MongoDB schema for collections: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Create TableSchema from MongoDB collection
+     * 
+     * @param mongoDb MongoDB database
+     * @param collectionName Collection name
+     * @param includeSampleData Whether to collect sample data
+     * @return TableSchema object
+     */
+    private TableSchema createMongoDBTableSchema(MongoDatabase mongoDb, String collectionName, boolean includeSampleData) {
+        TableSchema table = new TableSchema();
+        table.setTableName(collectionName);
+        table.setFields(new ArrayList<>());
+        
+        try {
+            // Get a sample document to infer schema
+            Document sampleDoc = mongoDb.getCollection(collectionName).find().first();
+            
+            if (sampleDoc != null) {
+                // Create fields based on sample document keys
+                for (String key : sampleDoc.keySet()) {
+                    Object value = sampleDoc.get(key);
+                    FieldSchema field = new FieldSchema();
+                    field.setFieldName(key);
+                    field.setDataType(value != null ? value.getClass().getSimpleName() : "Object");
+                    field.setIsNullable(true); // MongoDB fields are always nullable
+                    field.setColumnSize(null); // MongoDB doesn't have fixed column sizes
+                    field.setDefaultValue(null);
+                    
+                    // Add sample value if requested
+                    if (includeSampleData && value != null) {
+                        field.setSampleValue(value.toString());
+                    }
+                    
+                    table.getFields().add(field);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not infer schema for MongoDB collection {}: {}", collectionName, e.getMessage());
+        }
+        
+        return table;
+    }
+    
+    /**
      * Get database connection for asset using asset owner's credential
+     * Note: MongoDB is not supported - use getMongoDBSchema() instead
      * 
      * @param asset The asset to get connection for
      * @return Database connection
      * @throws SQLException if database connection fails
-     * @throws DatabaseAccessException if asset credential not found or connection fails
+     * @throws DatabaseAccessException if asset credential not found or connection fails, or if MongoDB is used
      */
     private Connection getAssetConnection(Asset asset) throws SQLException {
+        // MongoDB doesn't use JDBC - prevent accidental usage
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            throw new DatabaseAccessException(
+                "MongoDB connections must use MongoDBConnectionUtils instead of JDBC Connection. " +
+                "Use getMongoDBSchema() or getMongoDBSchemaForCollections() for MongoDB assets.", 
+                null);
+        }
+        
         try {
             // Get asset owner's credential
             AssetCredential ownerCredential = assetService.findOwnerCredentialByAssetId(asset.getId());
@@ -803,6 +1032,7 @@ public class SchemaAnalysisService {
             case POSTGRESQL -> "public";
             case SQLSERVER -> "dbo";
             case ORACLE -> "USER"; // or specific schema
+            case MONGODB -> null; // MongoDB uses databases, not schemas
         };
     }
     
@@ -822,6 +1052,10 @@ public class SchemaAnalysisService {
                              lowerTableName.startsWith("msdb");
             case ORACLE -> lowerTableName.startsWith("sys") || 
                           lowerTableName.startsWith("dba_");
+            case MONGODB -> lowerTableName.startsWith("system.") || 
+                           lowerTableName.equals("admin") ||
+                           lowerTableName.equals("local") ||
+                           lowerTableName.equals("config");
         };
     }
     

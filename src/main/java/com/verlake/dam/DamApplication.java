@@ -10,7 +10,13 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "com.verlake.dam")
+@SpringBootApplication(
+	scanBasePackages = "com.verlake.dam",
+	exclude = {
+		org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration.class,
+		org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration.class
+	}
+)
 @EnableScheduling
 @EnableJpaRepositories(basePackages = "com.verlake.dam.repository")
 @EntityScan(basePackages = "com.verlake.dam.entity")

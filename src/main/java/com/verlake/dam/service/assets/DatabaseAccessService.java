@@ -8,7 +8,6 @@ import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.assets.dto.UserAccessDTO;
-import com.verlake.dam.entity.assets.dto.PermissionDTO;
 import com.verlake.dam.entity.assets.dto.PermissionValidationResult;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
@@ -26,6 +25,20 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
 import com.verlake.dam.service.assets.fetchers.*;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoIterable;
+import org.bson.Document;
+import com.verlake.dam.entity.assets.dto.PermissionDTO;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.verlake.dam.models.assets.LockoutResultData;
+import com.verlake.dam.models.assets.OperationMetadata;
+import com.verlake.dam.models.assets.UserLists;
+import com.verlake.dam.models.assets.FieldKeys;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -85,7 +98,8 @@ public class DatabaseAccessService {
                         credential.getUsername(), credential.getAsset().getId(), validationResult.getWarningMessage());
 
                 // Store the warning in the asset object for UI display
-                String objectsJsonWithWarning = createObjectsJsonWithWarning(validationResult);
+                String objectsJsonWithWarning = createObjectsJsonWithWarning(validationResult, 
+                        credential.getAsset().getDatabaseType());
                 saveAssetObjectWithWarning(credential, objectsJsonWithWarning, validationResult);
                 return;
             }
@@ -140,6 +154,8 @@ public class DatabaseAccessService {
                 return fetchSQLServerObjects(credential, rootNode);
             case ORACLE:
                 return fetchOracleObjects(credential, rootNode);
+            case MONGODB:
+                return fetchMongoDBObjects(credential, rootNode);
             default:
                 throw new DatabaseAccessException(
                         Constants.getMessage("error.database.type.not.supported")
@@ -817,6 +833,85 @@ public class DatabaseAccessService {
         return rootNode.toString();
     }
 
+    private String fetchMongoDBObjects(AssetCredential credential, ObjectNode rootNode) {
+        // Initialize categories with proper structure
+        initializeCategories(rootNode);
+
+        // Get grants and data arrays
+        ArrayNode databaseGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+        ArrayNode tableGrants = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_GRANTS);
+
+        ArrayNode databaseData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_DATABASE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+        ArrayNode tableData = (ArrayNode) rootNode.get(Constants.ASSET_ACCESS_OBJECT_TABLE)
+                .get(Constants.ACCESS_OBJECT_ATTR_DATA);
+
+        try {
+            // Get MongoDB database using utility
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(credential);
+
+            // MongoDB permission templates
+            ObjectNode readGrant = objectMapper.createObjectNode();
+            readGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
+                    "db.grantRolesToUser(\"$USER\", [{role: \"read\", db: \"$DATABASE\"}])");
+            tableGrants.add(readGrant);
+
+            ObjectNode readWriteGrant = objectMapper.createObjectNode();
+            readWriteGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
+                    "db.grantRolesToUser(\"$USER\", [{role: \"readWrite\", db: \"$DATABASE\"}])");
+            tableGrants.add(readWriteGrant);
+
+            ObjectNode dbAdminGrant = objectMapper.createObjectNode();
+            dbAdminGrant.put(Constants.ACCESS_LEVEL_ATTR_ACCESS_TEMPLATE, 
+                    "db.grantRolesToUser(\"$USER\", [{role: \"dbAdmin\", db: \"$DATABASE\"}])");
+            databaseGrants.add(dbAdminGrant);
+
+            // Get current database name
+            String currentDbName = mongoDb.getName();
+            if (currentDbName != null && !currentDbName.isEmpty()) {
+                databaseData.add(currentDbName);
+            }
+
+            // List all collections (similar to tables)
+            List<String> collections = MongoDBConnectionUtils
+                    .listCollections(mongoDb);
+            for (String collectionName : collections) {
+                tableData.add(currentDbName + "." + collectionName);
+            }
+
+            // Get MongoDB client to list all databases
+            MongoClient mongoClient = MongoDBConnectionUtils
+                    .createMongoClient(credential);
+            try {
+                MongoIterable<String> databaseNames = mongoClient.listDatabaseNames();
+                Set<String> existingDbs = new HashSet<>();
+                // Collect existing database names
+                for (int i = 0; i < databaseData.size(); i++) {
+                    existingDbs.add(databaseData.get(i).asText());
+                }
+                for (String dbName : databaseNames) {
+                    // Skip system databases
+                    if (!dbName.equals(Constants.MONGODB_ADMIN_DATABASE) && !dbName.equals("local") && !dbName.equals("config")
+                        && !existingDbs.contains(dbName)) {
+                            databaseData.add(dbName);
+                            existingDbs.add(dbName);
+                    }
+                }
+            } finally {
+                mongoClient.close();
+            }
+
+        } catch (Exception e) {
+            log.error("Error fetching MongoDB objects: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to fetch MongoDB objects: " + e.getMessage(), e);
+        }
+
+        return rootNode.toString();
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateAccessRequestCredentialPassword(AssetCredential devCredential, String newPassword)
             throws CommonUtils.CryptoException {
@@ -846,6 +941,14 @@ public class DatabaseAccessService {
                     try (Statement stmt = connection.createStatement()) {
                         stmt.execute(alterUserSql);
                     }
+                    break;
+
+                case MONGODB:
+                    // MongoDB uses different API - use MongoDB utility
+                    MongoDatabase mongoDb = MongoDBConnectionUtils
+                            .getMongoDatabase(devCredential);
+                    MongoDBConnectionUtils
+                            .updateUserPassword(mongoDb, devCredential.getUsername(), newPassword);
                     break;
 
                 case ORACLE:
@@ -894,6 +997,12 @@ public class DatabaseAccessService {
     public void checkAccessRequestorInAsset(AssetCredential credential, User requestor, AccessRequest accessRequest,
             String existUsername, Map<String, String> newCredMapper) {
 
+        // Handle MongoDB separately since it doesn't use JDBC Connection
+        if (credential.getAsset().getDatabaseType() == DatabaseType.MONGODB) {
+            checkMongoDBAccessRequestorInAsset(credential, requestor, accessRequest, existUsername, newCredMapper);
+            return;
+        }
+
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
             // Extract username from email (everything before @)
             String username = getCredentialForAccess(connection, credential, requestor, existUsername, newCredMapper);
@@ -906,6 +1015,390 @@ public class DatabaseAccessService {
         } catch (SQLException | CommonUtils.CryptoException e) {
             log.error(Constants.getMessage("error.connecting.to.database"), e);
             throw new DatabaseAccessException(Constants.getMessage("error.connecting.to.database"), e);
+        }
+    }
+
+    /**
+     * Handles MongoDB access request approval (doesn't use JDBC Connection)
+     */
+    private void checkMongoDBAccessRequestorInAsset(AssetCredential credential, User requestor, AccessRequest accessRequest,
+            String existUsername, Map<String, String> newCredMapper) {
+        try {
+            // Extract username from email (everything before @)
+            String username = getCredentialForMongoDBAccess(credential, requestor, existUsername, newCredMapper);
+
+            // Execute access MongoDB commands if provided
+            if (shouldExecuteAccessSql(accessRequest)) {
+                executeMongoDBAccessCommands(credential, accessRequest, username);
+            }
+
+        } catch (CommonUtils.CryptoException e) {
+            log.error("Error processing MongoDB access request: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Error processing MongoDB access request: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Error connecting to MongoDB: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Error connecting to MongoDB: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Executes MongoDB access commands (like grantRolesToUser) from access SQL
+     */
+    private void executeMongoDBAccessCommands(AssetCredential credential, AccessRequest accessRequest, String username) {
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(credential);
+            String databaseName = mongoDb.getName();
+            
+            // Parse MongoDB commands from access SQL
+            String mongoCommands = prepareMongoDBStatements(accessRequest, credential, username);
+            String[] commandArray = mongoCommands.split(";");
+            
+            // Check if we have any grantRolesToUser commands - if so, ensure user exists first
+            if (hasGrantOrRevokeCommands(commandArray)) {
+                ensureMongoDBUserExists(credential, username, databaseName);
+            }
+            
+            // Execute all commands
+            executeMongoDBCommandArray(mongoDb, commandArray, username, credential);
+        } catch (Exception e) {
+            log.error("Error executing MongoDB access commands: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Error executing MongoDB access commands: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Checks if command array contains grant or revoke role commands
+     */
+    private boolean hasGrantOrRevokeCommands(String[] commandArray) {
+        for (String cmd : commandArray) {
+            String trimmedCmd = cmd.trim();
+            if (!trimmedCmd.isEmpty() && 
+                (trimmedCmd.contains(Constants.MONGODB_COMMAND_GRANT_ROLES_TO_USER) || 
+                 trimmedCmd.contains(Constants.MONGODB_COMMAND_REVOKE_ROLES_FROM_USER))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Ensures MongoDB user exists before granting roles, creates user if needed
+     */
+    private void ensureMongoDBUserExists(AssetCredential credential, String username, String databaseName) {
+        boolean userExists = checkMongoDBUserExists(credential, username);
+        log.debug("Checking if MongoDB user {} exists in database {}: {}", username, databaseName, userExists);
+        
+        if (userExists) {
+            log.debug("User {} already exists in database {}. Proceeding with role grants.", username, databaseName);
+            return;
+        }
+        
+        log.warn("User {} does not exist in database {} before granting roles. Creating user first.", username, databaseName);
+        createAndVerifyMongoDBUser(credential, username, databaseName);
+    }
+    
+    /**
+     * Creates MongoDB user and verifies creation was successful
+     */
+    private void createAndVerifyMongoDBUser(AssetCredential credential, String username, String databaseName) {
+        String password = generateRandomPassword();
+        try {
+            createMongoDBUser(credential, username, password);
+            log.info("Successfully created MongoDB user {} in database {} before granting roles", username, databaseName);
+            
+            // Verify user was created successfully
+            boolean verifyExists = checkMongoDBUserExists(credential, username);
+            if (!verifyExists) {
+                log.error("User {} was not created successfully in database {}. Cannot proceed with granting roles.", username, databaseName);
+                throw new DatabaseAccessException("Failed to create MongoDB user " + username + " in database " + databaseName + ". User creation did not succeed.", null);
+            }
+        } catch (Exception e) {
+            log.error("Failed to create MongoDB user {} in database {}: {}", username, databaseName, e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to create MongoDB user " + username + " in database " + databaseName + ": " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Executes array of MongoDB commands
+     */
+    private void executeMongoDBCommandArray(MongoDatabase mongoDb, String[] commandArray, String username, AssetCredential credential) {
+        for (String command : commandArray) {
+            command = command.trim();
+            if (!command.isEmpty()) {
+                executeMongoDBAccessCommand(mongoDb, command, username, credential);
+            }
+        }
+    }
+
+    /**
+     * Prepares MongoDB statements by replacing placeholders
+     */
+    private String prepareMongoDBStatements(AccessRequest accessRequest, AssetCredential credential, String username) {
+        String databaseName = credential.getAsset().getDatabaseName();
+        if (databaseName == null || databaseName.isEmpty()) {
+            databaseName = Constants.MONGODB_ADMIN_DATABASE; // Default to admin database
+        }
+        
+        return accessRequest.getAccessSql()
+                .replace("$USER", username)
+                .replace("$DATABASE", databaseName);
+    }
+
+    /**
+     * Executes a single MongoDB access command (like grantRolesToUser)
+     */
+    private void executeMongoDBAccessCommand(MongoDatabase mongoDb, String command, String username, AssetCredential credential) {
+        try {
+            String trimmedCommand = command.trim();
+            log.info("Executing MongoDB command: {}", trimmedCommand);
+            
+            // Try to parse as MongoDB shell command (db.grantRolesToUser(...))
+            if (trimmedCommand.startsWith("db.")) {
+                executeMongoDBShellAccessCommand(mongoDb, trimmedCommand, username, credential);
+            } else {
+                // Try to parse as JSON command
+                executeMongoDBJsonCommand(mongoDb, trimmedCommand);
+            }
+        } catch (Exception e) {
+            log.error("Error executing MongoDB access command: {}", command, e);
+            throw new DatabaseAccessException("Error executing MongoDB access command: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Executes MongoDB command in JSON format
+     */
+    private void executeMongoDBJsonCommand(MongoDatabase mongoDb, String trimmedCommand) {
+        try {
+            Document commandDoc = Document.parse(trimmedCommand);
+            mongoDb.runCommand(commandDoc);
+            log.info("Successfully executed MongoDB JSON command");
+        } catch (Exception e) {
+            log.error("Failed to parse MongoDB command as JSON: {}", trimmedCommand, e);
+            throw new DatabaseAccessException("Invalid MongoDB command format: " + trimmedCommand, e);
+        }
+    }
+
+    /**
+     * Executes MongoDB shell command (like db.grantRolesToUser(...))
+     */
+    private void executeMongoDBShellAccessCommand(MongoDatabase mongoDb, String command, String username, AssetCredential credential) {
+        try {
+            String databaseName = getDatabaseName(credential);
+            
+            if (command.contains(Constants.MONGODB_COMMAND_GRANT_ROLES_TO_USER)) {
+                executeGrantRolesCommand(mongoDb, command, username, databaseName);
+            } else if (command.contains(Constants.MONGODB_COMMAND_REVOKE_ROLES_FROM_USER)) {
+                executeRevokeRolesCommand(mongoDb, command, username, databaseName);
+            } else if (command.contains(Constants.MONGODB_COMMAND_CREATE_USER) || command.startsWith("db.createUser")) {
+                executeCreateUserCommand(mongoDb, command, databaseName);
+            } else {
+                throw new DatabaseAccessException("Unsupported MongoDB command: " + command, null);
+            }
+        } catch (Exception e) {
+            log.error("Error executing MongoDB shell access command: {}", command, e);
+            throw new DatabaseAccessException("Error executing MongoDB shell access command: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Gets database name from credential, defaulting to admin if not specified
+     */
+    private String getDatabaseName(AssetCredential credential) {
+        String databaseName = credential.getAsset().getDatabaseName();
+        if (databaseName == null || databaseName.isEmpty()) {
+            databaseName = Constants.MONGODB_ADMIN_DATABASE;
+        }
+        return databaseName;
+    }
+    
+    /**
+     * Executes grantRolesToUser command
+     */
+    private void executeGrantRolesCommand(MongoDatabase mongoDb, String command, String username, String databaseName) {
+        String rolesStr = extractRolesString(command);
+        if (rolesStr == null) {
+            throw new DatabaseAccessException("Invalid grantRolesToUser command format: " + command, null);
+        }
+        
+        List<Document> roles = parseMongoDBRoles(rolesStr, databaseName);
+        Document grantCommand = new Document(Constants.MONGODB_COMMAND_GRANT_ROLES_TO_USER, username)
+                .append(Constants.MONGODB_FIELD_ROLES, roles);
+        mongoDb.runCommand(grantCommand);
+        log.info("Successfully granted roles to MongoDB user: {} in database: {}", username, databaseName);
+    }
+    
+    /**
+     * Executes revokeRolesFromUser command
+     */
+    private void executeRevokeRolesCommand(MongoDatabase mongoDb, String command, String username, String databaseName) {
+        String rolesStr = extractRolesString(command);
+        if (rolesStr == null) {
+            throw new DatabaseAccessException("Invalid revokeRolesFromUser command format: " + command, null);
+        }
+        
+        List<Document> roles = parseMongoDBRoles(rolesStr, databaseName);
+        Document revokeCommand = new Document(Constants.MONGODB_COMMAND_REVOKE_ROLES_FROM_USER, username)
+                .append(Constants.MONGODB_FIELD_ROLES, roles);
+        mongoDb.runCommand(revokeCommand);
+        log.info("Successfully revoked roles from MongoDB user: {} in database: {}", username, databaseName);
+    }
+    
+    /**
+     * Extracts roles string from command (between [ and ])
+     */
+    private String extractRolesString(String command) {
+        int rolesStart = command.indexOf('[');
+        int rolesEnd = command.lastIndexOf(']');
+        
+        if (rolesStart > 0 && rolesEnd > rolesStart) {
+            return command.substring(rolesStart, rolesEnd + 1); // Include [ and ]
+        }
+        return null;
+    }
+    
+    /**
+     * Executes createUser command
+     */
+    private void executeCreateUserCommand(MongoDatabase mongoDb, String command, String databaseName) {
+        int userStart = command.indexOf(Constants.MONGODB_COMMAND_CREATE_USER);
+        String createUserPart = command.substring(userStart);
+        
+        if (!createUserPart.contains("(")) {
+            throw new DatabaseAccessException("Invalid createUser command format: " + command, null);
+        }
+        
+        int paramsStart = createUserPart.indexOf('(');
+        int paramsEnd = createUserPart.lastIndexOf(')');
+        
+        if (paramsStart <= 0 || paramsEnd <= paramsStart) {
+            throw new DatabaseAccessException("Invalid createUser command format: " + command, null);
+        }
+        
+        String paramsStr = createUserPart.substring(paramsStart + 1, paramsEnd).trim();
+        
+        if (!paramsStr.startsWith("{")) {
+            throw new DatabaseAccessException("Positional createUser format not yet supported. Use JSON format: {user: \"username\", pwd: \"password\", roles: [...]}", null);
+        }
+        
+        Document createCommand = parseCreateUserParams(paramsStr);
+        mongoDb.runCommand(createCommand);
+        String createUsername = createCommand.getString(Constants.MONGODB_COMMAND_CREATE_USER);
+        log.info("Successfully created MongoDB user: {} in database: {}", createUsername, databaseName);
+    }
+    
+    /**
+     * Parses createUser parameters and builds command document
+     */
+    private Document parseCreateUserParams(String paramsStr) {
+        Document createUserDoc = Document.parse(paramsStr);
+        String createUsername = createUserDoc.getString(Constants.MONGODB_FIELD_USER);
+        String createPassword = createUserDoc.getString(Constants.MONGODB_FIELD_PWD);
+        
+        if (createUsername == null || createPassword == null) {
+            throw new DatabaseAccessException("Invalid createUser command: missing user or pwd", null);
+        }
+        
+        @SuppressWarnings("unchecked")
+        List<Document> createRoles = createUserDoc.getList(Constants.MONGODB_FIELD_ROLES, Document.class);
+        
+        Document createCommand = new Document(Constants.MONGODB_COMMAND_CREATE_USER, createUsername)
+                .append(Constants.MONGODB_FIELD_PWD, createPassword);
+        
+        if (createRoles != null && !createRoles.isEmpty()) {
+            createCommand.append(Constants.MONGODB_FIELD_ROLES, createRoles);
+        } else {
+            createCommand.append(Constants.MONGODB_FIELD_ROLES, new ArrayList<>());
+        }
+        
+        return createCommand;
+    }
+
+    /**
+     * Parses MongoDB roles string into List<Document>
+     * Format: [{role: "read", db: "database"}] or [{role: "read", db: "database"}, {role: "readWrite", db: "database"}]
+     */
+    private List<Document> parseMongoDBRoles(String rolesStr, String defaultDatabase) {
+        List<Document> roles = new ArrayList<>();
+        
+        try {
+            rolesStr = rolesStr.trim();
+            
+            // Remove outer brackets if present
+            if (rolesStr.startsWith("[") && rolesStr.endsWith("]")) {
+                rolesStr = rolesStr.substring(1, rolesStr.length() - 1).trim();
+            }
+            
+            // Split roles by }, { pattern
+            if (rolesStr.startsWith("{")) {
+                // Single or multiple roles
+                String[] roleStrings = rolesStr.split("}\\s*,\\s*\\{");
+                
+                for (String roleStr : roleStrings) {
+                    roleStr = roleStr.trim();
+                    // Ensure it has braces
+                    if (!roleStr.startsWith("{")) {
+                        roleStr = "{" + roleStr;
+                    }
+                    if (!roleStr.endsWith("}")) {
+                        roleStr = roleStr + "}";
+                    }
+                    Document role = parseMongoDBRole(roleStr, defaultDatabase);
+                    roles.add(role);
+                }
+            } else {
+                throw new DatabaseAccessException("Invalid MongoDB roles format: " + rolesStr, null);
+            }
+        } catch (Exception e) {
+            log.error("Error parsing MongoDB roles: {}", rolesStr, e);
+            throw new DatabaseAccessException("Error parsing MongoDB roles: " + e.getMessage(), e);
+        }
+        
+        return roles;
+    }
+
+    /**
+     * Parses a single MongoDB role document
+     * Format: {role: "read", db: "database"}
+     */
+    private Document parseMongoDBRole(String roleStr, String defaultDatabase) {
+        try {
+            // Simple parsing for {role: "read", db: "database"} format
+            // Extract role name and database
+            String roleName = extractMongoDBRoleValue(roleStr, "role");
+            String dbName = extractMongoDBRoleValue(roleStr, "db");
+            
+            if (roleName == null) {
+                throw new DatabaseAccessException("Role name not found in: " + roleStr, null);
+            }
+            
+            if (dbName == null) {
+                dbName = defaultDatabase;
+            }
+            
+            return new Document("role", roleName).append("db", dbName);
+        } catch (Exception e) {
+            log.error("Error parsing MongoDB role: {}", roleStr, e);
+            throw new DatabaseAccessException("Error parsing MongoDB role: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Extracts a value from MongoDB role string
+     * Format: role: "read" or role: 'read'
+     */
+    private String extractMongoDBRoleValue(String roleStr, String key) {
+        try {
+            String pattern = key + "\\s*:\\s*[\"']([^\"']+)[\"']";
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+            java.util.regex.Matcher m = p.matcher(roleStr);
+            if (m.find()) {
+                return m.group(1);
+            }
+            return null;
+        } catch (Exception e) {
+            log.debug("Error extracting MongoDB role value for key {}: {}", key, e.getMessage());
+            return null;
         }
     }
 
@@ -976,9 +1469,42 @@ public class DatabaseAccessService {
                 return "SELECT * FROM dba_users WHERE username = ?";
             case SQLSERVER:
                 return "SELECT * FROM sys.database_principals WHERE name = ? AND type = 'S'";
+            case MONGODB:
+                // MongoDB doesn't use SQL - handled separately in getCredentialForAccess
+                throw new DatabaseAccessException(
+                        "MongoDB user checking should be handled via MongoDB API", null);
             default:
                 throw new DatabaseAccessException(
                         Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
+        }
+    }
+    
+    /**
+     * Checks if a MongoDB user exists
+     */
+    private boolean checkMongoDBUserExists(AssetCredential credential, String username) {
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(credential);
+            return MongoDBConnectionUtils.userExists(mongoDb, username);
+        } catch (Exception e) {
+            log.error("Error checking MongoDB user existence: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    /**
+     * Creates a MongoDB user
+     */
+    private void createMongoDBUser(AssetCredential adminCredential, String username, String password) {
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(adminCredential);
+            MongoDBConnectionUtils.createUser(mongoDb, username, password);
+            log.info("Successfully created MongoDB user: {}", username);
+        } catch (Exception e) {
+            log.error("Error creating MongoDB user: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to create MongoDB user: " + e.getMessage(), e);
         }
     }
 
@@ -992,6 +1518,10 @@ public class DatabaseAccessService {
                 return "CREATE USER ? IDENTIFIED BY ?";
             case SQLSERVER:
                 return "CREATE LOGIN ? WITH PASSWORD = ?";
+            case MONGODB:
+                // MongoDB doesn't use SQL - handled separately in getCredentialForAccess
+                throw new DatabaseAccessException(
+                        "MongoDB user creation should be handled via MongoDB API", null);
             default:
                 throw new DatabaseAccessException(
                         Constants.getMessage(Constants.ERROR_UNSUPPORTED_DATABASE_TYPE) + databaseType, null);
@@ -1006,6 +1536,8 @@ public class DatabaseAccessService {
                 return Constants.POSTGRES_SCHEMA_PUBLIC;
             case ORACLE:
                 return Constants.ORACLE_SCHEMA_USERS; // Oracle default tablespace/schema
+            case MONGODB:
+                return databaseName != null ? databaseName : Constants.MONGODB_ADMIN_DATABASE; // MongoDB uses database name
             case SQLSERVER:
                 return Constants.SQLSERVER_SCHEMA_DBO; // SQL Server default schema is 'dbo'
             default:
@@ -1082,6 +1614,9 @@ public class DatabaseAccessService {
                 case SQLSERVER:
                     existingUsernames.addAll(getSQLServerUsernames(connection, credential.getUsername()));
                     break;
+                case MONGODB:
+                    existingUsernames.addAll(getMongoDBUsernames(credential));
+                    break;
                 case ORACLE:
                     existingUsernames.addAll(getOracleUsernames(connection, credential.getUsername()));
                     break;
@@ -1154,6 +1689,34 @@ public class DatabaseAccessService {
     }
 
     /**
+     * Get MongoDB usernames that match the pattern
+     */
+    private Set<String> getMongoDBUsernames(AssetCredential credential) {
+        Set<String> usernames = new HashSet<>();
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(credential);
+            List<String> allUsers = MongoDBConnectionUtils.listMongoDBUsers(mongoDb);
+            
+            // Filter users that match the base username pattern
+            String baseUsername = credential.getUsername();
+            if (baseUsername != null) {
+                for (String user : allUsers) {
+                    if (user.startsWith(baseUsername)) {
+                        usernames.add(user);
+                    }
+                }
+            } else {
+                // If no base username, return all users
+                usernames.addAll(allUsers);
+            }
+        } catch (Exception e) {
+            log.warn("Error getting MongoDB usernames: {}", e.getMessage());
+        }
+        return usernames;
+    }
+
+    /**
      * Get Oracle usernames that match the pattern
      */
     private Set<String> getOracleUsernames(Connection connection, String baseUsername) throws SQLException {
@@ -1192,6 +1755,12 @@ public class DatabaseAccessService {
             throws SQLException, CommonUtils.CryptoException {
 
         String username = requestor.getEmail().split("@")[0];
+        
+        // Handle MongoDB separately since it doesn't use JDBC Connection
+        if (credential.getAsset().getDatabaseType() == DatabaseType.MONGODB) {
+            return getCredentialForMongoDBAccess(credential, requestor, existUsername, newCredMapper);
+        }
+        
         if (existUsername.isEmpty()) {
             username = generateUniqueUsername(username, credential.getAsset());
 
@@ -1237,28 +1806,84 @@ public class DatabaseAccessService {
                 }
 
                 // Store user credentials in asset_credentials table
-                AssetCredential userCredential = new AssetCredential();
-                userCredential.setAsset(credential.getAsset());
-                userCredential.setUsername(username);
-                userCredential.setPassword(password);
-                userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName()); // Set appropriate role
-                userCredential.setUser(requestor);
-                userCredential.setIsTemporaryPassword(true);
-                assetCredentialsRepository.saveAndFlush(userCredential);
-                newCredMapper.put(Constants.CREDENTIAL_ID_KEY, userCredential.getId().toString());
-                newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
-                newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
+                saveUserCredentialToRepository(credential, username, password, requestor, newCredMapper);
             }
         } else {
             username = existUsername;
         }
         return username;
     }
+    
+    /**
+     * Handles credential access for MongoDB (doesn't use JDBC Connection)
+     */
+    private String getCredentialForMongoDBAccess(
+            AssetCredential credential,
+            User requestor,
+            String existUsername,
+            Map<String, String> newCredMapper)
+            throws CommonUtils.CryptoException {
+        
+        String username = requestor.getEmail().split("@")[0];
+        
+        if (existUsername.isEmpty()) {
+            username = generateUniqueUsername(username, credential.getAsset());
+
+            // Check if user exists
+            if (!checkMongoDBUserExists(credential, username)) {
+                // User doesn't exist, create one
+                String password = generateRandomPassword();
+                
+                // Create MongoDB user
+                createMongoDBUser(credential, username, password);
+
+                // Store user credentials in asset_credentials table
+                saveUserCredentialToRepository(credential, username, password, requestor, newCredMapper);
+            }
+        } else {
+            username = existUsername;
+        }
+        return username;
+    }
+    
+    /**
+     * Saves user credential to repository and populates the credential mapper
+     * 
+     * @param credential The asset credential containing asset information
+     * @param username The username to set
+     * @param password The password to set
+     * @param requestor The user requesting access
+     * @param newCredMapper The map to populate with credential information
+     */
+    private void saveUserCredentialToRepository(
+            AssetCredential credential,
+            String username,
+            String password,
+            User requestor,
+            Map<String, String> newCredMapper) {
+        AssetCredential userCredential = new AssetCredential();
+        userCredential.setAsset(credential.getAsset());
+        userCredential.setUsername(username);
+        userCredential.setPassword(password);
+        userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName());
+        userCredential.setUser(requestor);
+        userCredential.setIsTemporaryPassword(true);
+        assetCredentialsRepository.saveAndFlush(userCredential);
+        newCredMapper.put(Constants.CREDENTIAL_ID_KEY, userCredential.getId().toString());
+        newCredMapper.put(Constants.EMAIL_VAR_DB_USERNAME, username);
+        newCredMapper.put(Constants.EMAIL_VAR_DB_PASSWORD, password);
+    }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void revokeCredentialAccess(AssetCredential credential, AssetCredential ownerCredential)
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+
+        // Handle MongoDB separately since it doesn't use JDBC Connection
+        if (credential.getAsset().getDatabaseType() == DatabaseType.MONGODB) {
+            revokeMongoDBCredentialAccess(credential, ownerCredential);
+            return;
+        }
 
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(ownerCredential)) { // Use
                                                                                                                   // owner's
@@ -1353,6 +1978,23 @@ public class DatabaseAccessService {
             throw new DatabaseAccessException(Constants.getMessage("error.revoking.database.access"), e);
         }
     }
+    
+    /**
+     * Revokes MongoDB credential access by dropping the user
+     */
+    private void revokeMongoDBCredentialAccess(AssetCredential credential, AssetCredential ownerCredential) {
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(ownerCredential);
+            
+            // Drop the MongoDB user
+            MongoDBConnectionUtils.dropUser(mongoDb, credential.getUsername());
+            log.info("Successfully revoked MongoDB credential access for user: {}", credential.getUsername());
+        } catch (Exception e) {
+            log.error("Error revoking MongoDB credential access: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to revoke MongoDB credential access: " + e.getMessage(), e);
+        }
+    }
 
     /**
      * Drops a SQL Server database user.
@@ -1411,6 +2053,11 @@ public class DatabaseAccessService {
             throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
             NoSuchAlgorithmException, BadPaddingException, InvalidKeyException, SQLException {
 
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (credential.getAsset().getDatabaseType() == DatabaseType.MONGODB) {
+            return executeMongoDBQuery(credential, query, isChangeRequest, isDryRun);
+        }
+
         String decryptedPassword = getDecryptedPassword(credential, query);
         String jdbcUrl = databaseConnectionUtils.buildJdbcUrl(credential.getAsset());
 
@@ -1425,6 +2072,363 @@ public class DatabaseAccessService {
             log.error("Error connecting to database: {}", jdbcUrl, e);
             throw new DatabaseAccessException("Error connecting to database: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Execute MongoDB query using native MongoDB driver
+     * Supports MongoDB commands, find operations, and aggregation pipelines
+     */
+    private Map<String, Object> executeMongoDBQuery(AssetCredential credential, String query,
+            boolean isChangeRequest, boolean isDryRun) {
+        AssetCredential tempCredential = databaseConnectionUtils.createDecryptedTempCredential(credential);
+        
+        try {
+            // Get MongoDB database
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(tempCredential);
+            
+            // Parse and execute MongoDB query
+            String preparedQuery = prepareQueryForExecution(query, isChangeRequest, isDryRun, credential.getAsset());
+            List<Map<String, Object>> allResults = executeMongoDBQueries(mongoDb, preparedQuery, isChangeRequest);
+            
+            return createFinalResult(allResults);
+            
+        } catch (Exception e) {
+            log.error("Error executing MongoDB query: {}", query, e);
+            throw new DatabaseAccessException("Error executing MongoDB query: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute MongoDB queries (split by semicolon if multiple)
+     */
+    private List<Map<String, Object>> executeMongoDBQueries(MongoDatabase mongoDb, String query, boolean isChangeRequest) {
+        String[] individualQueries = query.split(";");
+        List<Map<String, Object>> allResults = new ArrayList<>();
+        
+        for (String individualQuery : individualQueries) {
+            String trimmedQuery = individualQuery.trim();
+            if (!trimmedQuery.isEmpty()) {
+                Map<String, Object> queryResult = executeMongoDBQuery(mongoDb, trimmedQuery, isChangeRequest);
+                allResults.add(queryResult);
+            }
+        }
+        
+        return allResults;
+    }
+
+    /**
+     * Execute a single MongoDB query
+     * Supports:
+     * - MongoDB commands (JSON format): {"find": "collectionName", "filter": {...}}
+     * - Aggregation pipelines: [{"$match": {...}}, {"$group": {...}}]
+     * - Simple find operations: db.collection.find() (converted to command format)
+     */
+    private Map<String, Object> executeMongoDBQuery(MongoDatabase mongoDb, String query, boolean isChangeRequest) {
+        log.debug("Executing MongoDB query: {}", query);
+        
+        try {
+            // Try to parse as JSON (MongoDB command or aggregation pipeline)
+            ObjectMapper jsonMapper = new ObjectMapper();
+            JsonNode jsonNode = jsonMapper.readTree(query);
+            
+            if (jsonNode.isArray()) {
+                // Aggregation pipeline
+                return executeMongoDBAggregation(mongoDb, query, jsonNode, isChangeRequest);
+            } else if (jsonNode.isObject()) {
+                // MongoDB command
+                return executeMongoDBCommand(mongoDb, query, isChangeRequest);
+            }
+        } catch (JsonProcessingException e) {
+            // Not JSON, try to parse as MongoDB shell command
+            log.debug("Query is not JSON, trying to parse as MongoDB shell command: {}", query);
+            return executeMongoDBShellCommand(mongoDb, query, isChangeRequest);
+        } catch (Exception e) {
+            log.error("Error executing MongoDB query: {}", query, e);
+            return handleMongoDBQueryError(query, e, isChangeRequest);
+        }
+        
+        // Fallback: treat as error
+        return handleMongoDBQueryError(query, 
+            new IllegalArgumentException("Unsupported MongoDB query format"), isChangeRequest);
+    }
+
+    /**
+     * Execute MongoDB aggregation pipeline
+     */
+    private Map<String, Object> executeMongoDBAggregation(MongoDatabase mongoDb, String query, 
+            JsonNode pipelineNode, boolean isChangeRequest) {
+        try {
+            List<Document> pipeline = new ArrayList<>();
+            
+            for (JsonNode stage : pipelineNode) {
+                pipeline.add(Document.parse(stage.toString()));
+            }
+            
+            // Extract collection name from query or use default
+            String collectionName = extractCollectionNameFromQuery(query);
+            if (collectionName == null) {
+                throw new IllegalArgumentException("Collection name not specified in aggregation pipeline");
+            }
+            
+            MongoCollection<Document> collection = mongoDb.getCollection(collectionName);
+            List<Map<String, Object>> data = new ArrayList<>();
+            
+            for (Document doc : collection.aggregate(pipeline)) {
+                data.add(docToMap(doc));
+            }
+            
+            List<String> headers = data.isEmpty() ? new ArrayList<>() : 
+                new ArrayList<>(data.get(0).keySet());
+            
+            return createQueryResult(query, headers, data);
+            
+        } catch (Exception e) {
+            log.error("Error executing MongoDB aggregation: {}", query, e);
+            return handleMongoDBQueryError(query, e, isChangeRequest);
+        }
+    }
+
+    /**
+     * Execute MongoDB command (like find, count, etc.)
+     */
+    private Map<String, Object> executeMongoDBCommand(MongoDatabase mongoDb, String query, 
+            boolean isChangeRequest) {
+        try {
+            Document command = Document.parse(query);
+            
+            // Handle find command
+            if (command.containsKey("find")) {
+                String collectionName = command.getString("find");
+                MongoCollection<Document> collection = mongoDb.getCollection(collectionName);
+                
+                FindIterable<Document> findIterable = collection.find();
+                
+                // Apply filter if present
+                if (command.containsKey("filter")) {
+                    Document filter = command.get("filter", Document.class);
+                    findIterable = collection.find(filter);
+                }
+                
+                // Apply limit if present
+                if (command.containsKey("limit")) {
+                    findIterable = findIterable.limit(command.getInteger("limit"));
+                }
+                
+                // Apply skip if present
+                if (command.containsKey("skip")) {
+                    findIterable = findIterable.skip(command.getInteger("skip"));
+                }
+                
+                List<Map<String, Object>> data = new ArrayList<>();
+                for (Document doc : findIterable) {
+                    data.add(docToMap(doc));
+                }
+                
+                List<String> headers = data.isEmpty() ? new ArrayList<>() : 
+                    new ArrayList<>(data.get(0).keySet());
+                
+                return createQueryResult(query, headers, data);
+            }
+            
+            // Handle other commands via runCommand
+            Document result = mongoDb.runCommand(command);
+            List<String> headers = List.of(Constants.QUERY_RESULT_FIELD_RESULT);
+            List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_FIELD_RESULT, docToMap(result)));
+            
+            return createQueryResult(query, headers, data);
+            
+        } catch (Exception e) {
+            log.error("Error executing MongoDB command: {}", query, e);
+            return handleMongoDBQueryError(query, e, isChangeRequest);
+        }
+    }
+
+    /**
+     * Execute MongoDB shell command (like db.collection.find())
+     * This is a simplified parser for common MongoDB shell commands
+     */
+    private Map<String, Object> executeMongoDBShellCommand(MongoDatabase mongoDb, String query, boolean isChangeRequest) {
+        try {
+            String trimmedQuery = query.trim();
+            
+            // Pattern: db.collectionName.find(...)
+            if (isFindCommand(trimmedQuery)) {
+                Map<String, Object> result = executeFindCommand(mongoDb, trimmedQuery, query);
+                if (result != null) {
+                    return result;
+                }
+            }
+            
+            // If not recognized, try as a command
+            return executeGenericMongoDBCommand(mongoDb, trimmedQuery, query);
+            
+        } catch (Exception e) {
+            log.error("Error executing MongoDB shell command: {}", query, e);
+            return handleMongoDBQueryError(query, e, isChangeRequest);
+        }
+    }
+    
+    /**
+     * Checks if query is a find command (db.collection.find())
+     */
+    private boolean isFindCommand(String trimmedQuery) {
+        return trimmedQuery.startsWith("db.") && trimmedQuery.contains(".find(");
+    }
+    
+    /**
+     * Executes MongoDB find command
+     */
+    private Map<String, Object> executeFindCommand(MongoDatabase mongoDb, String trimmedQuery, String originalQuery) {
+        String[] parts = trimmedQuery.split("\\.");
+        if (parts.length < 2) {
+            return null;
+        }
+        
+        String collectionName = parts[1].split("\\(")[0].trim();
+        MongoCollection<Document> collection = mongoDb.getCollection(collectionName);
+        
+        FindIterable<Document> findIterable = collection.find();
+        findIterable = applyLimitIfPresent(findIterable, trimmedQuery);
+        
+        List<Map<String, Object>> data = collectFindResults(findIterable);
+        List<String> headers = extractHeadersFromData(data);
+        
+        return createQueryResult(originalQuery, headers, data);
+    }
+    
+    /**
+     * Applies limit to find iterable if present in query
+     */
+    private FindIterable<Document> applyLimitIfPresent(FindIterable<Document> findIterable, String trimmedQuery) {
+        if (!trimmedQuery.contains(".limit(")) {
+            return findIterable;
+        }
+        
+        try {
+            String limitStr = extractLimitValue(trimmedQuery);
+            int limit = Integer.parseInt(limitStr.trim());
+            return findIterable.limit(limit);
+        } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
+            // Ignore invalid limit
+            return findIterable;
+        }
+    }
+    
+    /**
+     * Extracts limit value from query string
+     */
+    private String extractLimitValue(String trimmedQuery) {
+        int limitStart = trimmedQuery.indexOf(".limit(") + 7;
+        String limitStr = trimmedQuery.substring(limitStart);
+        int limitEnd = limitStr.indexOf(")");
+        return limitStr.substring(0, limitEnd);
+    }
+    
+    /**
+     * Collects results from find iterable
+     */
+    private List<Map<String, Object>> collectFindResults(FindIterable<Document> findIterable) {
+        List<Map<String, Object>> data = new ArrayList<>();
+        for (Document doc : findIterable) {
+            data.add(docToMap(doc));
+        }
+        return data;
+    }
+    
+    /**
+     * Extracts headers from data, returns empty list if data is empty
+     */
+    private List<String> extractHeadersFromData(List<Map<String, Object>> data) {
+        if (data.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(data.get(0).keySet());
+    }
+    
+    /**
+     * Executes generic MongoDB command
+     */
+    private Map<String, Object> executeGenericMongoDBCommand(MongoDatabase mongoDb, String trimmedQuery, String originalQuery) {
+        Document command = Document.parse("{" + trimmedQuery + "}");
+        Document result = mongoDb.runCommand(command);
+        List<String> headers = List.of(Constants.QUERY_RESULT_FIELD_RESULT);
+        List<Map<String, Object>> data = List.of(Map.of(Constants.QUERY_RESULT_FIELD_RESULT, docToMap(result)));
+        return createQueryResult(originalQuery, headers, data);
+    }
+
+    /**
+     * Extract collection name from query string
+     */
+    private String extractCollectionNameFromQuery(String query) {
+        // Try to find collection name in various formats
+        if (query.contains("\"find\"")) {
+            try {
+                ObjectMapper jsonMapper = new ObjectMapper();
+                JsonNode jsonNode = jsonMapper.readTree(query);
+                if (jsonNode.has("find")) {
+                    return jsonNode.get("find").asText();
+                }
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+        
+        // Try db.collectionName pattern
+        if (query.contains("db.")) {
+            String[] parts = query.split("db\\.");
+            if (parts.length > 1) {
+                String rest = parts[1];
+                String[] collectionParts = rest.split("[\\.\\(]");
+                if (collectionParts.length > 0) {
+                    return collectionParts[0].trim();
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Convert MongoDB Document to Map
+     */
+    private Map<String, Object> docToMap(Document doc) {
+        Map<String, Object> map = new HashMap<>();
+        for (String key : doc.keySet()) {
+            Object value = doc.get(key);
+            if (value instanceof Document) {
+                map.put(key, docToMap((Document) value));
+            } else if (value instanceof List) {
+                List<Object> list = new ArrayList<>();
+                for (Object item : (List<?>) value) {
+                    if (item instanceof Document) {
+                        list.add(docToMap((Document) item));
+                    } else {
+                        list.add(item);
+                    }
+                }
+                map.put(key, list);
+            } else {
+                map.put(key, value);
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Handle MongoDB query errors
+     */
+    private Map<String, Object> handleMongoDBQueryError(String query, Exception e, boolean isChangeRequest) {
+        Map<String, Object> errorResult = new HashMap<>();
+        errorResult.put(Constants.QUERY_RESULT_FIELD_QUERY, query);
+        errorResult.put(Constants.QUERY_RESULT_FIELD_HEADERS, List.of(Constants.QUERY_RESULT_ERROR_HEADER));
+        errorResult.put("data", List.of(Map.of(Constants.QUERY_RESULT_ERROR_HEADER, e.getMessage())));
+        errorResult.put("hasError", true);
+        
+        if (!isChangeRequest) {
+            throw new DatabaseAccessException(Constants.getMessage("error.executing.query") + e.getMessage(), e);
+        }
+        
+        return errorResult;
     }
 
     private String getDecryptedPassword(AssetCredential credential, String query)
@@ -1656,16 +2660,16 @@ public class DatabaseAccessService {
 
     private Map<String, Object> createQueryResult(String query, List<String> headers, List<Map<String, Object>> data) {
         Map<String, Object> queryResult = new HashMap<>();
-        queryResult.put("query", query);
-        queryResult.put("headers", headers);
+        queryResult.put(Constants.QUERY_RESULT_FIELD_QUERY, query);
+        queryResult.put(Constants.QUERY_RESULT_FIELD_HEADERS, headers);
         queryResult.put("data", data);
         return queryResult;
     }
 
     private Map<String, Object> handleQueryError(String query, SQLException e, boolean isChangeRequest) {
         Map<String, Object> errorResult = new HashMap<>();
-        errorResult.put("query", query);
-        errorResult.put("headers", List.of(Constants.QUERY_RESULT_ERROR_HEADER));
+        errorResult.put(Constants.QUERY_RESULT_FIELD_QUERY, query);
+        errorResult.put(Constants.QUERY_RESULT_FIELD_HEADERS, List.of(Constants.QUERY_RESULT_ERROR_HEADER));
         errorResult.put("data", List.of(Map.of(Constants.QUERY_RESULT_ERROR_HEADER, e.getMessage())));
         errorResult.put("hasError", true);
 
@@ -1802,6 +2806,11 @@ public class DatabaseAccessService {
      * Fetches users based on the database type
      */
     private List<UserAccessDTO> fetchUsersByDatabaseType(Asset asset, AssetCredential tempCredential) {
+        // Handle MongoDB separately since it doesn't use JDBC Connection
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return fetchMongoDBUserAccess(tempCredential);
+        }
+        
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
             log.debug("Successfully connected to database: {}", asset.getDatabaseType());
 
@@ -1821,6 +2830,162 @@ public class DatabaseAccessService {
                     asset.getId(), e.getMessage());
             throw new DatabaseAccessException(Constants.getMessage("error.failed.to.connect.to.database"), e);
         }
+    }
+    
+    /**
+     * Fetches MongoDB user access information
+     */
+    private List<UserAccessDTO> fetchMongoDBUserAccess(AssetCredential tempCredential) {
+        List<UserAccessDTO> userAccessList = new ArrayList<>();
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(tempCredential);
+            
+            // Get all users
+            List<String> users = MongoDBConnectionUtils.listMongoDBUsers(mongoDb);
+            
+            // For each user, get their roles/permissions
+            for (String username : users) {
+                UserAccessDTO userAccess = new UserAccessDTO();
+                userAccess.setUsername(username);
+                userAccess.setGrantee(username);
+                
+                // Get user roles from MongoDB
+                List<PermissionDTO> permissions = getMongoDBUserPermissions(tempCredential, username);
+                userAccess.setPermissions(permissions);
+                
+                userAccessList.add(userAccess);
+            }
+        } catch (Exception e) {
+            log.error("Error fetching MongoDB user access: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to fetch MongoDB user access: " + e.getMessage(), e);
+        }
+        return userAccessList;
+    }
+    
+    /**
+     * Gets MongoDB user permissions/roles
+     * Queries both the admin database and the current database to find all user roles
+     * (root users are typically created in the admin database)
+     */
+    private List<PermissionDTO> getMongoDBUserPermissions(
+            AssetCredential credential, String username) {
+        List<PermissionDTO> permissions = new ArrayList<>();
+        try {
+            MongoClient mongoClient = MongoDBConnectionUtils.createMongoClient(credential);
+            try {
+                List<String> databasesToCheck = buildDatabasesToCheck(credential);
+                permissions = queryUserPermissionsFromDatabases(mongoClient, databasesToCheck, username);
+            } finally {
+                mongoClient.close();
+            }
+            
+            if (permissions.isEmpty()) {
+                log.warn("No MongoDB user permissions found for user: {} in admin or current database", username);
+            }
+        } catch (Exception e) {
+            log.warn("Error getting MongoDB user permissions for {}: {}", username, e.getMessage(), e);
+        }
+        return permissions;
+    }
+    
+    /**
+     * Builds list of databases to check for user permissions
+     */
+    private List<String> buildDatabasesToCheck(AssetCredential credential) {
+        List<String> databasesToCheck = new ArrayList<>();
+        databasesToCheck.add(Constants.MONGODB_ADMIN_DATABASE); // Always check admin database first
+        
+        String currentDbName = credential.getAsset().getDatabaseName();
+        if (currentDbName == null || currentDbName.isEmpty()) {
+            currentDbName = Constants.MONGODB_ADMIN_DATABASE;
+        }
+        
+        if (!Constants.MONGODB_ADMIN_DATABASE.equals(currentDbName)) {
+            databasesToCheck.add(currentDbName); // Also check current database
+        }
+        
+        return databasesToCheck;
+    }
+    
+    /**
+     * Queries user permissions from multiple databases
+     */
+    private List<PermissionDTO> queryUserPermissionsFromDatabases(
+            MongoClient mongoClient, List<String> databasesToCheck, String username) {
+        List<PermissionDTO> permissions = new ArrayList<>();
+        
+        for (String dbName : databasesToCheck) {
+            List<PermissionDTO> dbPermissions = queryUserPermissionsFromDatabase(mongoClient, dbName, username);
+            if (!dbPermissions.isEmpty()) {
+                permissions.addAll(dbPermissions);
+                // Found user in this database, no need to check others
+                break;
+            }
+        }
+        
+        return permissions;
+    }
+    
+    /**
+     * Queries user permissions from a single database
+     */
+    private List<PermissionDTO> queryUserPermissionsFromDatabase(
+            MongoClient mongoClient, String dbName, String username) {
+        try {
+            MongoDatabase db = mongoClient.getDatabase(dbName);
+            Document command = new Document(Constants.MONGODB_COMMAND_USERS_INFO, username);
+            Document result = db.runCommand(command);
+            List<Document> userList = result.getList(Constants.MONGODB_FIELD_USERS, Document.class);
+            
+            if (userList == null || userList.isEmpty()) {
+                return new ArrayList<>();
+            }
+            
+            Document user = userList.get(0);
+            return extractPermissionsFromUser(user, dbName, username);
+        } catch (Exception e) {
+            log.debug("Error querying user info from database {}: {}", dbName, e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+    
+    /**
+     * Extracts permissions from user document
+     */
+    private List<PermissionDTO> extractPermissionsFromUser(Document user, String dbName, String username) {
+        List<PermissionDTO> permissions = new ArrayList<>();
+        List<Document> roles = user.getList(Constants.MONGODB_FIELD_ROLES, Document.class);
+        
+        if (roles == null) {
+            return permissions;
+        }
+        
+        for (Document role : roles) {
+            PermissionDTO permission = createPermissionFromRole(role, dbName, username);
+            permissions.add(permission);
+        }
+        
+        return permissions;
+    }
+    
+    /**
+     * Creates PermissionDTO from role document
+     */
+    private PermissionDTO createPermissionFromRole(Document role, String dbName, String username) {
+        String roleName = role.getString("role");
+        String roleDb = role.getString("db");
+        
+        PermissionDTO permission = new PermissionDTO();
+        permission.setType(roleName);
+        permission.setScope(roleDb != null ? roleDb : dbName);
+        permission.setObjectType("DATABASE");
+        permission.setGrantable(false); // MongoDB roles are not grantable in the same way as SQL
+        
+        log.debug("Found MongoDB role: {} on database: {} for user: {}", 
+                roleName, permission.getScope(), username);
+        
+        return permission;
     }
 
     /**
@@ -1851,6 +3016,11 @@ public class DatabaseAccessService {
         List<String> failedUsers = new ArrayList<>();
         List<String> skippedUsers = new ArrayList<>();
 
+        // Handle MongoDB separately since it doesn't use JDBC Connection
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return lockMongoDBUsers(asset, tempCredential, adminCredential, lockAllUsers);
+        }
+
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
             List<String> usersToLock = getUsersToLock(connection, asset, lockAllUsers);
             String currentAdminUser = adminCredential.getUsername();
@@ -1874,20 +3044,12 @@ public class DatabaseAccessService {
                 }
             }
 
-            result.put("success", true);
-            result.put("operation", "lockout");
-            result.put("assetId", asset.getId());
-            result.put("assetName", asset.getName());
-            result.put("databaseType", asset.getDatabaseType().toString());
-            result.put("lockAllUsers", lockAllUsers);
-            result.put("assetLocked", true);
-            result.put("totalUsers", usersToLock.size());
-            result.put("lockedUsers", lockedUsers);
-            result.put("failedUsers", failedUsers);
-            result.put("skippedUsers", skippedUsers);
-            result.put("lockedCount", lockedUsers.size());
-            result.put("failedCount", failedUsers.size());
-            result.put("skippedCount", skippedUsers.size());
+            OperationMetadata metadata = new OperationMetadata(
+                    Constants.LOCKOUT_OPERATION_LOCKOUT, lockAllUsers, true, usersToLock.size());
+            UserLists userLists = new UserLists(lockedUsers, failedUsers, skippedUsers);
+            FieldKeys fieldKeys = new FieldKeys("lockedUsers", "lockedCount");
+            LockoutResultData lockoutData = new LockoutResultData(metadata, userLists, fieldKeys);
+            buildLockoutResult(result, asset, lockoutData);
 
             log.error("Lockout operation completed: {} locked, {} failed, {} skipped",
                     lockedUsers.size(), failedUsers.size(), skippedUsers.size());
@@ -1928,6 +3090,11 @@ public class DatabaseAccessService {
         List<String> failedUsers = new ArrayList<>();
         List<String> skippedUsers = new ArrayList<>();
 
+        // Handle MongoDB separately since it doesn't use JDBC Connection
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return unlockMongoDBUsers(asset, tempCredential, adminCredential, unlockAllUsers);
+        }
+
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(tempCredential)) {
             List<String> usersToUnlock = getUsersToUnlock(connection, asset, unlockAllUsers);
             String currentAdminUser = adminCredential.getUsername();
@@ -1945,20 +3112,8 @@ public class DatabaseAccessService {
                 }
             }
 
-            result.put("success", true);
-            result.put("operation", "unlock");
-            result.put("assetId", asset.getId());
-            result.put("assetName", asset.getName());
-            result.put("databaseType", asset.getDatabaseType().toString());
-            result.put("unlockAllUsers", unlockAllUsers);
-            result.put("assetLocked", false);
-            result.put("totalUsers", usersToUnlock.size());
-            result.put("unlockedUsers", unlockedUsers);
-            result.put("failedUsers", failedUsers);
-            result.put("skippedUsers", skippedUsers);
-            result.put("unlockedCount", unlockedUsers.size());
-            result.put("failedCount", failedUsers.size());
-            result.put("skippedCount", skippedUsers.size());
+            buildUnlockResult(result, asset, unlockAllUsers, usersToUnlock.size(), 
+                    unlockedUsers, failedUsers, skippedUsers);
 
             log.error("Unlock operation completed: {} unlocked, {} failed, {} skipped",
                     unlockedUsers.size(), failedUsers.size(), skippedUsers.size());
@@ -1969,6 +3124,51 @@ public class DatabaseAccessService {
             log.error("CRITICAL ERROR during user unlock for asset ID: {}", asset.getId(), e);
             throw new DatabaseAccessException(Constants.getMessage("error.failed.user.unlock") + e.getMessage(), e);
         }
+    }
+
+
+    /**
+     * Builds the lockout result map with common fields
+     */
+    private void buildLockoutResult(Map<String, Object> result, Asset asset, LockoutResultData data) {
+        result.put(Constants.LOCKOUT_FIELD_SUCCESS, true);
+        result.put(Constants.LOCKOUT_FIELD_OPERATION, data.getMetadata().getOperation());
+        result.put(Constants.LOCKOUT_FIELD_ASSET_ID, asset.getId());
+        result.put(Constants.LOCKOUT_FIELD_ASSET_NAME, asset.getName());
+        result.put(Constants.LOCKOUT_FIELD_DATABASE_TYPE, asset.getDatabaseType().toString());
+        String allUsersKey = Constants.LOCKOUT_OPERATION_LOCKOUT.equals(data.getMetadata().getOperation()) 
+                ? Constants.LOCKOUT_FIELD_LOCK_ALL_USERS 
+                : Constants.LOCKOUT_FIELD_UNLOCK_ALL_USERS;
+        result.put(allUsersKey, data.getMetadata().isAllUsersFlag());
+        result.put(Constants.LOCKOUT_FIELD_ASSET_LOCKED, data.getMetadata().isAssetLocked());
+        result.put(Constants.QUERY_RESULT_FIELD_TOTAL_USERS, data.getMetadata().getTotalUsers());
+        result.put(data.getFieldKeys().getProcessedUsersKey(), data.getUserLists().getProcessedUsers());
+        result.put(Constants.LOCKOUT_FIELD_FAILED_USERS, data.getUserLists().getFailedUsers());
+        result.put(Constants.LOCKOUT_FIELD_SKIPPED_USERS, data.getUserLists().getSkippedUsers());
+        result.put(data.getFieldKeys().getProcessedCountKey(), data.getUserLists().getProcessedUsers().size());
+        result.put(Constants.LOCKOUT_FIELD_FAILED_COUNT, data.getUserLists().getFailedUsers().size());
+        result.put(Constants.LOCKOUT_FIELD_SKIPPED_COUNT, data.getUserLists().getSkippedUsers().size());
+    }
+
+    /**
+     * Builds the unlock result map with common fields
+     */
+    private void buildUnlockResult(Map<String, Object> result, Asset asset, boolean unlockAllUsers,
+            int totalUsers, List<String> unlockedUsers, List<String> failedUsers, List<String> skippedUsers) {
+        result.put(Constants.LOCKOUT_FIELD_SUCCESS, true);
+        result.put(Constants.LOCKOUT_FIELD_OPERATION, Constants.LOCKOUT_OPERATION_UNLOCK);
+        result.put(Constants.LOCKOUT_FIELD_ASSET_ID, asset.getId());
+        result.put(Constants.LOCKOUT_FIELD_ASSET_NAME, asset.getName());
+        result.put(Constants.LOCKOUT_FIELD_DATABASE_TYPE, asset.getDatabaseType().toString());
+        result.put(Constants.LOCKOUT_FIELD_UNLOCK_ALL_USERS, unlockAllUsers);
+        result.put(Constants.LOCKOUT_FIELD_ASSET_LOCKED, false);
+        result.put(Constants.QUERY_RESULT_FIELD_TOTAL_USERS, totalUsers);
+        result.put("unlockedUsers", unlockedUsers);
+        result.put(Constants.LOCKOUT_FIELD_FAILED_USERS, failedUsers);
+        result.put(Constants.LOCKOUT_FIELD_SKIPPED_USERS, skippedUsers);
+        result.put("unlockedCount", unlockedUsers.size());
+        result.put(Constants.LOCKOUT_FIELD_FAILED_COUNT, failedUsers.size());
+        result.put(Constants.LOCKOUT_FIELD_SKIPPED_COUNT, skippedUsers.size());
     }
 
     /**
@@ -2128,6 +3328,8 @@ public class DatabaseAccessService {
             case SQLSERVER -> Set.of("sa", "dbo", "guest", "INFORMATION_SCHEMA", "sys", "NT AUTHORITY\\SYSTEM")
                     .contains(username);
 
+            case MONGODB -> username.equals(Constants.MONGODB_ADMIN_DATABASE) || username.equals("root") || username.startsWith("__");
+
             default -> false;
         };
     }
@@ -2141,11 +3343,143 @@ public class DatabaseAccessService {
             case POSTGRESQL -> "ALTER USER ? NOLOGIN";
             case ORACLE -> "ALTER USER ? ACCOUNT LOCK";
             case SQLSERVER -> "ALTER LOGIN ? DISABLE";
+            case MONGODB -> throw new DatabaseAccessException(
+                    "MongoDB user locking should be handled via MongoDB API", null);
             default -> throw new DatabaseAccessException(
                     Constants.getMessage("error.unsupported.db.type.user.locking") + databaseType, null);
         };
 
         return executeUserLockUnlockOperation(connection, lockSql, username, "lock");
+    }
+    
+    /**
+     * Locks MongoDB users
+     */
+    private Map<String, Object> lockMongoDBUsers(Asset asset, AssetCredential tempCredential, 
+            AssetCredential adminCredential, boolean lockAllUsers) {
+        Map<String, Object> result = new HashMap<>();
+        List<String> lockedUsers = new ArrayList<>();
+        List<String> failedUsers = new ArrayList<>();
+        List<String> skippedUsers = new ArrayList<>();
+        
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(tempCredential);
+            
+            List<String> usersToLock;
+            if (lockAllUsers) {
+                usersToLock = getAllMongoDBUsers(mongoDb);
+            } else {
+                usersToLock = getHagridUsers(asset);
+            }
+            
+            String currentAdminUser = adminCredential.getUsername();
+            log.warn("Found {} MongoDB users to potentially lock. Admin user '{}' will be protected.",
+                    usersToLock.size(), currentAdminUser);
+            
+            for (String username : usersToLock) {
+                if (isProtectedUser(username, currentAdminUser, asset.getDatabaseType())) {
+                    skippedUsers.add(username + " (protected)");
+                    log.info("PROTECTED: Skipping admin/system user: {}", username);
+                    continue;
+                }
+                
+                if (lockMongoDBUser(mongoDb, username)) {
+                    lockedUsers.add(username);
+                } else {
+                    failedUsers.add(username);
+                }
+            }
+            
+            OperationMetadata metadata = new OperationMetadata(
+                    Constants.LOCKOUT_OPERATION_LOCKOUT, lockAllUsers, true, usersToLock.size());
+            UserLists userLists = new UserLists(lockedUsers, failedUsers, skippedUsers);
+            FieldKeys fieldKeys = new FieldKeys("lockedUsers", "lockedCount");
+            LockoutResultData lockoutData = new LockoutResultData(metadata, userLists, fieldKeys);
+            buildLockoutResult(result, asset, lockoutData);
+        } catch (Exception e) {
+            log.error("Error locking MongoDB users: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to lock MongoDB users: " + e.getMessage(), e);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Unlocks MongoDB users
+     */
+    private Map<String, Object> unlockMongoDBUsers(Asset asset, AssetCredential tempCredential,
+            AssetCredential adminCredential, boolean unlockAllUsers) {
+        Map<String, Object> result = new HashMap<>();
+        List<String> unlockedUsers = new ArrayList<>();
+        List<String> failedUsers = new ArrayList<>();
+        List<String> skippedUsers = new ArrayList<>();
+        
+        try {
+            MongoDatabase mongoDb = MongoDBConnectionUtils
+                    .getMongoDatabase(tempCredential);
+            
+            List<String> usersToUnlock;
+            if (unlockAllUsers) {
+                usersToUnlock = getLockedMongoDBUsers(mongoDb);
+            } else {
+                List<String> hagridUsers = getHagridUsers(asset);
+                List<String> lockedUsers = getLockedMongoDBUsers(mongoDb);
+                usersToUnlock = hagridUsers.stream()
+                        .filter(lockedUsers::contains)
+                        .toList();
+            }
+            
+            String currentAdminUser = adminCredential.getUsername();
+            log.warn("Found {} MongoDB users to potentially unlock. Admin user '{}' noted.",
+                    usersToUnlock.size(), currentAdminUser);
+            
+            for (String username : usersToUnlock) {
+                if (unlockMongoDBUser(mongoDb, username)) {
+                    unlockedUsers.add(username);
+                } else {
+                    failedUsers.add(username);
+                }
+            }
+            
+            buildUnlockResult(result, asset, unlockAllUsers, usersToUnlock.size(), 
+                    unlockedUsers, failedUsers, skippedUsers);
+        } catch (Exception e) {
+            log.error("Error unlocking MongoDB users: {}", e.getMessage(), e);
+            throw new DatabaseAccessException("Failed to unlock MongoDB users: " + e.getMessage(), e);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Gets all MongoDB users
+     */
+    private List<String> getAllMongoDBUsers(MongoDatabase mongoDb) {
+        try {
+            return MongoDBConnectionUtils.listMongoDBUsers(mongoDb);
+        } catch (Exception e) {
+            log.error("Error getting all MongoDB users: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+    
+    /**
+     * Gets locked MongoDB users (users with no roles)
+     */
+    private List<String> getLockedMongoDBUsers(MongoDatabase mongoDb) {
+        List<String> lockedUsers = new ArrayList<>();
+        try {
+            List<String> allUsers = MongoDBConnectionUtils.listMongoDBUsers(mongoDb);
+            for (String username : allUsers) {
+                if (MongoDBConnectionUtils.isUserLocked(mongoDb, username)) {
+                    lockedUsers.add(username);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error getting locked MongoDB users: {}", e.getMessage(), e);
+        }
+        return lockedUsers;
     }
 
     /**
@@ -2153,6 +3487,8 @@ public class DatabaseAccessService {
      */
     private boolean unlockDatabaseUser(Connection connection, String username, DatabaseType databaseType) {
         String unlockSql = switch (databaseType) {
+            case MONGODB -> throw new DatabaseAccessException(
+                    "MongoDB user unlocking should be handled via MongoDB API", null);
             case MYSQL -> "ALTER USER ?@'%' ACCOUNT UNLOCK";
             case POSTGRESQL -> "ALTER USER ? LOGIN";
             case ORACLE -> "ALTER USER ? ACCOUNT UNLOCK";
@@ -2161,7 +3497,7 @@ public class DatabaseAccessService {
                     Constants.getMessage("error.unsupported.db.type.user.unlocking") + databaseType, null);
         };
 
-        return executeUserLockUnlockOperation(connection, unlockSql, username, "unlock");
+        return executeUserLockUnlockOperation(connection, unlockSql, username, Constants.LOCKOUT_OPERATION_UNLOCK);
     }
 
     /**
@@ -2244,6 +3580,12 @@ public class DatabaseAccessService {
             List<String> warnings,
             List<String> existingPermissions,
             List<String> grantablePermissions) {
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (credential.getAsset().getDatabaseType() == DatabaseType.MONGODB) {
+            return performMongoDBPermissionValidation(credential, missingPermissions, warnings, 
+                    existingPermissions, grantablePermissions);
+        }
+
         try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
             if (connection == null) {
                 return new PermissionValidationResult(false,
@@ -2275,10 +3617,10 @@ public class DatabaseAccessService {
 
             // Test 5: Check if user can create/modify users (for some database types)
             if (!canManageUsers(connection, credential.getAsset().getDatabaseType(), credential.getUsername())) {
-                missingPermissions.add("User management permissions");
+                missingPermissions.add(Constants.PERMISSION_USER_MANAGEMENT_PERMISSIONS);
                 warnings.add("Cannot create or modify database users - may limit access management capabilities");
             } else {
-                existingPermissions.add("User management permissions");
+                existingPermissions.add(Constants.PERMISSION_USER_MANAGEMENT_PERMISSIONS);
             }
 
             // Test 6: Check if user has administrative privileges
@@ -2310,6 +3652,291 @@ public class DatabaseAccessService {
             return new PermissionValidationResult(false,
                     "Database connection failed: " + e.getMessage(),
                     new ArrayList<>());
+        }
+    }
+
+    /**
+     * Perform MongoDB permission validation tests
+     */
+    private PermissionValidationResult performMongoDBPermissionValidation(AssetCredential credential,
+            List<String> missingPermissions,
+            List<String> warnings,
+            List<String> existingPermissions,
+            List<String> grantablePermissions) {
+        try {
+            // Create decrypted temp credential for MongoDB connection
+            // Handle both encrypted and already-decrypted passwords
+            // Credentials from AuthController or OwnerAssetController may already be decrypted
+            
+            // Check if password exists first
+            if (credential.getPassword() == null || credential.getPassword().trim().isEmpty()) {
+                log.error("MongoDB credential password is empty for credential ID: {}", credential.getId());
+                return new PermissionValidationResult(false,
+                        "Credential password is empty. Please verify your credentials are correctly configured.",
+                        new ArrayList<>());
+            }
+            
+            // Check if password looks encrypted (Base64 format)
+            // Encrypted passwords are Base64 encoded, so they have a specific format
+            // If password doesn't look encrypted, use it as-is (already decrypted)
+            String password = credential.getPassword();
+            boolean looksEncrypted = isPasswordEncrypted(password);
+            
+            AssetCredential tempCredentialResult = createMongoDBTempCredential(credential, password, looksEncrypted);
+            if (tempCredentialResult == null) {
+                return new PermissionValidationResult(false,
+                        "Failed to decrypt credential password. Please verify your credentials are correctly configured.",
+                        new ArrayList<>());
+            }
+            AssetCredential tempCredential = tempCredentialResult;
+            
+            // Test 1: Can connect to MongoDB
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(tempCredential);
+            
+            // Test connection by running a simple command
+            mongoDb.runCommand(new Document("ping", 1));
+            existingPermissions.add("Database connection");
+
+            // Test 2: Check if user can list collections (basic metadata access)
+            checkMongoDBCollectionAccess(mongoDb, missingPermissions, warnings, existingPermissions);
+
+            // Test 3: Analyze existing permissions and what can be granted
+            PermissionAnalysisResult permissionAnalysis = analyzeMongoDBPermissions(tempCredential, credential.getUsername());
+            existingPermissions.addAll(permissionAnalysis.getExistingPermissions());
+            grantablePermissions.addAll(permissionAnalysis.getGrantablePermissions());
+
+            // Test 4-6: Check role-based permissions
+            checkMongoDBRolePermissions(existingPermissions, grantablePermissions, warnings);
+
+            // Determine if permissions are sufficient for MongoDB
+            boolean isSufficient = determineMongoDBPermissionSufficiency(missingPermissions, existingPermissions);
+            String warningMessage = buildEnhancedWarningMessage(missingPermissions, warnings, existingPermissions,
+                    grantablePermissions);
+
+            return new PermissionValidationResult(isSufficient, warningMessage, warnings);
+
+        } catch (Exception e) {
+            log.error("Error validating MongoDB permissions: {}", e.getMessage(), e);
+            // Check if this is a credential/decryption error
+            if (databaseConnectionUtils.isCredentialRelatedError(e)) {
+                return new PermissionValidationResult(false,
+                        "Credential decryption failed. Please verify your credentials are correctly configured.",
+                        new ArrayList<>());
+            }
+            return new PermissionValidationResult(false,
+                    "MongoDB connection failed: " + e.getMessage(),
+                    new ArrayList<>());
+        }
+    }
+
+    /**
+     * Creates a temporary credential for MongoDB connection, handling both encrypted and plain text passwords
+     */
+    private AssetCredential createMongoDBTempCredential(AssetCredential credential, String password, boolean looksEncrypted) {
+        if (looksEncrypted) {
+            try {
+                return databaseConnectionUtils.createDecryptedTempCredential(credential);
+            } catch (Exception e) {
+                log.error("Failed to decrypt MongoDB credential password for credential ID: {}", 
+                        credential.getId(), e);
+                return null;
+            }
+        } else {
+            log.debug("Password appears to be already decrypted for credential ID: {}", credential.getId());
+            return databaseConnectionUtils.createTempCredential(
+                    credential.getAsset(), credential, password);
+        }
+    }
+
+    /**
+     * Checks if user can list MongoDB collections
+     */
+    private void checkMongoDBCollectionAccess(MongoDatabase mongoDb, List<String> missingPermissions,
+            List<String> warnings, List<String> existingPermissions) {
+        try {
+            List<String> collections = MongoDBConnectionUtils.listCollections(mongoDb);
+            if (collections.isEmpty()) {
+                warnings.add("No collections found - database may be empty");
+            } else {
+                existingPermissions.add("List collections access");
+            }
+        } catch (Exception e) {
+            missingPermissions.add("List collections access");
+            warnings.add("Cannot list collections - may not be able to see available collections");
+        }
+    }
+
+    /**
+     * Checks MongoDB role-based permissions (grant roles, manage users, admin privileges)
+     */
+    private void checkMongoDBRolePermissions(List<String> existingPermissions, 
+            List<String> grantablePermissions, List<String> warnings) {
+        // Check if user has admin roles (userAdmin, dbOwner, or root)
+        boolean hasAdminRoles = hasMongoDBAdminRoles(existingPermissions);
+        
+        // Test 4: Check if user can grant roles
+        checkMongoDBGrantRolesPermission(existingPermissions, grantablePermissions, warnings, hasAdminRoles);
+        
+        // Test 5: Check if user can manage users
+        checkMongoDBUserManagementPermission(existingPermissions, warnings, hasAdminRoles);
+        
+        // Test 6: Check if user has administrative privileges
+        checkMongoDBAdminPrivileges(existingPermissions, warnings);
+    }
+
+    /**
+     * Checks if user has MongoDB admin roles (userAdmin, dbOwner, or root)
+     */
+    private boolean hasMongoDBAdminRoles(List<String> existingPermissions) {
+        return existingPermissions.stream()
+                .anyMatch(p -> p.contains(Constants.MONGODB_ROLE_USER_ADMIN) || 
+                              p.contains(Constants.MONGODB_ROLE_DB_OWNER) || 
+                              p.contains("root"));
+    }
+
+    /**
+     * Checks if user can grant roles to other users
+     */
+    private void checkMongoDBGrantRolesPermission(List<String> existingPermissions, 
+            List<String> grantablePermissions, List<String> warnings, boolean hasAdminRoles) {
+        if (!hasAdminRoles) {
+            warnings.add("Cannot grant roles to other users - may not be able to approve access requests. Consider granting userAdmin or dbOwner role for full access management capabilities.");
+        } else {
+            existingPermissions.add("GRANT roles permissions");
+            grantablePermissions.addAll(existingPermissions.stream()
+                    .filter(p -> p.contains(Constants.MONGODB_ROLE_USER_ADMIN) || 
+                               p.contains(Constants.MONGODB_ROLE_DB_OWNER) || 
+                               p.contains("root"))
+                    .toList());
+        }
+    }
+
+    /**
+     * Checks if user can manage users
+     */
+    private void checkMongoDBUserManagementPermission(List<String> existingPermissions, 
+            List<String> warnings, boolean hasAdminRoles) {
+        if (!hasAdminRoles) {
+            warnings.add("Cannot create or modify database users - may limit access management capabilities. Consider granting userAdmin or dbOwner role.");
+        } else {
+            existingPermissions.add(Constants.PERMISSION_USER_MANAGEMENT_PERMISSIONS);
+        }
+    }
+
+    /**
+     * Checks if user has administrative privileges
+     */
+    private void checkMongoDBAdminPrivileges(List<String> existingPermissions, List<String> warnings) {
+        boolean hasAdminPrivileges = existingPermissions.stream()
+                .anyMatch(p -> p.contains("root") || 
+                             p.contains("dbOwner") ||
+                             p.contains("dbAdminAnyDatabase") || 
+                             p.contains("userAdminAnyDatabase"));
+        if (!hasAdminPrivileges) {
+            warnings.add("Limited administrative privileges - some advanced access management features may not be available");
+        } else {
+            existingPermissions.add("Administrative privileges");
+        }
+    }
+
+    /**
+     * Determines if MongoDB permissions are sufficient
+     */
+    private boolean determineMongoDBPermissionSufficiency(List<String> missingPermissions, 
+            List<String> existingPermissions) {
+        boolean hasBasicAccess = existingPermissions.stream()
+                .anyMatch(p -> p.contains("read") || 
+                             p.contains("readWrite") || 
+                             p.contains("dbAdmin") ||
+                             p.contains(Constants.MONGODB_ROLE_DB_OWNER) ||
+                             p.contains(Constants.MONGODB_ROLE_USER_ADMIN) ||
+                             p.contains("root"));
+        return missingPermissions.isEmpty() && hasBasicAccess;
+    }
+
+    /**
+     * Locks a MongoDB user
+     */
+    private boolean lockMongoDBUser(MongoDatabase mongoDb, String username) {
+        try {
+            MongoDBConnectionUtils.lockUser(mongoDb, username);
+            log.warn("LOCKED: Successfully locked MongoDB user: {}", username);
+            return true;
+        } catch (Exception e) {
+            log.error("FAILED: Could not lock MongoDB user {}: {}", username, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Unlocks a MongoDB user
+     */
+    private boolean unlockMongoDBUser(MongoDatabase mongoDb, String username) {
+        try {
+            MongoDBConnectionUtils.unlockUser(mongoDb, username);
+            log.warn("UNLOCKED: Successfully unlocked MongoDB user: {}", username);
+            return true;
+        } catch (Exception e) {
+            log.error("FAILED: Could not unlock MongoDB user {}: {}", username, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Checks if a MongoDB user should be skipped during cleanup
+     */
+    private boolean shouldSkipMongoDBUser(String username, String credentialUsername) {
+        return username.equals(credentialUsername) || 
+               isProtectedUser(username, credentialUsername, DatabaseType.MONGODB);
+    }
+
+    /**
+     * Drops a MongoDB temporary user
+     */
+    private boolean dropMongoDBTemporaryUser(MongoDatabase mongoDb, String username) {
+        try {
+            MongoDBConnectionUtils.dropUser(mongoDb, username);
+            log.info("Successfully dropped MongoDB temporary user: {}", username);
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to drop MongoDB user {}: {}", username, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Check if password appears to be encrypted (Base64 format)
+     * Encrypted passwords are Base64 encoded strings with specific characteristics
+     * 
+     * @param password The password to check
+     * @return true if password looks encrypted, false if it appears to be plain text
+     */
+    private boolean isPasswordEncrypted(String password) {
+        if (password == null || password.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Encrypted passwords are Base64 encoded, so they:
+        // 1. Only contain Base64 characters (A-Z, a-z, 0-9, +, /, =)
+        // 2. Have length that's a multiple of 4 (Base64 padding)
+        // 3. When decoded, have at least 12 bytes (IV) + some encrypted data
+        
+        // Check if password contains non-Base64 characters (excluding = for padding)
+        // Common password characters that aren't in Base64: spaces, special chars like @, #, $, etc.
+        String base64Pattern = "^[A-Za-z0-9+/]*={0,2}$";
+        if (!password.matches(base64Pattern)) {
+            // Contains non-Base64 characters - likely plain text
+            return false;
+        }
+        
+        // Check if it's valid Base64 and has reasonable length
+        try {
+            byte[] decoded = java.util.Base64.getDecoder().decode(password);
+            // Encrypted data should have at least 12 bytes (IV) + some encrypted content
+            // Minimum reasonable length would be around 16-20 bytes
+            return decoded.length >= 12;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 
@@ -2421,7 +4048,7 @@ public class DatabaseAccessService {
      * Check if user can manage users
      */
     private boolean canManageUsers(Connection connection, DatabaseType databaseType, String username) {
-        return executePermissionCheck(connection, databaseType, username, "user management");
+        return executePermissionCheck(connection, databaseType, username, Constants.PERMISSION_CHECK_TYPE_USER_MANAGEMENT);
     }
 
     /**
@@ -2457,6 +4084,9 @@ public class DatabaseAccessService {
                             case ORACLE:
                                 query = "SELECT COUNT(*) FROM dba_role_privs WHERE grantee = UPPER(?) AND granted_role IN ('DBA', 'RESOURCE') AND rownum = 1";
                                 break;
+                            case MONGODB:
+                                // MongoDB user management check - check if user has userAdmin role
+                                return false; // Simplified for now - MongoDB role checking requires different approach
                             case SQLSERVER:
                                 query = "SELECT COUNT(*) FROM sys.database_role_members rm " +
                                         "JOIN sys.database_principals rp ON rm.role_principal_id = rp.principal_id " +
@@ -2520,6 +4150,11 @@ public class DatabaseAccessService {
                     return analyzeOraclePermissions(connection, username);
                 case SQLSERVER:
                     return analyzeSQLServerPermissions(connection, username);
+                case MONGODB:
+                    // MongoDB doesn't use JDBC Connection - use MongoDB-specific analysis
+                    // This should not be called for MongoDB - use performMongoDBPermissionValidation instead
+                    log.debug("MongoDB permission analysis requires MongoDB API access");
+                    return new PermissionAnalysisResult(new ArrayList<>(), new ArrayList<>());
                 default:
                     return new PermissionAnalysisResult(new ArrayList<>(), new ArrayList<>());
             }
@@ -2527,6 +4162,41 @@ public class DatabaseAccessService {
             log.debug("Cannot analyze existing permissions for user {}: {}", username, e.getMessage());
             return new PermissionAnalysisResult(new ArrayList<>(), new ArrayList<>());
         }
+    }
+    
+    /**
+     * Analyzes MongoDB user permissions
+     */
+    private PermissionAnalysisResult analyzeMongoDBPermissions(AssetCredential credential, String username) {
+        List<String> existingPermissions = new ArrayList<>();
+        List<String> grantablePermissions = new ArrayList<>();
+        
+        try {
+            // Get user roles
+            List<PermissionDTO> permissions = getMongoDBUserPermissions(credential, username);
+            
+            for (PermissionDTO permission : permissions) {
+                String permissionStr = permission.getType() + " on " + permission.getScope();
+                existingPermissions.add(permissionStr);
+                
+                // MongoDB roles that can grant roles to other users:
+                // - userAdmin: can manage users and grant roles
+                // - dbOwner: combines read, readWrite, dbAdmin, and userAdmin (can grant roles)
+                // - root: superuser (can grant roles)
+                // Note: dbAdmin alone CANNOT grant roles, only userAdmin can
+                if (permission.getType() != null && 
+                    (permission.getType().equals(Constants.MONGODB_ROLE_USER_ADMIN) || 
+                     permission.getType().equals(Constants.MONGODB_ROLE_DB_OWNER) ||
+                     permission.getType().equals("root") ||
+                     permission.getType().contains("userAdminAnyDatabase"))) {
+                    grantablePermissions.add(permissionStr);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Cannot analyze MongoDB permissions for user {}: {}", username, e.getMessage());
+        }
+        
+        return new PermissionAnalysisResult(existingPermissions, grantablePermissions);
     }
 
     /**
@@ -2800,14 +4470,22 @@ public class DatabaseAccessService {
     }
 
     /**
-     * Create objects JSON with warning information
+     * Create objects JSON with warning information (with database type support)
      */
-    private String createObjectsJsonWithWarning(PermissionValidationResult validationResult) {
+    private String createObjectsJsonWithWarning(PermissionValidationResult validationResult, DatabaseType databaseType) {
         try {
             Map<String, Object> objectsData = new HashMap<>();
-            objectsData.put("tables", new ArrayList<>());
-            objectsData.put("views", new ArrayList<>());
-            objectsData.put("procedures", new ArrayList<>());
+            
+            // MongoDB uses collections instead of tables
+            if (databaseType == DatabaseType.MONGODB) {
+                objectsData.put("collections", new ArrayList<>());
+                objectsData.put("databases", new ArrayList<>());
+            } else {
+                objectsData.put("tables", new ArrayList<>());
+                objectsData.put("views", new ArrayList<>());
+                objectsData.put("procedures", new ArrayList<>());
+            }
+            
             objectsData.put("permission_warning", validationResult.getWarningMessage());
             objectsData.put("permission_sufficient", validationResult.isSufficient());
             objectsData.put("warnings", validationResult.getWarnings());
@@ -2923,31 +4601,36 @@ public class DatabaseAccessService {
      * Clean up temporary users for a specific credential
      */
     private void cleanupTemporaryUsersForCredential(AssetCredential credential) {
+        DatabaseType databaseType = credential.getAsset().getDatabaseType();
+
         String decPsd = databaseConnectionUtils.decryptCredentialPassword(credential);
         credential.setPassword(decPsd);
-        try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
-            DatabaseType databaseType = credential.getAsset().getDatabaseType();
 
-            switch (databaseType) {
-                case MYSQL:
-                    cleanupMySQLTemporaryUsers(connection);
-                    break;
-                case POSTGRESQL:
-                    cleanupPostgreSQLTemporaryUsers(connection);
-                    break;
-                case SQLSERVER:
-                    cleanupSQLServerTemporaryUsers(connection);
-                    break;
-                case ORACLE:
-                    cleanupOracleTemporaryUsers(connection);
-                    break;
-                default:
-                    log.warn("Unsupported database type for cleanup: {}", databaseType);
+        if (databaseType == DatabaseType.MONGODB) {
+            cleanupMongoDBTemporaryUsers(credential);
+        } else {
+            try (Connection connection = databaseConnectionUtils.getConnectionFromAssetCredential(credential)) {
+                switch (databaseType) {
+                    case MYSQL:
+                        cleanupMySQLTemporaryUsers(connection);
+                        break;
+                    case POSTGRESQL:
+                        cleanupPostgreSQLTemporaryUsers(connection);
+                        break;
+                    case SQLSERVER:
+                        cleanupSQLServerTemporaryUsers(connection);
+                        break;
+                    case ORACLE:
+                        cleanupOracleTemporaryUsers(connection);
+                        break;
+                    default:
+                        log.warn("Unsupported database type for cleanup: {}", databaseType);
+                }
+
+            } catch (SQLException e) {
+                log.error("Error cleaning up temporary users for credential: {}", credential.getId(), e);
+                throw new DatabaseAccessException("Failed to cleanup temporary users: " + e.getMessage(), e);
             }
-
-        } catch (SQLException e) {
-            log.error("Error cleaning up temporary users for credential: {}", credential.getId(), e);
-            throw new DatabaseAccessException("Failed to cleanup temporary users: " + e.getMessage(), e);
         }
     }
 
@@ -3048,6 +4731,47 @@ public class DatabaseAccessService {
     }
 
     /**
+     * Clean up MongoDB temporary users
+     * Removes all users from the database except:
+     * - The credential's username (asset owner's username)
+     * - Protected system users (admin, root, __*)
+     */
+    private void cleanupMongoDBTemporaryUsers(AssetCredential credential) {
+        try {
+            String credentialUsername = credential.getUsername();
+            log.info("Cleaning up MongoDB temporary users for database: {}, keeping credential username: {}", 
+                     credential.getAsset().getDatabaseName(), credentialUsername);
+            
+            MongoDatabase mongoDb = MongoDBConnectionUtils.getMongoDatabase(credential);
+            List<String> allUsers = MongoDBConnectionUtils.listMongoDBUsers(mongoDb);
+            
+            int droppedCount = 0;
+            int skippedCount = 0;
+            
+            for (String username : allUsers) {
+                // Skip the credential's username and protected system users
+                if (shouldSkipMongoDBUser(username, credentialUsername)) {
+                    log.debug("Skipping user: {}", username);
+                    skippedCount++;
+                    continue;
+                }
+                
+                // Drop the temporary user
+                if (dropMongoDBTemporaryUser(mongoDb, username)) {
+                    droppedCount++;
+                }
+            }
+            
+            log.info("MongoDB cleanup completed. Dropped {} users, skipped {} users (credential + protected)", 
+                     droppedCount, skippedCount);
+            
+        } catch (Exception e) {
+            log.error("Error cleaning up MongoDB temporary users for credential: {}", credential.getId(), e);
+            throw new DatabaseAccessException("Failed to cleanup MongoDB temporary users: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Drop a user from the database
      */
     private void dropUser(Connection connection, DatabaseType databaseType, String username) {
@@ -3078,6 +4802,9 @@ public class DatabaseAccessService {
                 return "DROP USER IF EXISTS [" + username + "]";
             case ORACLE:
                 return "DROP USER " + username + " CASCADE";
+            case MONGODB:
+                // MongoDB doesn't use SQL - handled separately
+                return "db.dropUser(\"" + username + "\")";
             default:
                 throw new IllegalArgumentException("Unsupported database type: " + databaseType);
         }

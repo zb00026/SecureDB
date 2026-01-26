@@ -4,5 +4,6 @@ public enum DatabaseType {
     MYSQL,
     POSTGRESQL,
     ORACLE,
-    SQLSERVER
+    SQLSERVER,
+    MONGODB
 } 
