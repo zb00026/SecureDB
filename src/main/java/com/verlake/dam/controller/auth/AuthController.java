@@ -272,14 +272,12 @@ public class AuthController {
             tempCredential.setUserAccessType(cred.getUserAccessType());
             tempCredential.setIsTemporaryPassword(cred.getIsTemporaryPassword());
             tempCredential.setIsDeleted(cred.getIsDeleted());
-
             if (!cred.getIsTemporaryPassword()) {
                 String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
                 tempCredential.setPassword(decryptedPassword);
             } else {
                 tempCredential.setPassword(cred.getPassword());
             }
-
             if (cred.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
                 databaseAccessService.updateAssetObjects(tempCredential);
             }

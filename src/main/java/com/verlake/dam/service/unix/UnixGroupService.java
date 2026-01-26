@@ -1834,8 +1834,7 @@ public class UnixGroupService {
             SSHConnectionService.SSHConnection connection = sshConnectionService.createSSHConnection(
                     asset.getHostAddress(),
                     asset.getPortNumber() != null ? Integer.parseInt(asset.getPortNumber()) : 22,
-                    sshCredential,
-                    userKey
+                    sshCredential
             );
             
             log.debug("Created reusable SSH connection for asset: {}", asset.getId());

@@ -5,10 +5,11 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.exception.TerminalInputException;
+import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.SSHCommandUtils;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class SSHConnectionService {
     private final AssetService assetService;
     private final UserService userService;
     private final KeycloakService keycloakService;
+    private final DatabaseConnectionUtils databaseConnectionUtils;
     
     // Session cache: key = assetId:userId, value = Session
     private final Map<String, Session> sessionCache = new ConcurrentHashMap<>();
@@ -217,7 +219,7 @@ public class SSHConnectionService {
     /**
      * Create SSH connection to remote server
      */
-    public SSHConnection createSSHConnection(String host, int port, AssetCredential sshCredential, String userKey)
+    public SSHConnection createSSHConnection(String host, int port, AssetCredential sshCredential)
             throws JSchException, IOException {
         log.info("Creating SSH connection to {}@{}:{}", sshCredential.getUsername(), host, port);
 
@@ -250,7 +252,7 @@ public class SSHConnectionService {
             session.setConfig("PreferredAuthentications", "publickey,password");
 
             // Set up authentication
-            setupAuthentication(jsch, session, sshCredential, userKey);
+            setupAuthentication(jsch, session, sshCredential);
 
             // Connect with timeout
             log.debug("Connecting SSH session with 5 minute timeout");
@@ -293,12 +295,12 @@ public class SSHConnectionService {
     /**
      * Set up SSH authentication (password or key-based)
      */
-    private void setupAuthentication(JSch jsch, Session session, AssetCredential sshCredential, String userKey)
+    private void setupAuthentication(JSch jsch, Session session, AssetCredential sshCredential)
             throws JSchException {
         if (sshCredential.getSshKeyFile() != null && !sshCredential.getSshKeyFile().isEmpty()) {
             // Use SSH key authentication
             log.info("Setting up SSH key authentication");
-            setupSSHKeyAuthentication(jsch, sshCredential, userKey);
+            setupSSHKeyAuthentication(jsch, sshCredential);
         } else if (sshCredential.getPassword() != null && !sshCredential.getPassword().isEmpty()) {
             // Use password authentication
             log.info("Setting up password authentication");
@@ -311,15 +313,10 @@ public class SSHConnectionService {
     /**
      * Set up SSH key authentication with decryption
      */
-    private void setupSSHKeyAuthentication(JSch jsch, AssetCredential sshCredential, String userKey) throws JSchException {
+    private void setupSSHKeyAuthentication(JSch jsch, AssetCredential sshCredential) throws JSchException {
         try {
-            // Validate user encryption key
-            if (userKey == null || userKey.isEmpty()) {
-                throw new SecurityException("User encryption key not available");
-            }
-
-            // Decrypt the SSH private key
-            String decryptedSSHKey = CommonUtils.decrypt(userKey, sshCredential.getSshKeyFile());
+            // Decrypt the SSH private key (supports AWS Secrets Manager)
+            String decryptedSSHKey = databaseConnectionUtils.decryptSSHPrivateKey(sshCredential);
             log.debug("SSH private key decrypted successfully, length: {} chars", decryptedSSHKey.length());
 
             // Debug: Log first and last 50 characters to verify format
@@ -359,9 +356,9 @@ public class SSHConnectionService {
 
             log.debug("SSH key authentication configured successfully with key name: {}", keyName);
 
-        } catch (CommonUtils.CryptoException e) {
-            log.error("Failed to decrypt SSH key", e);
-            throw new SecurityException("Failed to decrypt SSH key", e);
+        } catch (DatabaseAccessException e) {
+            log.error("Failed to decrypt SSH key from AWS Secrets Manager or database", e);
+            throw new SecurityException("Failed to decrypt SSH key: " + e.getMessage(), e);
         } catch (JSchException | java.io.UnsupportedEncodingException e) {
             log.error("Failed to set up SSH key authentication", e);
             throw new JSchException("Failed to set up SSH key authentication: " + e.getMessage(), e);
@@ -448,10 +445,9 @@ public class SSHConnectionService {
             if (sshCredential == null) {
                 throw new IOException("No SSH credentials found for asset: " + asset.getId());
             }
-            String userKey = keycloakService.getUserKey();
 
             // Get or create cached session
-            Session session = getOrCreateSession(asset, sshCredential, currentUser, userKey);
+            Session session = getOrCreateSession(asset, sshCredential, currentUser);
 
             // Execute the command using the cached session
             return executeCommandOnSession(session, command);
@@ -470,7 +466,7 @@ public class SSHConnectionService {
     /**
      * Get or create a cached SSH session
      */
-    private Session getOrCreateSession(Asset asset, AssetCredential credential, User user, String userKey) throws JSchException {
+    private Session getOrCreateSession(Asset asset, AssetCredential credential, User user) throws JSchException {
         String sessionKey = asset.getId() + ":" + user.getId();
         
         // Check if we have a cached session
@@ -495,7 +491,7 @@ public class SSHConnectionService {
         
         // Create new session
         log.debug("Creating new SSH session for asset {} and user {}", asset.getId(), user.getId());
-        Session newSession = createSession(asset, credential, userKey);
+        Session newSession = createSession(asset, credential);
         
         // Cache the session
         sessionCache.put(sessionKey, newSession);
@@ -506,22 +502,23 @@ public class SSHConnectionService {
     /**
      * Create a new SSH session
      */
-    private Session createSession(Asset asset, AssetCredential credential, String userKey) throws JSchException {
+    private Session createSession(Asset asset, AssetCredential credential) throws JSchException {
         JSch jsch = new JSch();
         
         String host = asset.getHostAddress();
         int port = asset.getPortNumber() != null ? Integer.parseInt(asset.getPortNumber()) : 22;
         String username = credential.getUsername();
         
-        // Decrypt SSH key if available
+        // Decrypt SSH key if available (supports AWS Secrets Manager)
         String decryptedSSHKey = null;
-        if (credential.getSshKeyFile() != null && !credential.getSshKeyFile().isEmpty()) {
+        if ((credential.getSshKeyFile() != null && !credential.getSshKeyFile().isEmpty()) ||
+            (credential.getAwsSecretsManagerKey() != null && !credential.getAwsSecretsManagerKey().trim().isEmpty())) {
             try {
-                decryptedSSHKey = CommonUtils.decrypt(userKey, credential.getSshKeyFile());
+                decryptedSSHKey = databaseConnectionUtils.decryptSSHPrivateKey(credential);
                 byte[] privateKeyBytes = decryptedSSHKey.getBytes();
                 jsch.addIdentity(username, privateKeyBytes, null, null);
                 log.debug("Using SSH key authentication for user: {}", username);
-            } catch (CommonUtils.CryptoException | JSchException e) {
+            } catch (Exception e) {
                 log.warn("Failed to decrypt SSH key, falling back to password authentication: {}", e.getMessage());
                 decryptedSSHKey = null;
             }
@@ -726,14 +723,12 @@ public class SSHConnectionService {
             if (sshCredential == null) {
                 throw new IOException("No SSH credentials found for asset: " + asset.getId());
             }
-            String userKey = keycloakService.getUserKey();
 
             // Create SSH connection
             SSHConnection connection = createSSHConnection(
                     asset.getHostAddress(),
                     asset.getPortNumber() != null ? Integer.parseInt(asset.getPortNumber()) : 22,
-                    sshCredential,
-                    userKey
+                    sshCredential
             );
 
             try {

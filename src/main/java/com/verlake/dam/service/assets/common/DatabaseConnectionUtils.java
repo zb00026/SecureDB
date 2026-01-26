@@ -5,6 +5,8 @@ import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.aws.AWSSecretsManagerService;
+import com.verlake.dam.service.settings.SystemSettingsService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
@@ -23,9 +25,16 @@ import java.sql.SQLException;
 public class DatabaseConnectionUtils {
     
     private final KeycloakService keycloakService;
+    private final AWSSecretsManagerService awsSecretsManagerService;
+    private final SystemSettingsService systemSettingsService;
     
-    public DatabaseConnectionUtils(KeycloakService keycloakService) {
+    public DatabaseConnectionUtils(
+            KeycloakService keycloakService,
+            AWSSecretsManagerService awsSecretsManagerService,
+            SystemSettingsService systemSettingsService) {
         this.keycloakService = keycloakService;
+        this.awsSecretsManagerService = awsSecretsManagerService;
+        this.systemSettingsService = systemSettingsService;
     }
     
     /**
@@ -118,9 +127,9 @@ public class DatabaseConnectionUtils {
     }
     
     /**
-     * Decrypts credential password using the user's key from Keycloak
+     * Decrypts credential password using the user's key from Keycloak or retrieves from AWS Secrets Manager
      * 
-     * @param credential The credential containing encrypted password
+     * @param credential The credential containing encrypted password or AWS Secrets Manager key
      * @return Decrypted password
      * @throws DatabaseAccessException if decryption fails or credential is invalid
      */
@@ -129,10 +138,62 @@ public class DatabaseConnectionUtils {
             throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL), null);
         }
         
-        if (credential.getPassword() == null || credential.getPassword().trim().isEmpty()) {
-            log.warn("Credential ID: {} has no password", credential.getId());
-            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), null);
+        if (shouldUseAwsSecretsManager(credential)) {
+            return retrievePasswordFromAwsSecretsManager(credential);
         }
+        
+        return decryptTraditionalPassword(credential);
+    }
+    
+    /**
+     * Checks if AWS Secrets Manager should be used for this credential
+     */
+    private boolean shouldUseAwsSecretsManager(AssetCredential credential) {
+        boolean awsSecretsManagerEnabled = Boolean.parseBoolean(
+                systemSettingsService.getSettingValue(
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_KEY,
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+        
+        return awsSecretsManagerEnabled 
+                && credential.getAwsSecretsManagerKey() != null 
+                && !credential.getAwsSecretsManagerKey().trim().isEmpty();
+    }
+    
+    /**
+     * Retrieves password from AWS Secrets Manager and updates username if needed
+     */
+    private String retrievePasswordFromAwsSecretsManager(AssetCredential credential) {
+        log.debug("Retrieving password from AWS Secrets Manager for credential ID: {}", credential.getId());
+        try {
+            String password = awsSecretsManagerService.getPasswordFromSecret(credential.getAwsSecretsManagerKey());
+            updateUsernameFromSecretIfNeeded(credential);
+            return password;
+        } catch (Exception e) {
+            log.error("Failed to retrieve password from AWS Secrets Manager for credential ID: {}", 
+                     credential.getId(), e);
+            throw new DatabaseAccessException(
+                    Constants.getMessage("error.aws.secrets.manager.retrieval.failed") + ": " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Updates credential username from AWS Secrets Manager secret if username is not set
+     */
+    private void updateUsernameFromSecretIfNeeded(AssetCredential credential) {
+        if (credential.getUsername() == null || credential.getUsername().trim().isEmpty()) {
+            String username = awsSecretsManagerService.getUsernameFromSecret(credential.getAwsSecretsManagerKey());
+            if (username != null && !username.trim().isEmpty()) {
+                log.debug("Retrieved username from AWS Secrets Manager for credential ID: {}", credential.getId());
+                credential.setUsername(username);
+            }
+        }
+    }
+    
+    /**
+     * Decrypts traditional encrypted password using user's key
+     */
+    private String decryptTraditionalPassword(AssetCredential credential) {
+        validatePasswordExists(credential);
         
         String userKey = keycloakService.getUserKey();
         
@@ -147,6 +208,16 @@ public class DatabaseConnectionUtils {
             log.error("Unexpected error during password decryption for credential ID: {}", 
                       credential.getId(), e);
             throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
+        }
+    }
+    
+    /**
+     * Validates that credential has a password
+     */
+    private void validatePasswordExists(AssetCredential credential) {
+        if (credential.getPassword() == null || credential.getPassword().trim().isEmpty()) {
+            log.warn("Credential ID: {} has no password and no AWS Secrets Manager key", credential.getId());
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), null);
         }
     }
     
@@ -181,35 +252,71 @@ public class DatabaseConnectionUtils {
     }
     
     /**
-     * Validates that a credential has a valid password
+     * Validates that a credential has a valid password or AWS Secrets Manager key
      * 
      * @param credential The credential to validate
-     * @return true if credential has a valid password, false otherwise
+     * @return true if credential has a valid password or AWS Secrets Manager key, false otherwise
      */
     public boolean hasValidPassword(AssetCredential credential) {
         if (credential == null) {
             return false;
         }
         
+        // Check if AWS Secrets Manager is enabled
+        boolean awsSecretsManagerEnabled = Boolean.parseBoolean(
+                systemSettingsService.getSettingValue(
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_KEY,
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+        
+        if (awsSecretsManagerEnabled && credential.getAwsSecretsManagerKey() != null 
+                && !credential.getAwsSecretsManagerKey().trim().isEmpty()) {
+            return true;
+        }
+        
         return credential.getPassword() != null && !credential.getPassword().trim().isEmpty();
     }
     
     /**
-     * Decrypts SSH private key using the user's key from Keycloak
+     * Decrypts SSH private key using the user's key from Keycloak or retrieves from AWS Secrets Manager
      * 
-     * @param credential The credential containing encrypted SSH key
+     * @param credential The credential containing encrypted SSH key or AWS Secrets Manager key
      * @return Decrypted SSH private key
      * @throws DatabaseAccessException if decryption fails or credential is invalid
      */
     public String decryptSSHPrivateKey(AssetCredential credential) {
         if (credential == null) {
-            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL), null);
+            throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
         }
         
-        if (credential.getSshKeyFile() == null || credential.getSshKeyFile().trim().isEmpty()) {
-            log.warn("Credential ID: {} has no SSH key file", credential.getId());
-            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), null);
+        if (shouldUseAwsSecretsManager(credential)) {
+            return retrieveSshKeyFromAwsSecretsManager(credential);
         }
+        
+        return decryptTraditionalSshKey(credential);
+    }
+    
+    /**
+     * Retrieves SSH private key from AWS Secrets Manager and updates username if needed
+     */
+    private String retrieveSshKeyFromAwsSecretsManager(AssetCredential credential) {
+        log.debug("Retrieving SSH private key from AWS Secrets Manager for credential ID: {}", credential.getId());
+        try {
+            String sshPrivateKey = awsSecretsManagerService.getSSHPrivateKeyFromSecret(credential.getAwsSecretsManagerKey());
+            updateUsernameFromSecretIfNeeded(credential);
+            return sshPrivateKey;
+        } catch (Exception e) {
+            log.error("Failed to retrieve SSH private key from AWS Secrets Manager for credential ID: {}", 
+                     credential.getId(), e);
+            throw new DatabaseAccessException(
+                    Constants.getMessage(Constants.ERROR_AWS_SECRETS_MANAGER_RETRIEVAL_FAILED) + ": " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Decrypts traditional encrypted SSH key using user's key
+     */
+    private String decryptTraditionalSshKey(AssetCredential credential) {
+        validateSshKeyExists(credential);
         
         String userKey = keycloakService.getUserKey();
         
@@ -224,6 +331,16 @@ public class DatabaseConnectionUtils {
             log.error("Unexpected error during SSH private key decryption for credential ID: {}", 
                       credential.getId(), e);
             throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
+        }
+    }
+    
+    /**
+     * Validates that credential has an SSH key file
+     */
+    private void validateSshKeyExists(AssetCredential credential) {
+        if (credential.getSshKeyFile() == null || credential.getSshKeyFile().trim().isEmpty()) {
+            log.warn("Credential ID: {} has no SSH key file and no AWS Secrets Manager key", credential.getId());
+            throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_ADMIN_CREDENTIAL_CANNOT_BE_NULL), null);
         }
     }
     

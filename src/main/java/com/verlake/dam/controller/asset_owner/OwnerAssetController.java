@@ -29,7 +29,9 @@ import com.verlake.dam.service.assets.QueryExecutionService;
 import com.verlake.dam.service.assets.NaturalLanguageToSqlService;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.aws.AWSSecretsManagerService;
 import com.verlake.dam.service.email.EmailService;
+import com.verlake.dam.service.settings.SystemSettingsService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.enums.EmailType;
@@ -59,6 +61,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +110,12 @@ public class OwnerAssetController extends BaseAssetAccessController {
 
     @Autowired
     private DatabaseAccessService databaseAccessService;
+
+    @Autowired
+    private AWSSecretsManagerService awsSecretsManagerService;
+    
+    @Autowired
+    private SystemSettingsService systemSettingsService;
 
     @Autowired
     private QueryExecutionService queryExecutionService;
@@ -426,49 +435,191 @@ public class OwnerAssetController extends BaseAssetAccessController {
         }
 
         Asset asset = existingCredential.getAsset();
-        String host = asset.getHostUrl();
+        CredentialPair credentials = retrieveCredentials(credentialInfo);
+        
+        // Handle MongoDB separately since it doesn't use JDBC
+        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
+            return setMongoDBCredentialInfo(existingCredential, asset, credentials.getUsername(), credentials.getPassword());
+        }
+
+        String jdbcUrl = buildJdbcUrl(asset);
+        return validateAndSaveJdbcCredential(existingCredential, credentials, credentialInfo, jdbcUrl);
+    }
+    
+    /**
+     * Retrieves credentials from AWS Secrets Manager or traditional input
+     */
+    private CredentialPair retrieveCredentials(AssetCredentialDTO credentialInfo) {
+        boolean awsSecretsManagerEnabled = Boolean.parseBoolean(
+                systemSettingsService.getSettingValue(
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_KEY,
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+        
+        if (awsSecretsManagerEnabled && credentialInfo.getAwsSecretsManagerKey() != null 
+                && !credentialInfo.getAwsSecretsManagerKey().trim().isEmpty()) {
+            return retrieveCredentialsFromAwsSecretsManager(credentialInfo);
+        } else {
+            return retrieveTraditionalCredentials(credentialInfo);
+        }
+    }
+    
+    /**
+     * Retrieves credentials from AWS Secrets Manager
+     */
+    private CredentialPair retrieveCredentialsFromAwsSecretsManager(AssetCredentialDTO credentialInfo) {
+        try {
+            String password = awsSecretsManagerService.getPasswordFromSecret(credentialInfo.getAwsSecretsManagerKey());
+            String username = credentialInfo.getUsername();
+            
+            if (username == null || username.trim().isEmpty()) {
+                String secretUsername = awsSecretsManagerService.getUsernameFromSecret(credentialInfo.getAwsSecretsManagerKey());
+                if (secretUsername != null && !secretUsername.trim().isEmpty()) {
+                    username = secretUsername;
+                } else {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                            "Username is required when not found in AWS Secrets Manager secret");
+                }
+            }
+            return new CredentialPair(username, password);
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.trim().isEmpty()) {
+                errorMessage = "Failed to retrieve credentials from AWS Secrets Manager";
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
+        }
+    }
+    
+    /**
+     * Retrieves traditional credentials from DTO
+     */
+    private CredentialPair retrieveTraditionalCredentials(AssetCredentialDTO credentialInfo) {
         String username = credentialInfo.getUsername();
         String password = credentialInfo.getPassword();
         if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                "Username and password are required");
+                    "Username and password are required when AWS Secrets Manager is not enabled");
         }
-
-        // Handle MongoDB separately since it doesn't use JDBC
-        if (asset.getDatabaseType() == DatabaseType.MONGODB) {
-            return setMongoDBCredentialInfo(existingCredential, asset, username, password);
-        }
-
-        // For other databases, use JDBC
-        String jdbcUrl;
+        return new CredentialPair(username, password);
+    }
+    
+    /**
+     * Builds JDBC URL based on database type
+     */
+    private String buildJdbcUrl(Asset asset) {
+        String host = asset.getHostUrl();
         switch (asset.getDatabaseType()) {
             case MYSQL:
-                jdbcUrl = "jdbc:mysql://" + host;
-                break;
+                return "jdbc:mysql://" + host;
             case POSTGRESQL:
-                jdbcUrl = "jdbc:postgresql://" + host;
-                break;
+                return "jdbc:postgresql://" + host;
             case ORACLE:
-                jdbcUrl = "jdbc:oracle:thin:@" + host;
-                break;
+                return "jdbc:oracle:thin:@" + host;
             case SQLSERVER:
-                // Add SSL parameters for MSSQL to match application configuration
-                jdbcUrl = "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
-                break;
+                return "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;characterEncoding=UTF-8";
             default:
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported database type");
         }
-
-        // Validate the database connection
-        try (Connection connection = DriverManager.getConnection(jdbcUrl, username, password)) {
-            if (connection != null) {
-                return saveCredentialAfterValidation(existingCredential, username, password);
-            } else {
+    }
+    
+    /**
+     * Validates JDBC connection and saves credential
+     */
+    private ResponseEntity<Map<String, Object>> validateAndSaveJdbcCredential(
+            AssetCredential existingCredential, CredentialPair credentials, 
+            AssetCredentialDTO credentialInfo, String jdbcUrl) {
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, credentials.getUsername(), credentials.getPassword())) {
+            if (connection == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connection failed: Unknown error");
             }
+            
+            existingCredential.setUsername(credentials.getUsername());
+            boolean awsSecretsManagerEnabled = Boolean.parseBoolean(
+                    systemSettingsService.getSettingValue(
+                            Constants.AWS_SECRETS_MANAGER_ENABLED_KEY,
+                            Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+            
+            if (awsSecretsManagerEnabled && credentialInfo.getAwsSecretsManagerKey() != null 
+                    && !credentialInfo.getAwsSecretsManagerKey().trim().isEmpty()) {
+                saveAwsSecretsManagerCredential(existingCredential, credentials, credentialInfo);
+            } else {
+                saveTraditionalCredential(existingCredential, credentials);
+            }
+            
+            existingCredential.setIsTemporaryPassword(false);
+            assetService.saveCredential(existingCredential);
+            return saveCredentialAfterValidation(existingCredential, credentials.getUsername(), credentials.getPassword());
         } catch (SQLException e) {
             // Connection failed
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connection failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Saves credential using AWS Secrets Manager
+     */
+    private void saveAwsSecretsManagerCredential(AssetCredential existingCredential, 
+            CredentialPair credentials, AssetCredentialDTO credentialInfo) {
+        existingCredential.setAwsSecretsManagerKey(credentialInfo.getAwsSecretsManagerKey());
+        existingCredential.setPassword(null);
+        
+        AssetCredential tempCredential = new AssetCredential();
+        tempCredential.setId(existingCredential.getId());
+        tempCredential.setAsset(existingCredential.getAsset());
+        tempCredential.setUsername(credentials.getUsername());
+        tempCredential.setPassword(credentials.getPassword());
+        tempCredential.setUser(existingCredential.getUser());
+        tempCredential.setUserAccessType(existingCredential.getUserAccessType());
+        try {
+            databaseAccessService.updateAssetObjects(tempCredential);
+        } catch (SQLException e) {
+            logger.error(Constants.LOG_ERROR_UPDATE_ASSET_OBJECTS_FOR_CREDENTIAL, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Failed to update asset objects: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Saves traditional encrypted credential
+     */
+    private void saveTraditionalCredential(AssetCredential existingCredential, CredentialPair credentials) {
+        String password = credentials.getPassword();
+        if (authProvider.contains(Constants.AUTH_PROVIDER_KEYCLOAK.toLowerCase())) {
+            existingCredential.setPassword(password);
+            try {
+                databaseAccessService.updateAssetObjects(existingCredential);
+            } catch (SQLException e) {
+                logger.error(Constants.LOG_ERROR_UPDATE_ASSET_OBJECTS_FOR_CREDENTIAL, e.getMessage(), e);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Failed to update asset objects: " + e.getMessage());
+            }
+            String userKey = keycloakService.getUserKey();
+            if (userKey != null && !userKey.isEmpty()) {
+                password = encryptPasswordWithKey(userKey, password);
+            }
+        }
+        existingCredential.setPassword(password);
+        existingCredential.setAwsSecretsManagerKey(null);
+    }
+    
+    /**
+     * Helper class to hold username and password pair
+     */
+    private static class CredentialPair {
+        private final String username;
+        private final String password;
+        
+        public CredentialPair(String username, String password) {
+            this.username = username;
+            this.password = password;
+        }
+        
+        public String getUsername() {
+            return username;
+        }
+        
+        public String getPassword() {
+            return password;
         }
     }
 
@@ -616,7 +767,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
             try {
                 databaseAccessService.updateAssetObjects(existingCredential);
             } catch (SQLException e) {
-                logger.error("Failed to update asset objects for credential: {}", e.getMessage(), e);
+                logger.error(Constants.LOG_ERROR_UPDATE_ASSET_OBJECTS_FOR_CREDENTIAL, e.getMessage(), e);
                 throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
                     "Failed to update asset objects: " + e.getMessage());
             }
@@ -654,61 +805,240 @@ public class OwnerAssetController extends BaseAssetAccessController {
     public ResponseEntity<AssetCredentialDTO> createSSHCredentials(@PathVariable Long assetId, 
                                                                @RequestBody AssetCredentialDTO createDTO) {
         createDTO.setAssetId(assetId);
-        AssetCredential credential = assetService.createSSHCredential(assetId, createDTO);
         
-        AssetCredentialDTO result = AssetCredentialDTO.builder()
+        boolean awsSecretsManagerEnabled = Boolean.parseBoolean(
+                systemSettingsService.getSettingValue(
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_KEY,
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+        
+        if (awsSecretsManagerEnabled && createDTO.getAwsSecretsManagerKey() != null 
+                && !createDTO.getAwsSecretsManagerKey().trim().isEmpty()) {
+            processAwsSecretsManagerSshKey(createDTO);
+        } else {
+            validateSshKeyFile(createDTO);
+        }
+        
+        AssetCredential credential = assetService.createSSHCredential(assetId, createDTO);
+        return ResponseEntity.ok(buildSshCredentialDto(credential));
+    }
+    
+    /**
+     * Processes SSH key from AWS Secrets Manager: retrieves, extracts username, and encrypts
+     */
+    private void processAwsSecretsManagerSshKey(AssetCredentialDTO createDTO) {
+        try {
+            String sshPrivateKey = awsSecretsManagerService.getSSHPrivateKeyFromSecret(createDTO.getAwsSecretsManagerKey());
+            extractUsernameFromSecret(createDTO);
+            encryptAndStoreSshKey(createDTO, sshPrivateKey);
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.trim().isEmpty()) {
+                errorMessage = "Failed to retrieve SSH private key from AWS Secrets Manager";
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
+        }
+    }
+    
+    /**
+     * Extracts username from AWS Secrets Manager secret if not provided
+     */
+    private void extractUsernameFromSecret(AssetCredentialDTO createDTO) {
+        if (createDTO.getUsername() == null || createDTO.getUsername().trim().isEmpty()) {
+            String secretUsername = awsSecretsManagerService.getUsernameFromSecret(createDTO.getAwsSecretsManagerKey());
+            if (secretUsername != null && !secretUsername.trim().isEmpty()) {
+                createDTO.setUsername(secretUsername);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                        "Username is required when not found in AWS Secrets Manager secret");
+            }
+        }
+    }
+    
+    /**
+     * Encrypts SSH key with user's key and stores it in DTO
+     */
+    private void encryptAndStoreSshKey(AssetCredentialDTO createDTO, String sshPrivateKey) {
+        String userKey = keycloakService.getUserKey();
+        if (userKey == null || userKey.isEmpty()) {
+            throw new SecurityException("User encryption key not available");
+        }
+        try {
+            String encryptedSSHKey = CommonUtils.encrypt(userKey, sshPrivateKey);
+            createDTO.setSshKeyFile(encryptedSSHKey);
+            logger.debug("Encrypted SSH key from AWS Secrets Manager and stored in credential");
+        } catch (CommonUtils.CryptoException e) {
+            throw new SecurityException("Failed to encrypt SSH key from AWS Secrets Manager", e);
+        }
+    }
+    
+    /**
+     * Validates that SSH key file is provided when not using AWS Secrets Manager
+     */
+    private void validateSshKeyFile(AssetCredentialDTO createDTO) {
+        if (createDTO.getSshKeyFile() == null || createDTO.getSshKeyFile().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                    "Either sshKeyFile or awsSecretsManagerKey is required");
+        }
+    }
+    
+    /**
+     * Builds AssetCredentialDTO from AssetCredential entity
+     */
+    private AssetCredentialDTO buildSshCredentialDto(AssetCredential credential) {
+        return AssetCredentialDTO.builder()
                 .assetId(credential.getAsset().getId())
                 .username(credential.getUsername())
                 .sshKeyFile(credential.getSshKeyFile())
+                .awsSecretsManagerKey(credential.getAwsSecretsManagerKey())
                 .userAccessType(credential.getUserAccessType())
                 .assetType(credential.getAsset().getType())
                 .build();
-        
-        return ResponseEntity.ok(result);
     }
 
     /**
      * Update existing SSH credentials
      */
     @PutMapping("/ssh-credentials/{id}")
+    @Transactional
     public ResponseEntity<AssetCredentialDTO> updateSSHCredentials(@PathVariable Long id, 
                                                                @RequestBody AssetCredentialDTO updateDTO) {
+        AssetCredential existingCredential = validateSshCredentialExists(id);
+        updateUsernameIfProvided(existingCredential, updateDTO);
+        
+        boolean awsSecretsManagerEnabled = isAwsSecretsManagerEnabled();
+        
+        if (shouldUseAwsSecretsManagerForUpdate(awsSecretsManagerEnabled, updateDTO)) {
+            updateSshKeyFromAwsSecretsManager(existingCredential, updateDTO, id);
+        } else if (updateDTO.getSshKeyFile() != null) {
+            updateSshKeyFromFile(existingCredential, updateDTO);
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                    "Either sshKeyFile or awsSecretsManagerKey is required");
+        }
+        
+        AssetCredential savedCredential = assetService.saveCredential(existingCredential);
+        logSshCredentialUpdateSuccess(id, savedCredential);
+        
+        return ResponseEntity.ok(buildSshCredentialDto(existingCredential));
+    }
+    
+    /**
+     * Validates that SSH credential exists
+     */
+    private AssetCredential validateSshCredentialExists(Long id) {
         AssetCredential existingCredential = assetService.findCredentialById(id);
         if (existingCredential == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SSH credentials not found");
         }
-        
-        // Update fields
+        return existingCredential;
+    }
+    
+    /**
+     * Updates username if provided in DTO
+     */
+    private void updateUsernameIfProvided(AssetCredential existingCredential, AssetCredentialDTO updateDTO) {
         if (updateDTO.getUsername() != null) {
             existingCredential.setUsername(updateDTO.getUsername());
         }
-        
-        if (updateDTO.getSshKeyFile() != null) {
-            // Encrypt the new SSH key file
-            String userKey = keycloakService.getUserKey();
-            if (userKey == null || userKey.isEmpty()) {
-                throw new SecurityException("User encryption key not available");
+    }
+    
+    /**
+     * Checks if AWS Secrets Manager is enabled
+     */
+    private boolean isAwsSecretsManagerEnabled() {
+        return Boolean.parseBoolean(
+                systemSettingsService.getSettingValue(
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_KEY,
+                        Constants.AWS_SECRETS_MANAGER_ENABLED_DEFAULT));
+    }
+    
+    /**
+     * Checks if AWS Secrets Manager should be used for update
+     */
+    private boolean shouldUseAwsSecretsManagerForUpdate(boolean awsSecretsManagerEnabled, AssetCredentialDTO updateDTO) {
+        return awsSecretsManagerEnabled 
+                && updateDTO.getAwsSecretsManagerKey() != null 
+                && !updateDTO.getAwsSecretsManagerKey().trim().isEmpty();
+    }
+    
+    /**
+     * Updates SSH key from AWS Secrets Manager
+     */
+    private void updateSshKeyFromAwsSecretsManager(AssetCredential existingCredential, 
+            AssetCredentialDTO updateDTO, Long id) {
+        try {
+            String sshPrivateKey = awsSecretsManagerService.getSSHPrivateKeyFromSecret(updateDTO.getAwsSecretsManagerKey());
+            extractAndSetUsernameFromSecret(existingCredential, updateDTO);
+            encryptAndStoreSshKeyForUpdate(existingCredential, sshPrivateKey, id);
+            existingCredential.setAwsSecretsManagerKey(updateDTO.getAwsSecretsManagerKey());
+            existingCredential.setIsTemporaryPassword(false);
+            logger.info("Updated SSH credential ID {} with AWS Secrets Manager key: {}, SSH key encrypted and stored", 
+                    id, updateDTO.getAwsSecretsManagerKey());
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.trim().isEmpty()) {
+                errorMessage = "Failed to retrieve SSH private key from AWS Secrets Manager";
             }
-            try {
-                String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
-                existingCredential.setSshKeyFile(encryptedSSHKey);
-                existingCredential.setIsTemporaryPassword(false);
-            } catch (CommonUtils.CryptoException e) {
-                throw new SecurityException("Failed to encrypt SSH key", e);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
+        }
+    }
+    
+    /**
+     * Extracts and sets username from AWS Secrets Manager secret if not provided
+     */
+    private void extractAndSetUsernameFromSecret(AssetCredential existingCredential, AssetCredentialDTO updateDTO) {
+        if (updateDTO.getUsername() == null || updateDTO.getUsername().trim().isEmpty()) {
+            String secretUsername = awsSecretsManagerService.getUsernameFromSecret(updateDTO.getAwsSecretsManagerKey());
+            if (secretUsername != null && !secretUsername.trim().isEmpty()) {
+                existingCredential.setUsername(secretUsername);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                        "Username is required when not found in AWS Secrets Manager secret");
             }
         }
-        
-        assetService.saveCredential(existingCredential);
-        
-        AssetCredentialDTO result = AssetCredentialDTO.builder()
-                .assetId(existingCredential.getAsset().getId())
-                .username(existingCredential.getUsername())
-                .sshKeyFile(existingCredential.getSshKeyFile())
-                .userAccessType(existingCredential.getUserAccessType())
-                .assetType(existingCredential.getAsset().getType())
-                .build();
-        
-        return ResponseEntity.ok(result);
+    }
+    
+    /**
+     * Encrypts SSH key with user's key and stores it in credential
+     */
+    private void encryptAndStoreSshKeyForUpdate(AssetCredential existingCredential, String sshPrivateKey, Long id) {
+        String userKey = keycloakService.getUserKey();
+        if (userKey == null || userKey.isEmpty()) {
+            throw new SecurityException("User encryption key not available");
+        }
+        try {
+            String encryptedSSHKey = CommonUtils.encrypt(userKey, sshPrivateKey);
+            existingCredential.setSshKeyFile(encryptedSSHKey);
+            logger.debug("Encrypted SSH key from AWS Secrets Manager and stored in credential ID {}", id);
+        } catch (CommonUtils.CryptoException e) {
+            throw new SecurityException("Failed to encrypt SSH key from AWS Secrets Manager", e);
+        }
+    }
+    
+    /**
+     * Updates SSH key from traditional file input
+     */
+    private void updateSshKeyFromFile(AssetCredential existingCredential, AssetCredentialDTO updateDTO) {
+        String userKey = keycloakService.getUserKey();
+        if (userKey == null || userKey.isEmpty()) {
+            throw new SecurityException("User encryption key not available");
+        }
+        try {
+            String encryptedSSHKey = CommonUtils.encrypt(userKey, updateDTO.getSshKeyFile());
+            existingCredential.setSshKeyFile(encryptedSSHKey);
+            existingCredential.setAwsSecretsManagerKey(null);
+            existingCredential.setIsTemporaryPassword(false);
+        } catch (CommonUtils.CryptoException e) {
+            throw new SecurityException("Failed to encrypt SSH key", e);
+        }
+    }
+    
+    /**
+     * Logs successful SSH credential update
+     */
+    private void logSshCredentialUpdateSuccess(Long id, AssetCredential savedCredential) {
+        logger.info("Successfully saved SSH credential ID {} with username: {}, AWS Secrets Manager key: {}", 
+                id, savedCredential.getUsername(), savedCredential.getAwsSecretsManagerKey());
     }
 
     /**
@@ -852,5 +1182,17 @@ public class OwnerAssetController extends BaseAssetAccessController {
         } catch (Exception e) {
             logger.error("Failed to create notification task for admin {}: {}", admin.getEmail(), e.getMessage(), e);
         }
+    }
+
+    /**
+     * Get AWS Secrets Manager enabled setting
+     * Accessible by both admin and asset owner
+     */
+    @GetMapping("/settings/aws-secrets-manager-enabled")
+    public ResponseEntity<Map<String, Object>> getAWSSecretsManagerEnabled() {
+        boolean enabled = systemSettingsService.isAWSSecretsManagerEnabled();
+        Map<String, Object> response = new HashMap<>();
+        response.put("enabled", enabled);
+        return ResponseEntity.ok(response);
     }
 }

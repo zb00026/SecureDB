@@ -236,7 +236,7 @@ public class TerminalService {
 
             // Create SSH connection using the service
             SSHConnectionService.SSHConnection sshConnection = sshConnectionService.createSSHConnection(
-                    session.getHost(), session.getPort(), session.getSshCredential(), userKey);
+                    session.getHost(), session.getPort(), session.getSshCredential());
 
             // Set up output reader with recording
             sshConnection.startOutputReader(output -> {

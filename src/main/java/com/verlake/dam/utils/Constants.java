@@ -1100,6 +1100,9 @@ public class Constants {
     public static final String AWS_SECRETS_MANAGER_ENABLED_KEY = "aws.secrets.manager.enabled";
     public static final String AWS_SECRETS_MANAGER_ENABLED_DEFAULT = "false";
     
+    // AWS Secrets Manager error message keys
+    public static final String ERROR_AWS_SECRETS_MANAGER_RETRIEVAL_FAILED = "error.aws.secrets.manager.retrieval.failed";
+    
     // Timezone formatting patterns
     public static final String TIMEZONE_DISPLAY_PATTERN = "yyyy-MM-dd HH:mm:ss z";
     public static final String TIMEZONE_DATE_PATTERN = "yyyy-MM-dd";
@@ -1110,6 +1113,9 @@ public class Constants {
     
     // Error message prefixes
     public static final String ERROR_PREFIX_UNEXPECTED = "Unexpected error: ";
+    
+    // Log message templates
+    public static final String LOG_ERROR_UPDATE_ASSET_OBJECTS_FOR_CREDENTIAL = "Failed to update asset objects for credential: {}";
     
     // Timezone constants
     public static final String TIMEZONE_UTC_OFFSET_DEFAULT = "(UTC+00:00)";
