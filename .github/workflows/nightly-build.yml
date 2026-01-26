@@ -61,6 +61,7 @@ jobs:
           echo "KEYCLOAK_ADMIN_USER_PASSWORD=${{ secrets.KEYCLOAK_ADMIN_USER_PASSWORD }}" >> $GITHUB_ENV
           echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
           echo "GOOGLE_SIGN_IN_CLIENT_SECRET=${{ secrets.GOOGLE_SIGN_IN_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "MICROSOFT_CLIENT_SECRET=${{ secrets.MICROSOFT_CLIENT_SECRET }}" >> $GITHUB_ENV
 
       - name: Set timestamp variable
         id: timestamp

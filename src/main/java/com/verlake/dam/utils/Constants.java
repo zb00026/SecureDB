@@ -818,14 +818,19 @@ public class Constants {
     
     // Keycloak identity provider constants
     public static final String KEYCLOAK_IDP_GOOGLE = "google";
+    public static final String KEYCLOAK_IDP_MICROSOFT = "microsoft";
+    public static final String KEYCLOAK_IDP_MAPPER_GOOGLE_USER_ATTRIBUTE = "google-user-attribute-mapper";
     public static final String KEYCLOAK_IDP_MAPPER_OIDC_USER_ATTRIBUTE = "oidc-user-attribute-idp-mapper";
     public static final String KEYCLOAK_IDP_MAPPER_HARDCODED_ATTRIBUTE = "hardcoded-attribute-idp-mapper";
     
     // Keycloak mapper configuration constants
     public static final String KEYCLOAK_MAPPER_SYNC_MODE_INHERIT = "INHERIT";
+    public static final String KEYCLOAK_MAPPER_SYNC_MODE_FORCE = "FORCE";
     public static final String KEYCLOAK_MAPPER_SYNC_MODE = "syncMode";
     public static final String KEYCLOAK_MAPPER_CLAIM = "claim";
+    public static final String KEYCLOAK_MAPPER_JSON_FIELD = "jsonField";
     public static final String KEYCLOAK_MAPPER_USER_ATTRIBUTE = "user.attribute";
+    public static final String KEYCLOAK_MAPPER_USER_ATTRIBUTE_GOOGLE = "userAttribute";
     public static final String KEYCLOAK_MAPPER_ATTRIBUTE_VALUE = "attribute.value";
     public static final String KEYCLOAK_MAPPER_ATTRIBUTE = "attribute";
     public static final String KEYCLOAK_MAPPER_EMAIL = "email";
@@ -834,6 +839,8 @@ public class Constants {
     public static final String KEYCLOAK_MAPPER_LAST_NAME = "lastName";
     public static final String KEYCLOAK_MAPPER_USERNAME = "username";
     public static final String KEYCLOAK_MAPPER_LAST_NAME_DEFAULT = "Last";
+    public static final String KEYCLOAK_MAPPER_PREFERRED_USERNAME = "preferred_username";
+    public static final String KEYCLOAK_MAPPER_FAMILY_NAME = "family_name";
     
     // Keycloak authentication execution names
     public static final String KEYCLOAK_EXECUTION_DIRECT_GRANT_CONDITIONAL_OTP = "Direct Grant - Conditional OTP";

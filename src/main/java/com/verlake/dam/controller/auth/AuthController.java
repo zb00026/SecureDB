@@ -9,9 +9,10 @@ import com.verlake.dam.entity.user.dto.ResetPasswordRequestDTO;
 import com.verlake.dam.entity.user.dto.ResetPasswordValidationDTO;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.service.auth.ForgotPasswordService;
+import com.verlake.dam.service.auth.*;
 import com.verlake.dam.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,10 +24,6 @@ import com.verlake.dam.enums.AuthProvider;
 
 import org.springframework.web.server.ResponseStatusException;
 import com.verlake.dam.service.assets.DatabaseAccessService;
-import com.verlake.dam.service.auth.AuthService;
-import com.verlake.dam.service.auth.KeycloakService;
-import com.verlake.dam.service.auth.TokenService;
-import com.verlake.dam.service.auth.TokenServiceManager;
 import com.verlake.dam.service.firebase.FirebaseMessagingService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.assets.AccessRequestService;
@@ -80,6 +77,10 @@ public class AuthController {
     
     @Autowired
     private AccessRequestService accessRequestService;
+    @Autowired
+    private GlobalAuthProviderService globalAuthProviderService;
+    @Autowired
+    private UserRepository userRepository;
 
     public AuthController(TokenServiceManager tokenServiceManager) {
         this.tokenServiceManager = tokenServiceManager;
@@ -112,6 +113,10 @@ public class AuthController {
                 log.info("User details - ID: {}, Email: {}, Active: {}, Roles: {}", 
                     user.getId(), user.getEmail(), user.getIsActive(), 
                     user.getRoles().stream().map(role -> role.getName()).toList());
+                if (globalAuthProviderService.isSSOProvider()) {
+                    user.setIsInitialPassword(false);
+                    userRepository.save(user);
+                }
             }
 
             log.info("Step 4: Checking if user is asset owner");

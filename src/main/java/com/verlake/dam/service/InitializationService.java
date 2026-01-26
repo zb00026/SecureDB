@@ -4,10 +4,11 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.auth.GlobalAuthProviderService;
+import com.verlake.dam.service.sso.GoogleSSOMapperService;
+import com.verlake.dam.service.sso.MicrosoftSSOMapperService;
 import com.verlake.dam.utils.Constants;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
-import org.keycloak.representations.idm.IdentityProviderMapperRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
@@ -18,9 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import jakarta.annotation.PostConstruct;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -36,6 +35,12 @@ public class InitializationService {
     
     @Autowired
     private GlobalAuthProviderService globalAuthProviderService;
+    
+    @Autowired
+    private GoogleSSOMapperService googleSSOMapperService;
+    
+    @Autowired
+    private MicrosoftSSOMapperService microsoftSSOMapperService;
     
     @Value("${KEYCLOAK_ADMIN_EMAIL_ADDR:}")
     private String adminEmail;
@@ -283,130 +288,12 @@ public class InitializationService {
                 return;
             }
             
-            log.info("Auth provider is SSO, configuring Google Identity Provider mappers");
-            configureGoogleMappers();
+            log.info("Auth provider is SSO, configuring Identity Provider mappers");
+            googleSSOMapperService.configureMappers();
+            microsoftSSOMapperService.configureMappers();
             
         } catch (Exception e) {
             log.error("Failed to configure Identity Provider Mappers: {}", e.getMessage(), e);
-        }
-    }
-    
-    private void configureGoogleMappers() {
-        try {
-            RealmResource realm = keycloakService.getRealmInstance();
-            
-                    // Check if Google identity provider exists
-                    var identityProviders = realm.identityProviders().findAll();
-                    boolean googleIdpExists = identityProviders.stream()
-                        .anyMatch(idp -> Constants.KEYCLOAK_IDP_GOOGLE.equals(idp.getAlias()));
-            
-            if (!googleIdpExists) {
-                log.warn("Google Identity Provider not found, skipping mapper configuration");
-                return;
-            }
-            
-            log.info("Google Identity Provider found, configuring mappers...");
-            
-            // Create mappers
-            createGoogleUsernameMapper(realm);
-            createGoogleEmailMapper(realm);
-            createGoogleFirstNameMapper(realm);
-            createGoogleLastNameMapper(realm);
-            
-        } catch (Exception e) {
-            log.error("Failed to configure Google mappers: {}", e.getMessage(), e);
-        }
-    }
-    
-    private void createGoogleUsernameMapper(RealmResource realm) {
-        try {
-            log.info("Creating Google Username mapper...");
-            
-                    IdentityProviderMapperRepresentation mapper = new IdentityProviderMapperRepresentation();
-                    mapper.setName("Google Username");
-                    mapper.setIdentityProviderAlias(Constants.KEYCLOAK_IDP_GOOGLE);
-                    mapper.setIdentityProviderMapper(Constants.KEYCLOAK_IDP_MAPPER_OIDC_USER_ATTRIBUTE);
-
-                    Map<String, String> config = new HashMap<>();
-                    config.put(Constants.KEYCLOAK_MAPPER_SYNC_MODE, Constants.KEYCLOAK_MAPPER_SYNC_MODE_INHERIT);
-                    config.put(Constants.KEYCLOAK_MAPPER_CLAIM, Constants.KEYCLOAK_MAPPER_EMAIL);
-                    config.put(Constants.KEYCLOAK_MAPPER_USER_ATTRIBUTE, Constants.KEYCLOAK_MAPPER_USERNAME);
-                    mapper.setConfig(config);
-
-                    realm.identityProviders().get(Constants.KEYCLOAK_IDP_GOOGLE).addMapper(mapper);
-            log.info("Google Username mapper created successfully");
-            
-        } catch (Exception e) {
-            log.error("Failed to create Google Username mapper: {}", e.getMessage(), e);
-        }
-    }
-    
-    private void createGoogleEmailMapper(RealmResource realm) {
-        try {
-            log.info("Creating Google Email mapper...");
-            
-                    IdentityProviderMapperRepresentation mapper = new IdentityProviderMapperRepresentation();
-                    mapper.setName("Google Email");
-                    mapper.setIdentityProviderAlias(Constants.KEYCLOAK_IDP_GOOGLE);
-                    mapper.setIdentityProviderMapper(Constants.KEYCLOAK_IDP_MAPPER_OIDC_USER_ATTRIBUTE);
-
-                    Map<String, String> config = new HashMap<>();
-                    config.put(Constants.KEYCLOAK_MAPPER_SYNC_MODE, Constants.KEYCLOAK_MAPPER_SYNC_MODE_INHERIT);
-                    config.put(Constants.KEYCLOAK_MAPPER_CLAIM, Constants.KEYCLOAK_MAPPER_EMAIL);
-                    config.put(Constants.KEYCLOAK_MAPPER_USER_ATTRIBUTE, Constants.KEYCLOAK_MAPPER_EMAIL);
-                    mapper.setConfig(config);
-
-                    realm.identityProviders().get(Constants.KEYCLOAK_IDP_GOOGLE).addMapper(mapper);
-            log.info("Google Email mapper created successfully");
-            
-        } catch (Exception e) {
-            log.error("Failed to create Google Email mapper: {}", e.getMessage(), e);
-        }
-    }
-    
-    private void createGoogleFirstNameMapper(RealmResource realm) {
-        try {
-            log.info("Creating Google First Name mapper...");
-            
-                    IdentityProviderMapperRepresentation mapper = new IdentityProviderMapperRepresentation();
-                    mapper.setName("Google First Name");
-                    mapper.setIdentityProviderAlias(Constants.KEYCLOAK_IDP_GOOGLE);
-                    mapper.setIdentityProviderMapper(Constants.KEYCLOAK_IDP_MAPPER_OIDC_USER_ATTRIBUTE);
-
-                    Map<String, String> config = new HashMap<>();
-                    config.put(Constants.KEYCLOAK_MAPPER_SYNC_MODE, Constants.KEYCLOAK_MAPPER_SYNC_MODE_INHERIT);
-                    config.put(Constants.KEYCLOAK_MAPPER_CLAIM, Constants.KEYCLOAK_MAPPER_GIVEN_NAME);
-                    config.put(Constants.KEYCLOAK_MAPPER_USER_ATTRIBUTE, Constants.KEYCLOAK_MAPPER_FIRST_NAME);
-                    mapper.setConfig(config);
-
-                    realm.identityProviders().get(Constants.KEYCLOAK_IDP_GOOGLE).addMapper(mapper);
-            log.info("Google First Name mapper created successfully");
-            
-        } catch (Exception e) {
-            log.error("Failed to create Google First Name mapper: {}", e.getMessage(), e);
-        }
-    }
-    
-    private void createGoogleLastNameMapper(RealmResource realm) {
-        try {
-            log.info("Creating Google Last Name mapper...");
-            
-                    IdentityProviderMapperRepresentation mapper = new IdentityProviderMapperRepresentation();
-                    mapper.setName("Google Last Name");
-                    mapper.setIdentityProviderAlias(Constants.KEYCLOAK_IDP_GOOGLE);
-                    mapper.setIdentityProviderMapper(Constants.KEYCLOAK_IDP_MAPPER_HARDCODED_ATTRIBUTE);
-
-                    Map<String, String> config = new HashMap<>();
-                    config.put(Constants.KEYCLOAK_MAPPER_SYNC_MODE, Constants.KEYCLOAK_MAPPER_SYNC_MODE_INHERIT);
-                    config.put(Constants.KEYCLOAK_MAPPER_ATTRIBUTE_VALUE, Constants.KEYCLOAK_MAPPER_LAST_NAME_DEFAULT);
-                    config.put(Constants.KEYCLOAK_MAPPER_ATTRIBUTE, Constants.KEYCLOAK_MAPPER_LAST_NAME);
-                    mapper.setConfig(config);
-
-                    realm.identityProviders().get(Constants.KEYCLOAK_IDP_GOOGLE).addMapper(mapper);
-            log.info("Google Last Name mapper created successfully");
-            
-        } catch (Exception e) {
-            log.error("Failed to create Google Last Name mapper: {}", e.getMessage(), e);
         }
     }
 }

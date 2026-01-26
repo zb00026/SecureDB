@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 public class GlobalAuthProviderService {
 
     private final String authProvider;
-    
+
     @Autowired(required = false)
     private KeycloakService keycloakService;
 
@@ -36,26 +36,22 @@ public class GlobalAuthProviderService {
             return AuthProvider.GOOGLE; // Default fallback
         }
     }
-    
+
     /**
      * Normalize auth provider name to handle variants
-     * Maps keycloak_sso, keycloak-sso to keycloak
+     * Maps keycloak-sso to keycloak_sso for consistency
      */
     private String normalizeAuthProvider(String provider) {
         if (provider == null) {
             return "google";
         }
-        
+
         String normalized = provider.toLowerCase().trim();
-        
-        // Handle keycloak variants - all map to KEYCLOAK
-        if (normalized.equals("keycloak_sso") || 
-            normalized.equals("keycloak-sso") ||
-            normalized.equals("keycloak")) {
-            return "keycloak";
-        }
-        
-        return normalized;
+
+        return switch (normalized) {
+            case "keycloak-sso" -> "keycloak_sso";
+            default -> normalized;
+        };
     }
 
     /**
@@ -69,7 +65,8 @@ public class GlobalAuthProviderService {
      * Check if the current auth provider is Keycloak
      */
     public boolean isKeycloakProvider() {
-        return getCurrentAuthProvider() == AuthProvider.KEYCLOAK || getCurrentAuthProvider() == AuthProvider.KEYCLOAK_SSO;
+        AuthProvider provider = getCurrentAuthProvider();
+        return provider == AuthProvider.KEYCLOAK || provider == AuthProvider.KEYCLOAK_SSO;
     }
 
     /**
@@ -78,7 +75,7 @@ public class GlobalAuthProviderService {
      */
     public String getEmailTemplate() {
         AuthProvider currentProvider = getCurrentAuthProvider();
-        
+
         return switch (currentProvider) {
             case KEYCLOAK_SSO -> "sso-invite";
             case KEYCLOAK -> {
@@ -120,12 +117,12 @@ public class GlobalAuthProviderService {
      */
     public boolean shouldCreateUsersAsActive() {
         AuthProvider currentProvider = getCurrentAuthProvider();
-        
+
         // SSO providers: users are active immediately
         if (currentProvider == AuthProvider.KEYCLOAK_SSO) {
             return true;
         }
-        
+
         // Keycloak with SSO: users are active immediately
         if (currentProvider == AuthProvider.KEYCLOAK && keycloakService != null) {
             try {
@@ -135,7 +132,7 @@ public class GlobalAuthProviderService {
                 return false; // Regular Keycloak users need email verification
             }
         }
-        
+
         // Google and other providers: users need email verification
         return false;
     }
