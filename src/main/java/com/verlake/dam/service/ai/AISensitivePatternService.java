@@ -2,10 +2,10 @@ package com.verlake.dam.service.ai;
 
 import com.verlake.dam.entity.ai.AISensitivePattern;
 import com.verlake.dam.entity.ai.FieldSuggestion;
+import com.verlake.dam.exception.AISensitivePatternException;
 import com.verlake.dam.repository.ai.AISensitivePatternRepository;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.exception.AISensitivePatternException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,40 +1,35 @@
 package com.verlake.dam.service.assets;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
-import com.verlake.dam.enums.AssetType;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.enums.EmailType;
-import com.verlake.dam.enums.Roles;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.*;
 import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
-import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.CommonUtils.CryptoException;
-
+import com.verlake.dam.utils.Constants;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
-
-import com.verlake.dam.entity.user.User;
-import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.repository.UserRepository;
-
-import lombok.extern.slf4j.Slf4j;
-import com.verlake.dam.repository.NotificationTaskRepository;
-import com.fasterxml.jackson.core.JsonParseException;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -478,7 +473,7 @@ public class AccessRequestService {
                 .toList();
         
         // Fetch all access requests upfront
-        List<AccessRequest> allAccessRequests = new java.util.ArrayList<>();
+        List<AccessRequest> allAccessRequests = new ArrayList<>();
         
         if (!unixAssetIds.isEmpty()) {
             List<AccessRequest> unixRequests = accessRequestRepository.findPendingUnixRequestsForAssets(
@@ -501,7 +496,7 @@ public class AccessRequestService {
                 .map(cred -> cred.getAsset().getId())
                 .toList();
         Map<Long, Asset> assetMap = assetRepository.findAllById(allAssetIds).stream()
-                .collect(java.util.stream.Collectors.toMap(Asset::getId, asset -> asset));
+                .collect(Collectors.toMap(Asset::getId, asset -> asset));
         
         // Process all access requests
         for (AccessRequest request : allAccessRequests) {

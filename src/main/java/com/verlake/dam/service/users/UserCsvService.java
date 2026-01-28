@@ -1,19 +1,20 @@
 package com.verlake.dam.service.users;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.verlake.dam.entity.Role;
-import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.exception.EmailSendingException;
+import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
-import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
-import com.verlake.dam.exception.EmailSendingException;
-import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.I18nUtils;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,8 +27,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 @Slf4j

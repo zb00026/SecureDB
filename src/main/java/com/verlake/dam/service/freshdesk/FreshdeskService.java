@@ -5,10 +5,13 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.DatabaseSchemaDTO;
+import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.*;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseSchemaService;
@@ -19,23 +22,24 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.auth.TokenService;
 import com.verlake.dam.service.auth.TokenServiceManager;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.exception.UserNotFoundException;
-import com.verlake.dam.exception.AuthenticationException;
-import com.verlake.dam.exception.AccessDeniedException;
-import com.verlake.dam.exception.InvalidRequestException;
-import com.verlake.dam.exception.AccessRequestNotFoundException;
-import com.verlake.dam.exception.QueryExecutionException;
-import com.verlake.dam.exception.JwtTokenException;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import lombok.extern.slf4j.Slf4j;
+import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
+import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -205,7 +209,7 @@ public class FreshdeskService {
         
         try {
             return databaseSchemaService.getSchemaForCurrentUser(null, requestId, false);
-        } catch (com.verlake.dam.utils.CommonUtils.CryptoException e) {
+        } catch (CommonUtils.CryptoException e) {
             log.error("Failed to get schema for requestId: {}", requestId, e);
             throw new QueryExecutionException("Failed to fetch schema: " + e.getMessage(), e);
         } catch (Exception e) {
@@ -273,8 +277,7 @@ public class FreshdeskService {
         }
         
         // Create NaturalLanguageQueryDTO
-        com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO queryDto = 
-                new com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO();
+        NaturalLanguageQueryDTO queryDto = new NaturalLanguageQueryDTO();
         queryDto.setRequestId(requestId);
         queryDto.setNaturalLanguageQuery(naturalLanguageQuery);
         
@@ -294,17 +297,17 @@ public class FreshdeskService {
     private String generateHagridsToken(User user) {
         try {
             // Get Keycloak user ID using KeycloakService
-            org.keycloak.admin.client.resource.RealmResource realm = keycloakService.getRealmInstance();
-            org.keycloak.admin.client.resource.UsersResource usersResource = realm.users();
+            RealmResource realm = keycloakService.getRealmInstance();
+            UsersResource usersResource = realm.users();
             
             // Find user by email
-            List<org.keycloak.representations.idm.UserRepresentation> users = usersResource.search(user.getEmail());
+            List<UserRepresentation> users = usersResource.search(user.getEmail());
             if (users == null || users.isEmpty()) {
                 log.error("Keycloak user not found for email: {}", user.getEmail());
                 throw new UserNotFoundException("Keycloak user not found. Please contact administrator.");
             }
             
-            org.keycloak.representations.idm.UserRepresentation keycloakUser = users.get(0);
+            UserRepresentation keycloakUser = users.get(0);
             String keycloakUserId = keycloakUser.getId();
             String keycloakUsername = keycloakUser.getUsername();
             
@@ -334,22 +337,21 @@ public class FreshdeskService {
      * and generate a token by temporarily setting a password, getting a token, then resetting it
      */
     private String generateTokenViaTemporaryPassword(String keycloakUserId, String keycloakUsername, String userEmail) {
-        org.keycloak.admin.client.resource.RealmResource realm = keycloakService.getRealmInstance();
-        org.keycloak.admin.client.resource.UserResource userResource = realm.users().get(keycloakUserId);
+        RealmResource realm = keycloakService.getRealmInstance();
+        UserResource userResource = realm.users().get(keycloakUserId);
         
         // Generate a secure temporary password
         String tempPassword = generateSecureTempPassword();
         
         try {
             // Get current user representation to check required actions
-            org.keycloak.representations.idm.UserRepresentation userRep = userResource.toRepresentation();
-            java.util.List<String> originalRequiredActions = userRep.getRequiredActions() != null ? 
-                new java.util.ArrayList<>(userRep.getRequiredActions()) : new java.util.ArrayList<>();
+            UserRepresentation userRep = userResource.toRepresentation();
+            List<String> originalRequiredActions = userRep.getRequiredActions() != null ? 
+                new ArrayList<>(userRep.getRequiredActions()) : new ArrayList<>();
             
             // Set temporary password for the user
-            org.keycloak.representations.idm.CredentialRepresentation credential = 
-                new org.keycloak.representations.idm.CredentialRepresentation();
-            credential.setType(org.keycloak.representations.idm.CredentialRepresentation.PASSWORD);
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
             credential.setValue(tempPassword);
             credential.setTemporary(false); // Set as non-temporary to avoid required actions
             
@@ -360,7 +362,7 @@ public class FreshdeskService {
             // This is safe for Freshdesk integration since users authenticate via Freshdesk
             userRep = userResource.toRepresentation();
             if (userRep.getRequiredActions() != null && !userRep.getRequiredActions().isEmpty()) {
-                userRep.setRequiredActions(new java.util.ArrayList<>());
+                userRep.setRequiredActions(new ArrayList<>());
                 userResource.update(userRep);
                 log.debug("Cleared required actions for user: {}", userEmail);
             }
@@ -370,7 +372,7 @@ public class FreshdeskService {
             
             // Restore original required actions (except UPDATE_PASSWORD which we don't want)
             if (!originalRequiredActions.isEmpty()) {
-                java.util.List<String> restoredActions = originalRequiredActions.stream()
+                List<String> restoredActions = originalRequiredActions.stream()
                     .filter(action -> !"UPDATE_PASSWORD".equals(action))
                     .toList();
                 
@@ -449,7 +451,7 @@ public class FreshdeskService {
     private String generateSecureTempPassword() {
         // Generate a secure random password for temporary use
         // This password will be used only to get a token and is marked as temporary
-        java.security.SecureRandom random = new java.security.SecureRandom();
+        SecureRandom random = new SecureRandom();
         StringBuilder password = new StringBuilder();
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
         
@@ -469,10 +471,10 @@ public class FreshdeskService {
         // This should use your existing token validation logic
         UserDTO userDto = new UserDTO();
         userDto.setToken(token);
-        userDto.setAuthProvider(com.verlake.dam.enums.AuthProvider.KEYCLOAK);
+        userDto.setAuthProvider(AuthProvider.KEYCLOAK);
         
         try {
-            TokenService tokenService = tokenServiceManager.getService(com.verlake.dam.enums.AuthProvider.KEYCLOAK);
+            TokenService tokenService = tokenServiceManager.getService(AuthProvider.KEYCLOAK);
             authService.validateToken(userDto, tokenService);
             User user = authService.authenticateUser(userDto, tokenService);
             

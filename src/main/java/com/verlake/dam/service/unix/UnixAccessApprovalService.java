@@ -1,23 +1,21 @@
 package com.verlake.dam.service.unix;
 
+import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.unix.UnixGroup;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.service.terminal.SSHConnectionService;
-import com.verlake.dam.service.unix.SSHKeyPairService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

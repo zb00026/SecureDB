@@ -2,41 +2,41 @@ package com.verlake.dam.service.assets;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetQueryChangeRequestRepository;
-import com.verlake.dam.repository.assets.AssetApproversRepository;
-import com.verlake.dam.repository.NotificationTaskRepository;
-import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.ai.DataMaskingService;
-import com.verlake.dam.utils.AuditDescriptionUtils;
-import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.DatabaseQueryUtils;
-import com.verlake.dam.utils.IpAddressUtils;
+import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.AccessRequestExpiredException;
 import com.verlake.dam.exception.AssetQueryChangeRequestNotFoundException;
 import com.verlake.dam.exception.QueryExecutionException;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.verlake.dam.repository.assets.AssetApproversRepository;
+import com.verlake.dam.repository.assets.AssetQueryChangeRequestRepository;
+import com.verlake.dam.service.ai.DataMaskingService;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.DatabaseQueryUtils;
+import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -58,14 +58,15 @@ public class AssetQueryChangeRequestService {
             AssetApproversRepository assetApproversRepository,
             NotificationTaskRepository notificationTaskRepository, DatabaseAccessService databaseAccessService,
             UserService userService, AccessRequestService accessRequestService, AuditTrailService auditTrailService,
-            DataMaskingService dataMaskingService) {
+            DataMaskingService dataMaskingService,
+            ObjectMapper objectMapper) {
         this.assetQueryChangeRequestRepository = assetQueryChangeRequestRepository;
         this.assetService = assetService;
         this.assetApproversRepository = assetApproversRepository;
         this.notificationTaskRepository = notificationTaskRepository;
         this.databaseAccessService = databaseAccessService;
         this.userService = userService;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.accessRequestService = accessRequestService;
         this.auditTrailService = auditTrailService;
         this.dataMaskingService = dataMaskingService;

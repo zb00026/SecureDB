@@ -1,12 +1,12 @@
 package com.verlake.dam.entity.firebase;
 
-import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.EmailType;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import com.verlake.dam.enums.EmailType;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 

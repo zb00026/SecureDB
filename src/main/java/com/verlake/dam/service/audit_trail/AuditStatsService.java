@@ -5,7 +5,6 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.dto.AuditStatsDTO;
 import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
-import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

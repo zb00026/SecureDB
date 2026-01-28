@@ -1,32 +1,34 @@
 package com.verlake.dam.service.assets;
 
-import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.assets.dto.*;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.enums.ApprovalStatus;
+import com.mongodb.client.MongoDatabase;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.dto.ColumnSchemaDTO;
+import com.verlake.dam.entity.assets.dto.DatabaseSchemaDTO;
+import com.verlake.dam.entity.assets.dto.TableSchemaDTO;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.enums.Roles;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.*;
-import java.util.*;
-
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoIterable;
-import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
-import org.bson.Document;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j

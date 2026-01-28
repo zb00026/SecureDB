@@ -1,29 +1,58 @@
 package com.verlake.dam.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.enums.AuditAction;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.utils.IpAddressUtils;
 import com.verlake.dam.utils.SpringContext;
-import jakarta.persistence.*;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreRemove;
+import jakarta.persistence.PreUpdate;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 public class AuditEntityListener {
-    private final ObjectMapper mapper = new ObjectMapper();
-    private static final ThreadLocal<java.util.Map<String, String>> SNAPSHOTS =
-            ThreadLocal.withInitial(java.util.HashMap::new);
+    private static final ThreadLocal<Map<String, String>> SNAPSHOTS =
+            ThreadLocal.withInitial(HashMap::new);
+    
+    // Use a static ObjectMapper instance for JPA listeners
+    // JPA listeners are instantiated before Spring context is fully initialized,
+    // so we can't use dependency injection or SpringContext
+    private static final ObjectMapper OBJECT_MAPPER = createObjectMapper();
+    
+    private static ObjectMapper createObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        return mapper;
+    }
+    
+    private ObjectMapper getObjectMapper() {
+        // Try to get from Spring context if available, otherwise use static instance
+        try {
+            return SpringContext.getBean(ObjectMapper.class);
+        } catch (Exception e) {
+            // Fallback to static instance if SpringContext is not available
+            // This happens during JPA entity scanning before Spring context is initialized
+            return OBJECT_MAPPER;
+        }
+    }
 
     private String snapshotKey(Object entity) {
         try {
@@ -38,7 +67,7 @@ public class AuditEntityListener {
     public void postLoad(Object target) {
         if (target.getClass().isAnnotationPresent(Audited.class)) {
             try {
-                mapper.registerModule(new JavaTimeModule());
+                ObjectMapper mapper = getObjectMapper();
                 String json = mapper.writeValueAsString(target);
                 SNAPSHOTS.get().put(snapshotKey(target), json);
             } catch (Exception ignored) {
@@ -68,7 +97,7 @@ public class AuditEntityListener {
         if (target.getClass().isAnnotationPresent(Audited.class)) {
             String previousValue;
             try {
-                mapper.registerModule(new JavaTimeModule());
+                ObjectMapper mapper = getObjectMapper();
                 previousValue = mapper.writeValueAsString(target);
             } catch (Exception e) {
                 previousValue = null;
@@ -97,7 +126,7 @@ public class AuditEntityListener {
             String entityName = audited.entity();
             String formattedInstanceId = String.format("%s(%s)", entityName, specialIdentifier);
 
-            mapper.registerModule(new JavaTimeModule());
+            ObjectMapper mapper = getObjectMapper();
             
             // Extract asset entity if available
             Asset assetEntity = extractAsset(target);

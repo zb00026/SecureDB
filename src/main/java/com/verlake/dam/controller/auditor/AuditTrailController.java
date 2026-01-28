@@ -2,26 +2,27 @@ package com.verlake.dam.controller.auditor;
 
 
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.dto.AuditTrailFilter;
-import com.verlake.dam.entity.dto.AuditTrailDTO;
-import com.verlake.dam.entity.dto.AuditStatsDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
-import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
-import com.verlake.dam.service.audit_trail.AuditStatsService;
-import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.entity.dto.AuditStatsDTO;
+import com.verlake.dam.entity.dto.AuditTrailDTO;
+import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.exception.AuditTrailException;
 import com.verlake.dam.exception.CsvExportException;
-
+import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.audit_trail.AuditStatsService;
+import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -61,7 +62,7 @@ public class AuditTrailController {
      */
     @GetMapping("/actions")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_AUDITOR')")
-    public ResponseEntity<java.util.List<String>> getDistinctActions() {
+    public ResponseEntity<List<String>> getDistinctActions() {
         return ResponseEntity.ok(auditTrailService.getDistinctActions());
     }
 

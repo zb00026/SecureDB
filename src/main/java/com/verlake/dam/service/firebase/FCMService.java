@@ -4,12 +4,10 @@ import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.TopicManagementResponse;
 import com.verlake.dam.exception.FirebaseMessagingOperationException;
-
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.util.Collections;
-
-import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j

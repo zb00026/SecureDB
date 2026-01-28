@@ -5,7 +5,7 @@ import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.Constants;
-
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -15,9 +15,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.stereotype.Component;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -56,7 +56,7 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
             
             if (authorities == null) {
                 log.warn("extractAuthorities returned null, using empty authorities");
-                authorities = java.util.Collections.emptyList();
+                authorities = Collections.emptyList();
             }
             
             JwtAuthenticationToken token = new JwtAuthenticationToken(jwt, authorities);
@@ -73,7 +73,7 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
             log.error("Error converting JWT token: {}", e.getMessage(), e);
             // Return token with empty authorities to allow authorization check to happen
             // This ensures we get 403 (Forbidden) instead of 401 (Unauthorized) if user lacks permissions
-            return new JwtAuthenticationToken(jwt, java.util.Collections.emptyList());
+            return new JwtAuthenticationToken(jwt, Collections.emptyList());
         }
     }
 

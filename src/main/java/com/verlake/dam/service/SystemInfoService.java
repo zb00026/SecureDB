@@ -1,11 +1,11 @@
 package com.verlake.dam.service;
 
+import com.verlake.dam.utils.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.verlake.dam.utils.Constants;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.security.MessageDigest;

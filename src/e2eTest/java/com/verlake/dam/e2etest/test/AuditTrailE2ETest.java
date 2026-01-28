@@ -1,6 +1,7 @@
 package com.verlake.dam.e2etest.test;
 
-import com.verlake.dam.e2etest.pageobjects.*;
+import com.verlake.dam.e2etest.pageobjects.SettingsPage;
+import com.verlake.dam.e2etest.pageobjects.UserManagementPage;
 import org.junit.jupiter.api.*;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 

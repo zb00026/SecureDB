@@ -1,5 +1,9 @@
 package com.verlake.dam.service.aws;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -12,11 +16,6 @@ import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.verlake.dam.exception.DatabaseAccessException;
-import com.verlake.dam.utils.Constants;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,8 +35,9 @@ public class AWSSecretsManagerService {
     public AWSSecretsManagerService(
             @Value("${aws.accessKeyId:#{null}}") String accessKey,
             @Value("${aws.secretKey:#{null}}") String secretKey,
-            @Value("${aws.region}") String region) {
-        this.objectMapper = new ObjectMapper();
+            @Value("${aws.region}") String region,
+            ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         
         // Use IAM role credentials if access key/secret key are not provided
         AwsCredentialsProvider credentialsProvider = accessKey != null && secretKey != null

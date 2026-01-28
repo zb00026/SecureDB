@@ -3,7 +3,6 @@ package com.verlake.dam.entity;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.listener.AuditEntityListener;
-
 import jakarta.persistence.*;
 import lombok.Data;
 

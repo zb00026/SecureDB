@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 /**
  * Jackson configuration to handle Hibernate proxies and prevent serialization issues
@@ -20,8 +19,8 @@ public class JacksonConfiguration {
 
     @Bean
     @Primary
-    public ObjectMapper objectMapper(Jackson2ObjectMapperBuilder builder) {
-        ObjectMapper objectMapper = builder.createXmlMapper(false).build();
+    public ObjectMapper objectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
         
         // Configure to handle Hibernate proxies
         objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);

@@ -1,63 +1,56 @@
 package com.verlake.dam.service.assets;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.mongodb.client.*;
+import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetObject;
 import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
-import com.verlake.dam.entity.assets.dto.UserAccessDTO;
+import com.verlake.dam.entity.assets.dto.PermissionDTO;
 import com.verlake.dam.entity.assets.dto.PermissionValidationResult;
+import com.verlake.dam.entity.assets.dto.UserAccessDTO;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.models.assets.FieldKeys;
+import com.verlake.dam.models.assets.LockoutResultData;
+import com.verlake.dam.models.assets.OperationMetadata;
+import com.verlake.dam.models.assets.UserLists;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.assets.AssetObjectRepository;
+import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.fetchers.*;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.exception.DatabaseAccessException;
-import org.springframework.stereotype.Service;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import com.verlake.dam.enums.Roles;
-import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
-import com.verlake.dam.service.assets.fetchers.*;
-import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoIterable;
-import org.bson.Document;
-import com.verlake.dam.entity.assets.dto.PermissionDTO;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.verlake.dam.models.assets.LockoutResultData;
-import com.verlake.dam.models.assets.OperationMetadata;
-import com.verlake.dam.models.assets.UserLists;
-import com.verlake.dam.models.assets.FieldKeys;
-
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.sql.*;
-import java.util.Objects;
-
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Propagation;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.sql.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -76,11 +69,12 @@ public class DatabaseAccessService {
     public DatabaseAccessService(AssetObjectRepository assetObjectRepository,
             AssetCredentialsRepository assetCredentialsRepository,
             KeycloakService keycloakService, UserService userService,
-            DatabaseConnectionUtils databaseConnectionUtils) {
+            DatabaseConnectionUtils databaseConnectionUtils,
+            ObjectMapper objectMapper) {
         this.assetObjectRepository = assetObjectRepository;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.keycloakService = keycloakService;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.userService = userService;
         this.databaseConnectionUtils = databaseConnectionUtils;
     }
@@ -2128,8 +2122,7 @@ public class DatabaseAccessService {
         
         try {
             // Try to parse as JSON (MongoDB command or aggregation pipeline)
-            ObjectMapper jsonMapper = new ObjectMapper();
-            JsonNode jsonNode = jsonMapper.readTree(query);
+            JsonNode jsonNode = objectMapper.readTree(query);
             
             if (jsonNode.isArray()) {
                 // Aggregation pipeline
@@ -2363,8 +2356,7 @@ public class DatabaseAccessService {
         // Try to find collection name in various formats
         if (query.contains("\"find\"")) {
             try {
-                ObjectMapper jsonMapper = new ObjectMapper();
-                JsonNode jsonNode = jsonMapper.readTree(query);
+                JsonNode jsonNode = objectMapper.readTree(query);
                 if (jsonNode.has("find")) {
                     return jsonNode.get("find").asText();
                 }
@@ -2995,7 +2987,7 @@ public class DatabaseAccessService {
      * @param asset           The asset containing database connection information
      * @param adminCredential The admin credential to use for the operation
      * @param lockAllUsers    If true, locks all database users. If false, only
-     *                        locks Hagrid users.
+     *                        locks Hagrids users.
      * @return Map containing operation results and statistics
      * @throws DatabaseAccessException for any database operation errors
      */
@@ -3069,7 +3061,7 @@ public class DatabaseAccessService {
      * @param asset           The asset containing database connection information
      * @param adminCredential The admin credential to use for the operation
      * @param unlockAllUsers  If true, unlocks all database users. If false, only
-     *                        unlocks Hagrid users.
+     *                        unlocks Hagrids users.
      * @return Map containing operation results and statistics
      * @throws DatabaseAccessException for any database operation errors
      */
@@ -3255,7 +3247,7 @@ public class DatabaseAccessService {
     }
 
     /**
-     * Gets Hagrid users (users managed by our system)
+     * Gets Hagrids users (users managed by our system)
      */
     private List<String> getHagridUsers(Asset asset) throws SQLException {
         // Get users from our asset_credentials table for this asset
@@ -3268,7 +3260,7 @@ public class DatabaseAccessService {
     }
 
     /**
-     * Gets locked Hagrid users
+     * Gets locked Hagrids users
      */
     private List<String> getLockedHagridUsers(Connection connection, Asset asset) throws SQLException {
         List<String> hagridUsers = getHagridUsers(asset);
@@ -4490,8 +4482,7 @@ public class DatabaseAccessService {
             objectsData.put("permission_sufficient", validationResult.isSufficient());
             objectsData.put("warnings", validationResult.getWarnings());
 
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.writeValueAsString(objectsData);
+            return objectMapper.writeValueAsString(objectsData);
         } catch (Exception e) {
             log.error("Failed to create objects JSON with warning: {}", e.getMessage());
             return "{\"error\": \"Failed to process database objects due to permission issues\"}";

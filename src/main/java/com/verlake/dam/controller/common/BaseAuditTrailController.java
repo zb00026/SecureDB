@@ -1,14 +1,14 @@
 package com.verlake.dam.controller.common;
 
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
-import com.verlake.dam.entity.dto.AuditTrailDTO;
 import com.verlake.dam.entity.dto.AuditStatsDTO;
-import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
-import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
-import com.verlake.dam.service.audit_trail.AuditStatsService;
-import com.verlake.dam.exception.CsvExportException;
+import com.verlake.dam.entity.dto.AuditTrailDTO;
+import com.verlake.dam.entity.dto.RoleBasedAuditTrailFilter;
 import com.verlake.dam.exception.AuditTrailException;
+import com.verlake.dam.exception.CsvExportException;
+import com.verlake.dam.service.audit_trail.AuditStatsService;
+import com.verlake.dam.service.audit_trail.AuditTrailCsvExportService;
+import com.verlake.dam.service.audit_trail.RoleBasedAuditTrailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import java.util.List;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -62,7 +63,7 @@ public abstract class BaseAuditTrailController {
      */
     @GetMapping("/actions")
     @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
-    public ResponseEntity<java.util.List<String>> getDistinctActions() {
+    public ResponseEntity<List<String>> getDistinctActions() {
         roleBasedAuditTrailService.validateAuditAccess();
         return ResponseEntity.ok(roleBasedAuditTrailService.getDistinctActions());
     }

@@ -1,9 +1,13 @@
 package com.verlake.dam.service.assets;
 
-import com.verlake.dam.entity.assets.AccessLevel;
-import com.verlake.dam.entity.assets.AssetApprover;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.AssetLockedException;
@@ -11,19 +15,21 @@ import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -39,17 +45,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.enums.AssetType;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoDatabase;
-import org.bson.Document;
 
 @Service
 @Slf4j
@@ -587,7 +582,7 @@ public class AssetService {
      * This is a critical security operation - coded defensively
      * 
      * @param assetId The asset ID
-     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrid users.
+     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrids users.
      * @return Map containing operation results
      * @throws SecurityException if current user is not admin or asset owner
      * @throws IllegalArgumentException if asset not found
@@ -644,7 +639,7 @@ public class AssetService {
      * This is a critical security operation - coded defensively
      * 
      * @param assetId The asset ID
-     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrid users.
+     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrids users.
      * @return Map containing operation results
      * @throws SecurityException if current user is not admin or asset owner
      * @throws IllegalArgumentException if asset not found

@@ -1,9 +1,8 @@
 package com.verlake.dam.batch;
 
+import com.verlake.dam.entity.firebase.NotificationTask;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.stereotype.Component;
-
-import com.verlake.dam.entity.firebase.NotificationTask;
 
 @Component
 public class NotificationTaskReader implements ItemReader<NotificationTask> {

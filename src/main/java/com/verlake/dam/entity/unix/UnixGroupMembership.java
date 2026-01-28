@@ -1,8 +1,8 @@
 package com.verlake.dam.entity.unix;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.enums.ApprovalStatus;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

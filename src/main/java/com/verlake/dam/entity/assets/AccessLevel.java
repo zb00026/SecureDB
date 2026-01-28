@@ -1,18 +1,10 @@
 package com.verlake.dam.entity.assets;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.Id;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.EnumType;
-
-import lombok.Data;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
+import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(name = "access_levels")

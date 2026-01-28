@@ -1,16 +1,15 @@
 package com.verlake.dam.controller.developer;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.verlake.dam.controller.common.BaseAssetAccessController;
 import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
-import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
-import com.verlake.dam.entity.assets.dto.AssetDTO;
+import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.service.assets.AccessLevelService;
+import com.verlake.dam.service.assets.*;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
@@ -19,18 +18,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.verlake.dam.service.assets.AccessRequestService;
-import com.verlake.dam.service.assets.AssetService;
-import com.verlake.dam.service.assets.QueryExecutionService;
-import com.verlake.dam.service.assets.NaturalLanguageToSqlService;
-import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 @RestController
 @RequestMapping("/api/developer/assets")

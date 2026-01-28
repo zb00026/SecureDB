@@ -1,25 +1,21 @@
 package com.verlake.dam.controller.auditor;
 
-import com.verlake.dam.entity.terminal.TerminalSessionRecording;
-import com.verlake.dam.entity.terminal.TerminalCommandAudit;
-import com.verlake.dam.entity.dto.TerminalSessionRecordingDTO;
-import com.verlake.dam.entity.dto.TerminalCommandAuditDTO;
-import com.verlake.dam.entity.dto.TerminalSessionRecordingFilter;
-import com.verlake.dam.entity.dto.TerminalCommandAuditFilter;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
-import com.verlake.dam.repository.terminal.TerminalSessionRecordingRepository;
+import com.verlake.dam.entity.dto.TerminalCommandAuditDTO;
+import com.verlake.dam.entity.dto.TerminalCommandAuditFilter;
+import com.verlake.dam.entity.dto.TerminalSessionRecordingDTO;
+import com.verlake.dam.entity.dto.TerminalSessionRecordingFilter;
+import com.verlake.dam.entity.terminal.TerminalCommandAudit;
+import com.verlake.dam.entity.terminal.TerminalSessionRecording;
 import com.verlake.dam.repository.terminal.TerminalCommandAuditRepository;
-import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.repository.terminal.TerminalSessionRecordingRepository;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.terminal.TerminalRecordingService;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -27,9 +23,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 /**
  * Controller for auditors to view terminal sessions and command history

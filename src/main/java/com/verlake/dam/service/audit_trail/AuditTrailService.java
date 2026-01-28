@@ -5,11 +5,8 @@ import com.verlake.dam.entity.dto.AuditTrailFilter;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.service.s3.S3Service;
 import com.verlake.dam.utils.Constants;
-
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.parquet.avro.AvroParquetWriter;
@@ -28,9 +25,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -38,7 +35,6 @@ import java.util.List;
 public class AuditTrailService {
     private final AuditTrailRepository auditTrailRepository;
     private final S3Service s3Service;
-    private final HttpServletRequest request; // used by other methods in this service
     private final com.verlake.dam.repository.S3BucketSettingsRepository s3BucketSettingsRepository;
 
     @Value("${AUDIT_RETENTION_DAYS:30}")

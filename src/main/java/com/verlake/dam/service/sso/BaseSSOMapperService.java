@@ -2,6 +2,7 @@ package com.verlake.dam.service.sso;
 
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.Constants;
+import jakarta.ws.rs.ForbiddenException;
 import org.keycloak.admin.client.resource.IdentityProviderResource;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.IdentityProviderMapperRepresentation;
@@ -9,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import jakarta.ws.rs.ForbiddenException;
 import java.util.List;
 import java.util.Map;
 

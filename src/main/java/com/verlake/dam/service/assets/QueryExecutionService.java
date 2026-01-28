@@ -2,25 +2,30 @@ package com.verlake.dam.service.assets;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.exception.QueryExecutionException;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.service.ai.DataMaskingService;
+import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.assets.common.AssetValidationUtils;
-import com.verlake.dam.service.ai.DataMaskingService;
-import com.verlake.dam.utils.*;
+import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.DatabaseQueryUtils;
+import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -53,7 +58,8 @@ public class QueryExecutionService {
                                  KeycloakService keycloakService, 
                                  AccessRequestRepository accessRequestRepository, 
                                  AssetCredentialsRepository assetCredentialsRepository,
-                                 AccessRequestService accessRequestService) {
+                                 AccessRequestService accessRequestService,
+                                 ObjectMapper objectMapper) {
         this.databaseAccessService = databaseAccessService;
         this.userService = userService;
         this.dataMaskingService = dataMaskingService;
@@ -62,7 +68,7 @@ public class QueryExecutionService {
         this.assetValidationUtils = assetValidationUtils;
         this.assetService = assetService;
         this.keycloakService = keycloakService;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.accessRequestRepository = accessRequestRepository;
         this.assetCredentialsRepository = assetCredentialsRepository;
         this.accessRequestService = accessRequestService;

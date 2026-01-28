@@ -1,20 +1,17 @@
 package com.verlake.dam.service.ai;
 
+import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.ai.AIMaskingPolicy;
 import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.IpAddressUtils;
-
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -40,8 +37,8 @@ public class DataMaskingService {
         
         // Parse multiple roles from comma-separated string
         List<String> userRoles = userRole.contains(",") ? 
-            java.util.Arrays.asList(userRole.split(",")) : 
-            java.util.Arrays.asList(userRole);
+            Arrays.asList(userRole.split(",")) : 
+            Arrays.asList(userRole);
         
         // Get applicable masking policies for all user roles
         List<AIMaskingPolicy> policies = getApplicablePoliciesForMultipleRoles(asset, userRoles);
@@ -113,7 +110,7 @@ public class DataMaskingService {
      * Get applicable masking policies for multiple user roles
      */
     private List<AIMaskingPolicy> getApplicablePoliciesForMultipleRoles(Asset asset, List<String> userRoles) {
-        List<AIMaskingPolicy> allApplicablePolicies = new java.util.ArrayList<>();
+        List<AIMaskingPolicy> allApplicablePolicies = new ArrayList<>();
         
         for (String role : userRoles) {
             List<AIMaskingPolicy> rolePolicies = maskingPolicyService.getApplicablePolicies(asset, role.trim());

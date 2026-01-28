@@ -6,13 +6,11 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.I18nUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,7 +19,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j

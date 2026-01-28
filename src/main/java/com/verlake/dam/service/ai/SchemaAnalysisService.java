@@ -1,5 +1,6 @@
 package com.verlake.dam.service.ai;
 
+import com.mongodb.client.MongoDatabase;
 import com.verlake.dam.entity.ai.AICategory;
 import com.verlake.dam.entity.ai.FieldSuggestion;
 import com.verlake.dam.entity.assets.Asset;
@@ -14,15 +15,16 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import lombok.extern.slf4j.Slf4j;
-import com.verlake.dam.enums.SensitiveCategory;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import com.mongodb.client.MongoDatabase;
 
 import javax.sql.DataSource;
 import java.sql.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j

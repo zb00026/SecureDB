@@ -1,10 +1,6 @@
 package com.verlake.dam.e2etest.test;
 
-import org.junit.platform.suite.api.Suite;
-import org.junit.platform.suite.api.SuiteDisplayName;
-import org.junit.platform.suite.api.SelectClasses;
-import org.junit.platform.suite.api.IncludeEngines;
-import org.junit.platform.suite.api.IncludeClassNamePatterns;
+import org.junit.platform.suite.api.*;
 
 @Suite
 @SuiteDisplayName("E2E Test Suite")

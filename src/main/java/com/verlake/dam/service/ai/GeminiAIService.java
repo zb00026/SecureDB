@@ -3,10 +3,10 @@ package com.verlake.dam.service.ai;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.entity.ai.FieldSuggestion;
-import com.verlake.dam.exception.AIPromptException;
+import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.exception.AIGeminiException;
+import com.verlake.dam.exception.AIPromptException;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +53,8 @@ public class GeminiAIService {
     public GeminiAIService(RestTemplate restTemplate, String geminiApiKey, String geminiModelName,
                           int geminiMaxTokens, float geminiTemperature, int geminiTopK, float geminiTopP,
                           int geminiMaxRetries, int geminiBaseDelayMs, int geminiMaxDelayMs,
-                          AIPromptService promptService, AISensitivePatternService patternService) {
+                          AIPromptService promptService, AISensitivePatternService patternService,
+                          ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.apiKey = geminiApiKey;
         this.modelName = geminiModelName;
@@ -64,7 +65,7 @@ public class GeminiAIService {
         this.maxRetries = geminiMaxRetries;
         this.baseDelayMs = geminiBaseDelayMs;
         this.maxDelayMs = geminiMaxDelayMs;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.promptService = promptService;
         this.patternService = patternService;
     }

@@ -1,23 +1,14 @@
 package com.verlake.dam.e2etest.test;
 
 import com.verlake.dam.e2etest.pageobjects.*;
-import lombok.Getter;
-import org.junit.jupiter.api.*;
-import org.openqa.selenium.Dimension;
-import static org.assertj.core.api.Assertions.assertThat;
-import org.junit.jupiter.api.extension.TestWatcher;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestWatcher;
+import org.openqa.selenium.Dimension;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.OutputType;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(TestWatcherExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

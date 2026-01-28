@@ -3,12 +3,11 @@ package com.verlake.dam.entity.dto;
 import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.utils.Constants;
+import jakarta.persistence.criteria.Predicate;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.data.jpa.domain.Specification;
-import jakarta.persistence.criteria.Predicate;
 
 import java.util.ArrayList;
 import java.util.List;

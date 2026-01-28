@@ -1,11 +1,12 @@
 package com.verlake.dam.configuration;
 
-import javax0.license3j.License;
-import javax0.license3j.io.LicenseReader;
 import com.verlake.dam.exception.LicenseException;
 import com.verlake.dam.service.LicenseService;
 import com.verlake.dam.service.SystemInfoService;
 import com.verlake.dam.utils.Constants;
+import jakarta.annotation.PostConstruct;
+import javax0.license3j.License;
+import javax0.license3j.io.LicenseReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +14,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Date;

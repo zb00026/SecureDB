@@ -2,6 +2,7 @@ package com.verlake.dam.security;
 
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.utils.Constants;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +17,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
-import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @EnableWebSecurity

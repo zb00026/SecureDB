@@ -1,17 +1,18 @@
 package com.verlake.dam.entity.assets;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.verlake.dam.annotation.Audited;
-import com.verlake.dam.entity.user.User;
-import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.listener.AuditEntityListener;
 import com.verlake.dam.entity.assets.dto.AssetApprovalsDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
-
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.listener.AuditEntityListener;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class AccessRequest {
     private Asset asset;
     
     @Transient
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     private AssetDTO assetDTO;
 
     @Transient

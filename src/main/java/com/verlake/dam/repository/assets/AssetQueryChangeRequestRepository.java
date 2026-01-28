@@ -1,8 +1,7 @@
 package com.verlake.dam.repository.assets;
 
-import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import com.verlake.dam.entity.assets.Asset;
-
+import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

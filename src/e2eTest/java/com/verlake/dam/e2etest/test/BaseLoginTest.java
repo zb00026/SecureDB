@@ -1,16 +1,13 @@
 package com.verlake.dam.e2etest.test;
 
 import com.verlake.dam.e2etest.E2E;
-import com.verlake.dam.e2etest.pageobjects.*;
+import com.verlake.dam.e2etest.pageobjects.AuditHistoryPage;
+import com.verlake.dam.e2etest.pageobjects.DashboardPage;
+import com.verlake.dam.e2etest.pageobjects.KeycloakLoginPage;
+import com.verlake.dam.e2etest.pageobjects.MainPage;
+import org.junit.jupiter.api.BeforeEach;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
 
 public class BaseLoginTest extends E2E {
     protected MainPage homePage;

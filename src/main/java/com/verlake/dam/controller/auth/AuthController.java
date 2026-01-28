@@ -3,40 +3,38 @@ package com.verlake.dam.controller.auth;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.entity.user.dto.ForgotPasswordRequestDTO;
 import com.verlake.dam.entity.user.dto.ResetPasswordRequestDTO;
 import com.verlake.dam.entity.user.dto.ResetPasswordValidationDTO;
+import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.service.auth.*;
-import com.verlake.dam.utils.CommonUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import com.verlake.dam.enums.AuthProvider;
-
-import org.springframework.web.server.ResponseStatusException;
-import com.verlake.dam.service.assets.DatabaseAccessService;
-import com.verlake.dam.service.firebase.FirebaseMessagingService;
-import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
-
+import com.verlake.dam.service.assets.DatabaseAccessService;
+import com.verlake.dam.service.auth.*;
+import com.verlake.dam.service.firebase.FirebaseMessagingService;
+import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-
-import org.springframework.core.task.AsyncTaskExecutor;
 
 @RestController
 public class AuthController {

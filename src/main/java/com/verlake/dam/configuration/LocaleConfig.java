@@ -10,7 +10,6 @@ import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Properties;
 
 @Configuration

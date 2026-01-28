@@ -2,11 +2,10 @@ package com.verlake.dam.entity.assets;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
-
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(name = "asset_query_change_requests")

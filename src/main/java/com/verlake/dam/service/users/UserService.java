@@ -2,13 +2,12 @@ package com.verlake.dam.service.users;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserFilter;
-import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -19,8 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
-import java.util.*;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 @Service

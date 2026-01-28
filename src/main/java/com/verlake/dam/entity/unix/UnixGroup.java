@@ -1,8 +1,9 @@
 package com.verlake.dam.entity.unix;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,7 +11,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

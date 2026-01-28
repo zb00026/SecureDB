@@ -2,7 +2,10 @@ package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.entity.Role;
 import com.verlake.dam.repository.RoleRepository;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import java.util.List;
 
 @RestController

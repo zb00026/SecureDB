@@ -2,14 +2,8 @@ package com.verlake.dam.entity.ai;
 
 import com.verlake.dam.annotation.Audited;
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Builder.Default;
-import lombok.EqualsAndHashCode;
+import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
