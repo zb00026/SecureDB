@@ -25,8 +25,8 @@ public abstract class BaseE2ETest extends BaseLoginTest implements TestWatcher {
 
     protected String auditorUsername;
     protected String auditorPassword;
-    protected String developerUsername;
-    protected String developerPassword;
+    protected String accessorUsername;
+    protected String accessorPassword;
     protected String assetOwnerUsername;
     protected String assetOwnerPassword;
 
@@ -48,8 +48,8 @@ public abstract class BaseE2ETest extends BaseLoginTest implements TestWatcher {
         keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
         auditorUsername = getEnvVariable("KEYCLOAK_AUDITOR_USER");
         auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
-        developerUsername = getEnvVariable("KEYCLOAK_DEVELOPER_USER");
-        developerPassword = getEnvVariable("KEYCLOAK_DEVELOPER_PASSWORD");
+        accessorUsername = getEnvVariable("KEYCLOAK_ACCESSOR_USER");
+        accessorPassword = getEnvVariable("KEYCLOAK_ACCESSOR_PASSWORD");
         assetOwnerUsername = getEnvVariable("KEYCLOAK_ASSET_OWNER_USER");
         assetOwnerPassword = getEnvVariable("KEYCLOAK_ASSET_OWNER_PASSWORD");
 

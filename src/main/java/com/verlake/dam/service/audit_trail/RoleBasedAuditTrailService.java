@@ -97,7 +97,7 @@ public class RoleBasedAuditTrailService {
                         .collect(Collectors.toSet());
                 break;
             }
-            case DEVELOPER: {
+            case ACCESSOR: {
                 allowedUserEmails = Set.of(currentUser.getEmail());
                 break;
             }
@@ -115,7 +115,7 @@ public class RoleBasedAuditTrailService {
 
     /**
      * Determines the primary role for audit access based on user's roles
-     * Priority: ADMIN > AUDITOR > ASSET_OWNER > APPROVER > DEVELOPER
+     * Priority: ADMIN > AUDITOR > ASSET_OWNER > APPROVER > ACCESSOR
      */
     private Roles determineAuditAccessRole(User user) {
         Set<String> userRoleNames = user.getRoles().stream()
@@ -130,8 +130,8 @@ public class RoleBasedAuditTrailService {
             return Roles.ASSET_OWNER;
         } else if (userRoleNames.contains(Roles.APPROVER.getOriginalName())) {
             return Roles.APPROVER;
-        } else if (userRoleNames.contains(Roles.DEVELOPER.getOriginalName())) {
-            return Roles.DEVELOPER;
+        } else if (userRoleNames.contains(Roles.ACCESSOR.getOriginalName())) {
+            return Roles.ACCESSOR;
         } else {
             throw new AccessDeniedException("User does not have permission to access audit trails");
         }
@@ -157,8 +157,8 @@ public class RoleBasedAuditTrailService {
                 setupApproverFilter(filter, currentUser);
                 break;
                 
-            case DEVELOPER:
-                // Filter is already set to current user email - developers see only their own logs
+            case ACCESSOR:
+                // Filter is already set to current user email - accessors see only their own logs
                 break;
         }
     }

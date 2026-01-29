@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Shared service for query execution logic used by both Developer and Asset Owner controllers
+ * Shared service for query execution logic used by both Accessor and Asset Owner controllers
  */
 @Service
 @Slf4j
@@ -75,9 +75,9 @@ public class QueryExecutionService {
     }
 
     /**
-     * Execute query for Developer with access request validation
+     * Execute query for Accessor with access request validation
      */
-    public Map<String, Object> executeQueryForDeveloper(AccessQueryDTO accessQueryDTO) throws CommonUtils.CryptoException {
+    public Map<String, Object> executeQueryForAccessor(AccessQueryDTO accessQueryDTO) throws CommonUtils.CryptoException {
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(accessQueryDTO.getRequestId());
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
         
@@ -90,13 +90,13 @@ public class QueryExecutionService {
         assetValidationUtils.validateAccessRequestStatus(accessRequest);
 
         long startTime = System.currentTimeMillis();
-        QueryExecutionContext context = QueryExecutionContext.forDeveloper(accessRequest, credential);
+        QueryExecutionContext context = QueryExecutionContext.forAccessor(accessRequest, credential);
 
         try {
             Map<String, Object> result = executeQueryWithContext(accessQueryDTO, context);
             
             if (accessQueryDTO.isChangeRequest()) {
-                assetQueryChangeRequestService.createChangeRequestForDeveloper(accessQueryDTO, accessRequest);
+                assetQueryChangeRequestService.createChangeRequestForAccessor(accessQueryDTO, accessRequest);
             }
 
             createQueryAuditLog(accessQueryDTO, context, true, null, result, startTime);
@@ -104,7 +104,7 @@ public class QueryExecutionService {
             
         } catch (Exception e) {
             String errorMessage = e.getMessage();
-            log.error("Error executing query for developer: {}", accessQueryDTO.getRequestId(), e);
+            log.error("Error executing query for accessor: {}", accessQueryDTO.getRequestId(), e);
             createQueryAuditLog(accessQueryDTO, context, false, errorMessage, null, startTime);
             throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
         }
@@ -322,8 +322,8 @@ public class QueryExecutionService {
             this.executionType = executionType;
         }
 
-        public static QueryExecutionContext forDeveloper(AccessRequest accessRequest, AssetCredential credential) {
-            return new QueryExecutionContext(accessRequest.getAsset(), credential, accessRequest, Constants.QUERY_EXECUTION_TYPE_DEVELOPER);
+        public static QueryExecutionContext forAccessor(AccessRequest accessRequest, AssetCredential credential) {
+            return new QueryExecutionContext(accessRequest.getAsset(), credential, accessRequest, Constants.QUERY_EXECUTION_TYPE_ACCESSOR);
         }
 
         public static QueryExecutionContext forAssetOwner(Asset asset, AssetCredential credential) {
@@ -348,7 +348,7 @@ public class QueryExecutionService {
 
         public String getUserRole(User currentUser) {
             if (currentUser.getRoles().isEmpty()) {
-                return Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? "Developer" : "Asset Owner";
+                return Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? "Accessor" : "Asset Owner";
             }
             
             // Get all roles as a comma-separated string for masking policy matching
@@ -362,7 +362,7 @@ public class QueryExecutionService {
          */
         public List<String> getUserRoles(User currentUser) {
             if (currentUser.getRoles().isEmpty()) {
-                return List.of(Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? "Developer" : "Asset Owner");
+                return List.of(Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? "Accessor" : "Asset Owner");
             }
             
             return currentUser.getRoles().stream()
@@ -371,13 +371,13 @@ public class QueryExecutionService {
         }
 
         public String getAuditAction() {
-            return Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? 
-                   Constants.AUDIT_ACTION_DEVELOPER_QUERY_EXECUTION : 
+            return Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? 
+                   Constants.AUDIT_ACTION_ACCESSOR_QUERY_EXECUTION : 
                    Constants.AUDIT_ACTION_ASSET_OWNER_QUERY_EXECUTION;
         }
 
         public void addAuditDetails(Map<String, Object> auditDetails, AccessQueryDTO accessQueryDTO) {
-            if (Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) && accessRequest != null) {
+            if (Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) && accessRequest != null) {
                 auditDetails.put("accessRequestId", accessRequest.getId());
                 auditDetails.put("requestId", accessQueryDTO.getRequestId());
             }

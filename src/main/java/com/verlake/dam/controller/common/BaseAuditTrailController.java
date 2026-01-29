@@ -35,7 +35,7 @@ public abstract class BaseAuditTrailController {
      * @return Page of audit trails filtered by role-based access
      */
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_ACCESSOR')")
     public ResponseEntity<Page<AuditTrailDTO>> getAuditTrails(RoleBasedAuditTrailFilter filter) {
         String roleName = getRoleName();
         log.info("{} requesting audit trails with filter: {}", roleName, filter);
@@ -62,7 +62,7 @@ public abstract class BaseAuditTrailController {
      * Get distinct audit actions for role-based audit views
      */
     @GetMapping("/actions")
-    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_ACCESSOR')")
     public ResponseEntity<List<String>> getDistinctActions() {
         roleBasedAuditTrailService.validateAuditAccess();
         return ResponseEntity.ok(roleBasedAuditTrailService.getDistinctActions());
@@ -73,7 +73,7 @@ public abstract class BaseAuditTrailController {
      * @return Statistics about audit trails accessible to the current user
      */
     @GetMapping("/stats")
-    @PreAuthorize("hasAnyAuthority('ASSET_OWNER', 'APPROVER', 'DEVELOPER')")
+    @PreAuthorize("hasAnyAuthority('ASSET_OWNER', 'APPROVER', 'ACCESSOR')")
     public ResponseEntity<RoleBasedAuditTrailService.AuditTrailStats> getAuditTrailStats() {
         String roleName = getRoleName();
         log.info("{} requesting audit trail statistics", roleName);
@@ -92,7 +92,7 @@ public abstract class BaseAuditTrailController {
      * @return CSV file with audit trail data filtered by role-based access
      */
     @GetMapping(value = "/download", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_ACCESSOR')")
     public ResponseEntity<byte[]> downloadAuditTrailsCsv(RoleBasedAuditTrailFilter filter) {
         String roleName = getRoleName();
         log.info("{} requesting CSV export of audit trails with filter: {}", roleName, filter);
@@ -124,7 +124,7 @@ public abstract class BaseAuditTrailController {
      * @return Audit statistics with chart data filtered by role-based access
      */
     @GetMapping("/stats/charts")
-    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_DEVELOPER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ASSET_OWNER', 'ROLE_APPROVER', 'ROLE_ACCESSOR')")
     public ResponseEntity<AuditStatsDTO> getAuditStats(RoleBasedAuditTrailFilter filter) {
         String roleName = getRoleName();
         log.info("{} requesting audit stats with filter: {}", roleName, filter);
@@ -144,7 +144,7 @@ public abstract class BaseAuditTrailController {
 
     /**
      * Get the role name for logging purposes
-     * @return The role name (e.g., "Approver", "Asset owner", "Developer")
+     * @return The role name (e.g., "Approver", "Asset owner", "Accessor")
      */
     protected abstract String getRoleName();
 } 

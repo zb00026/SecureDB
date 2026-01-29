@@ -285,7 +285,7 @@ public class AssetQueryChangeRequestService {
         return savedRequest;
     }
 
-    public Map<String, Object> runQueryFromDeveloper(AccessQueryDTO accessQueryDTO) {
+    public Map<String, Object> runQueryFromAccessor(AccessQueryDTO accessQueryDTO) {
         AccessRequest accessRequest = validateAccessRequest(accessQueryDTO);
         AssetCredential devCredential = validateAssetCredential(accessRequest);
         validateAccessRequestStatus(accessRequest);
@@ -296,7 +296,7 @@ public class AssetQueryChangeRequestService {
             Map<String, Object> result = executeQueryWithMasking(accessQueryDTO, accessRequest, devCredential);
             
             if (accessQueryDTO.isChangeRequest()) {
-                createChangeRequestForDeveloper(accessQueryDTO, accessRequest);
+                createChangeRequestForAccessor(accessQueryDTO, accessRequest);
             }
 
             createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, true, null, result, startTime);
@@ -336,7 +336,7 @@ public class AssetQueryChangeRequestService {
      * Validate access request status
      */
     private void validateAccessRequestStatus(AccessRequest accessRequest) {
-        if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
+        if (!accessRequest.getAccessorApproverStatus().equals(ApprovalStatus.APPROVED) &&
                 !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
             throw new IllegalArgumentException("Access request is not approved");
         }
@@ -405,7 +405,7 @@ public class AssetQueryChangeRequestService {
             String userEmail = currentUser.getEmail();
             
             // Get all user roles as comma-separated string
-            String userRole = currentUser.getRoles().isEmpty() ? "Developer" : 
+            String userRole = currentUser.getRoles().isEmpty() ? "Accessor" : 
                             currentUser.getRoles().stream()
                                     .map(role -> role.getName())
                                     .collect(java.util.stream.Collectors.joining(","));
@@ -479,9 +479,9 @@ public class AssetQueryChangeRequestService {
     }
     
     /**
-     * Create change request for Developer
+     * Create change request for Accessor
      */
-    public void createChangeRequestForDeveloper(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
+    public void createChangeRequestForAccessor(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
         AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
         changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
         changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());

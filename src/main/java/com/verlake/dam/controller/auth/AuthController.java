@@ -125,8 +125,8 @@ public class AuthController {
                 log.info("User is not asset owner, skipping credential processing");
             }
             
-            // Update expired access requests to EXPIRED status if user has developer role
-            if (userService.hasRole(user, Roles.DEVELOPER.getOriginalName())) {
+            // Update expired access requests to EXPIRED status if user has accessor role
+            if (userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
                 accessRequestService.updateExpiredAccessRequests(user);
             }
             
@@ -279,13 +279,13 @@ public class AuthController {
             if (cred.getUserAccessType().equals(Roles.ASSET_OWNER.getOriginalName())) {
                 databaseAccessService.updateAssetObjects(tempCredential);
             }
-            processExpiredDeveloperCredential(cred);
+            processExpiredAccessorCredential(cred);
         } catch (Exception e) {
             handleCredentialProcessingError(cred, e);
         }
     }
 
-    private void processExpiredDeveloperCredential(AssetCredential ownerCred) {
+    private void processExpiredAccessorCredential(AssetCredential ownerCred) {
         List<AccessRequest> accessRequests = accessRequestRepository
                 .findByExpiryDateBeforeAndAssetCredentialIsDeletedFalse(LocalDateTime.now());
         accessRequests.stream()
@@ -301,7 +301,7 @@ public class AuthController {
                     }
                     devCred.setIsDeleted(true);
                     accessRequest.setAssetApproverStatus(ApprovalStatus.EXPIRED);
-                    accessRequest.setDeveloperApproverStatus(ApprovalStatus.EXPIRED);
+                    accessRequest.setAccessorApproverStatus(ApprovalStatus.EXPIRED);
                     accessRequestRepository.save(accessRequest);
                     assetCredentialsRepository.save(devCred);
                     log.info("Marked credential as deleted for user: {} due to expiration",

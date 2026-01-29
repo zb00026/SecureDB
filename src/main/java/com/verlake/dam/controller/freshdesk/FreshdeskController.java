@@ -30,7 +30,7 @@ public class FreshdeskController {
     }
 
     /**
-     * Authenticate Freshdesk user as Hagrids developer
+     * Authenticate Freshdesk user as Hagrids accessor
      * POST /api/freshdesk/auth
      * 
      * @param authRequest Contains Freshdesk user email and optional token
@@ -57,7 +57,7 @@ public class FreshdeskController {
     }
 
     /**
-     * Get all assets available to the authenticated developer
+     * Get all assets available to the authenticated accessor
      * GET /api/freshdesk/assets
      * 
      * @param authorization Bearer token from Freshdesk authentication
@@ -78,7 +78,7 @@ public class FreshdeskController {
         try {
             String token = extractBearerToken(authorization);
             log.debug("Extracted token from Authorization header (length: {})", token.length());
-            List<AssetDTO> assets = freshdeskService.getAssetsForDeveloper(token);
+            List<AssetDTO> assets = freshdeskService.getAssetsForAccessor(token);
             log.info("Successfully fetched {} assets for Freshdesk user", assets.size());
             return ResponseEntity.ok(assets);
         } catch (ResponseStatusException e) {
@@ -93,7 +93,7 @@ public class FreshdeskController {
     }
 
     /**
-     * Get access requests for the authenticated developer
+     * Get access requests for the authenticated accessor
      * GET /api/freshdesk/access-requests
      * 
      * @param authorization Bearer token from Freshdesk authentication
@@ -107,7 +107,7 @@ public class FreshdeskController {
         
         try {
             String token = extractBearerToken(authorization);
-            List<Map<String, Object>> requests = freshdeskService.getAccessRequestsForDeveloper(token, assetId);
+            List<Map<String, Object>> requests = freshdeskService.getAccessRequestsForAccessor(token, assetId);
             return ResponseEntity.ok(requests);
         } catch (Exception e) {
             log.error("Failed to fetch access requests for Freshdesk user", e);

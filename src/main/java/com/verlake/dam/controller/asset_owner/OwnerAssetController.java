@@ -380,7 +380,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
         }
         //Needs to remove related asset objects
         assetObjectRepository.deleteByAssetCredential(existingCredential);
-        //Remove existing developer's access request for this asset
+        //Remove existing accessor's access request for this asset
         accessRequestRepository.findByAsset(existingCredential.getAsset()).forEach(accessRequest -> {
            accessLevelObjectRepository.deleteByAccessRequest(accessRequest);
         });

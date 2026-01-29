@@ -199,7 +199,7 @@ public class AssetService {
                 List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
                 credentials.forEach(assetCredential -> {
                     assetObjectRepository.deleteByAssetCredential(assetCredential);
-                    //Remove existing developer's access request for this asset
+                    //Remove existing accessor's access request for this asset
                     accessRequestRepository.findByAsset(assetCredential.getAsset()).forEach(accessLevelObjectRepository::deleteByAccessRequest);
                     accessRequestRepository.deleteByAsset(assetCredential.getAsset());
                 } );
@@ -737,7 +737,7 @@ public class AssetService {
      * @param asset The asset to validate
      * @throws AssetLockedException if the asset is locked
      */
-    public void validateAssetNotLocked(Asset asset, boolean isDeveloper) {
+    public void validateAssetNotLocked(Asset asset, boolean isAccessor) {
         if (asset == null) {
             throw new IllegalArgumentException("Asset cannot be null");
         }
@@ -749,8 +749,8 @@ public class AssetService {
             throw new AssetLockedException(message);
         }
         
-        // Check if asset owner has locked all users (lock_type = LOCK_ALL_DB_USERS) and current user is developer
-        if (isDeveloper && asset.getLockType() == LockType.LOCK_ALL_DB_USERS) {
+        // Check if asset owner has locked all users (lock_type = LOCK_ALL_DB_USERS) and current user is accessor
+        if (isAccessor && asset.getLockType() == LockType.LOCK_ALL_DB_USERS) {
             String message = Constants.getMessage(Constants.ERROR_ASSET_LOCKED) + 
                            " (Asset: " + asset.getName() + ", ID: " + asset.getId() + 
                            " - Locked by asset owner)";

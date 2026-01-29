@@ -106,11 +106,11 @@ public class Constants {
     public static final String AUDIT_ACTION_APPROVE = "APPROVE";
     public static final String AUDIT_ACTION_REJECT = "REJECT";
     public static final String AUDIT_ACTION_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
-    public static final String AUDIT_ACTION_DEVELOPER_QUERY_EXECUTION = "DEVELOPER_QUERY_EXECUTION";
+    public static final String AUDIT_ACTION_ACCESSOR_QUERY_EXECUTION = "ACCESSOR_QUERY_EXECUTION";
     public static final String AUDIT_ACTION_ASSET_OWNER_QUERY_EXECUTION = "ASSET_OWNER_QUERY_EXECUTION";
 
     // Query execution types
-    public static final String QUERY_EXECUTION_TYPE_DEVELOPER = "DEVELOPER";
+    public static final String QUERY_EXECUTION_TYPE_ACCESSOR = "ACCESSOR";
     public static final String QUERY_EXECUTION_TYPE_ASSET_OWNER = "ASSET_OWNER";
     
     // Permission check types
@@ -461,7 +461,7 @@ public class Constants {
     public static final String NOTIFICATION_KEY_ASSET_ID = "assetId";
     public static final String NOTIFICATION_KEY_ASSET_NAME = "assetName";
     public static final String NOTIFICATION_KEY_ASSET_DESCRIPTION = "assetDescription";
-    public static final String NOTIFICATION_KEY_DEVELOPER_NAME = "developerName";
+    public static final String NOTIFICATION_KEY_ACCESSOR_NAME = "accessorName";
     public static final String NOTIFICATION_KEY_APPROVER_NAME = "approverName";
     public static final String NOTIFICATION_KEY_APPROVAL_STATUS = "approvalStatus";
 
@@ -555,7 +555,7 @@ public class Constants {
 
     public static final String ROLE_NONE = "None";
     public static final String ROLE_ADMIN = "Admin";
-    public static final String ROLE_DEVELOPER = "Developer";
+    public static final String ROLE_ACCESSOR = "Accessor";
     public static final String ROLE_ASSET_OWNER = "Asset Owner";
     public static final String ROLE_APPROVER = "Approver";
     public static final String ROLE_AUDITOR = "Auditor";
@@ -565,7 +565,7 @@ public class Constants {
     public static final String ERROR_INVALID_EMAIL_FORMAT = "invalid email format: {0}";
     public static final String ERROR_DUPLICATE_EMAIL_CSV = "duplicate email in CSV: {0}";
     public static final String ERROR_EMAIL_ALREADY_EXISTS_SYSTEM = "email already exists in system: {0}";
-    public static final String ERROR_INVALID_ROLE_NAME = "invalid role name: '{0}'. Available roles: Admin, Developer, Asset Owner, Approver, Auditor";
+    public static final String ERROR_INVALID_ROLE_NAME = "invalid role name: '{0}'. Available roles: Admin, Accessor, Asset Owner, Approver, Auditor";
     public static final String ERROR_NO_VALID_USER_DATA = "No valid user data found in CSV file";
     public static final String ERROR_NO_VALID_ASSET_DATA = "No valid asset data found in CSV file";
     public static final String ERROR_DUPLICATE_ASSET_NAME_CSV = "duplicate asset name in CSV: {0}";
@@ -954,7 +954,7 @@ public class Constants {
     public static final String METHOD_GET_EMAIL = "getEmail";
     public static final String METHOD_GET_PROMPT_KEY = "getPromptKey";
     public static final String METHOD_GET_EMAIL_TO = "getEmailTo";
-    public static final String METHOD_GET_DEVELOPER_APPROVER_STATUS = "getDeveloperApproverStatus";
+    public static final String METHOD_GET_ACCESSOR_APPROVER_STATUS = "getAccessorApproverStatus";
     public static final String METHOD_GET_ASSET_APPROVER_STATUS = "getAssetApproverStatus";
     
     // Default entity identifiers

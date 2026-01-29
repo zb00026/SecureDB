@@ -39,18 +39,18 @@ public class NaturalLanguageToSqlService {
     }
     
     /**
-     * Convert natural language query to SQL for Developer
+     * Convert natural language query to SQL for Accessor
      */
-    public Map<String, Object> convertNaturalLanguageToSqlForDeveloper(NaturalLanguageQueryDTO request) throws CommonUtils.CryptoException {
-        log.info("Converting natural language to SQL for developer - requestId: {}, query: {}", 
+    public Map<String, Object> convertNaturalLanguageToSqlForAccessor(NaturalLanguageQueryDTO request) throws CommonUtils.CryptoException {
+        log.info("Converting natural language to SQL for accessor - requestId: {}, query: {}", 
                 request.getRequestId(), request.getNaturalLanguageQuery());
         
         if (request.getRequestId() == null) {
-            throw new IllegalArgumentException("requestId is required for developer queries");
+            throw new IllegalArgumentException("requestId is required for accessor queries");
         }
         
-        // Get database schema for the developer's access request
-        DatabaseSchemaDTO schema = databaseSchemaService.getSchemaForDeveloper(request.getRequestId());
+        // Get database schema for the accessor's access request
+        DatabaseSchemaDTO schema = databaseSchemaService.getSchemaForAccessor(request.getRequestId());
         
         // Get asset information
         com.verlake.dam.entity.assets.AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(request.getRequestId());

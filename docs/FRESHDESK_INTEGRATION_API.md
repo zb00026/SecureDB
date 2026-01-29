@@ -14,11 +14,11 @@ This document describes the backend API endpoints for Freshdesk integration. The
 
 ## Authentication Flow
 
-The Freshdesk app authenticates users as developers in Hagrids:
+The Freshdesk app authenticates users as accessors in Hagrids:
 
 1. Freshdesk user opens a ticket
 2. Freshdesk app calls `/api/freshdesk/auth` with user's email
-3. Backend verifies user exists and has DEVELOPER role
+3. Backend verifies user exists and has ACCESSOR role
 4. Backend returns a Hagrids authentication token
 5. Frontend uses this token for subsequent API calls
 
@@ -53,7 +53,7 @@ GET /api/freshdesk/health
 
 **Endpoint:** `POST /api/freshdesk/auth`
 
-**Description:** Authenticates a Freshdesk user as a Hagrids developer and returns an authentication token.
+**Description:** Authenticates a Freshdesk user as a Hagrids accessor and returns an authentication token.
 
 **Authentication:** Not required (this is the authentication endpoint)
 
@@ -112,7 +112,7 @@ Body:
 - `200 OK`: Authentication successful
 - `401 Unauthorized`: Authentication failed
   - User not found in Hagrids
-  - User does not have DEVELOPER role
+  - User does not have ACCESSOR role
   - User account is not active
 
 **Error Response:**
@@ -121,7 +121,7 @@ Body:
   "timestamp": "2025-01-15T14:45:00",
   "status": 401,
   "error": "Unauthorized",
-  "message": "User does not have DEVELOPER role. Access denied."
+  "message": "User does not have ACCESSOR role. Access denied."
 }
 ```
 
@@ -131,7 +131,7 @@ Body:
 
 **Endpoint:** `GET /api/freshdesk/assets`
 
-**Description:** Retrieves all database assets available to the authenticated developer.
+**Description:** Retrieves all database assets available to the authenticated accessor.
 
 **Authentication:** Required (Bearer token from `/api/freshdesk/auth`)
 
@@ -166,7 +166,7 @@ Authorization: Bearer <hagrids-token>
 **Status Codes:**
 - `200 OK`: Success
 - `401 Unauthorized`: Invalid or missing token
-- `403 Forbidden`: User does not have DEVELOPER role
+- `403 Forbidden`: User does not have ACCESSOR role
 
 ---
 
@@ -174,7 +174,7 @@ Authorization: Bearer <hagrids-token>
 
 **Endpoint:** `GET /api/freshdesk/access-requests`
 
-**Description:** Retrieves approved access requests for the authenticated developer.
+**Description:** Retrieves approved access requests for the authenticated accessor.
 
 **Authentication:** Required (Bearer token)
 
@@ -212,7 +212,7 @@ Authorization: Bearer <hagrids-token>
 **Status Codes:**
 - `200 OK`: Success
 - `401 Unauthorized`: Invalid or missing token
-- `403 Forbidden`: User does not have DEVELOPER role
+- `403 Forbidden`: User does not have ACCESSOR role
 
 ---
 
@@ -391,7 +391,7 @@ The Freshdesk endpoints have CORS enabled to allow requests from Freshdesk domai
 
 All endpoints (except `/health` and `/auth`) require:
 1. Valid Bearer token in `Authorization` header
-2. User must have DEVELOPER role
+2. User must have ACCESSOR role
 3. User must own the access request (for request-specific endpoints)
 
 ---
@@ -416,7 +416,7 @@ All endpoints (except `/health` and `/auth`) require:
   "timestamp": "2025-01-15T14:45:00",
   "status": 403,
   "error": "Forbidden",
-  "message": "Access denied: DEVELOPER role required"
+  "message": "Access denied: ACCESSOR role required"
 }
 ```
 
@@ -426,7 +426,7 @@ All endpoints (except `/health` and `/auth`) require:
   "timestamp": "2025-01-15T14:45:00",
   "status": 400,
   "error": "Bad Request",
-  "message": "requestId is required for developer queries"
+  "message": "requestId is required for accessor queries"
 }
 ```
 
@@ -447,7 +447,7 @@ The `/api/freshdesk/auth` endpoint currently returns a session ID. In production
 
 - Freshdesk user email must match Hagrids user email exactly
 - User must exist in Hagrids database
-- User must have DEVELOPER role assigned
+- User must have ACCESSOR role assigned
 - User account must be active
 
 ### Access Request Validation

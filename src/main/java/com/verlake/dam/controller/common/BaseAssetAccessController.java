@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * Base controller providing common asset access functionality
- * to eliminate code duplication across admin, asset owner, and developer controllers
+ * to eliminate code duplication across admin, asset owner, and accessor controllers
  */
 @Slf4j
 public abstract class BaseAssetAccessController {
@@ -24,7 +24,7 @@ public abstract class BaseAssetAccessController {
     
     /**
      * Get real-time user access information for an asset by querying the target database directly
-     * This method is shared across admin, asset owner, and developer controllers
+     * This method is shared across admin, asset owner, and accessor controllers
      * 
      * @param id The asset ID
      * @return ResponseEntity containing AssetAccessDTO or error response

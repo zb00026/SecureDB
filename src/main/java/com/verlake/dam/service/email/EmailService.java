@@ -343,7 +343,7 @@ public class EmailService {
         Context context = new Context();
         context.setVariable(Constants.EMAIL_VAR_RECEIVER_FIRST_NAME, receiver.getFirstName());
         context.setVariable(Constants.EMAIL_VAR_RECEIVER_LAST_NAME, receiver.getLastName());
-        if (emailType == EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY || emailType == EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY) {
+        if (emailType == EmailType.ACCESSOR_ASSET_REQUEST_NOTIFY || emailType == EmailType.ACCESSOR_RELINQUISH_ASSET_NOTIFY) {
             context.setVariable(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, sender.getFirstName());
             context.setVariable(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, sender.getLastName());
         } else if (emailType == EmailType.APPROVAL_ASSET_ACCESS_REQUEST) {
@@ -378,7 +378,7 @@ public class EmailService {
         }
     }
 
-    public void sendDeveloperAssetRequestEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
+    public void sendAccessorAssetRequestEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
         HashMap<String, String> newCredMapper = new HashMap<>();
         sendAssetRequestEmail(
                 receiver,
@@ -386,11 +386,11 @@ public class EmailService {
                 asset,
                 emailTmplFile,
                 ApprovalStatus.REQUESTED,
-                EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY,
+                EmailType.ACCESSOR_ASSET_REQUEST_NOTIFY,
                 newCredMapper);
     }
 
-    public void sendDeveloperRelinquishEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
+    public void sendAccessorRelinquishEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
         HashMap<String, String> newCredMapper = new HashMap<>();
         sendAssetRequestEmail(
                 receiver,
@@ -398,18 +398,18 @@ public class EmailService {
                 asset,
                 emailTmplFile,
                 ApprovalStatus.RELINQUISHED_BEFORE_APPROVAL,
-                EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY,
+                EmailType.ACCESSOR_RELINQUISH_ASSET_NOTIFY,
                 newCredMapper);
     }
 
-    public void sendApprovalAssetAccessRequestEmail(User developer,
+    public void sendApprovalAssetAccessRequestEmail(User accessor,
             User approver,
             Asset asset,
             String emailTmplFile,
             ApprovalStatus approvalStatus,
             Map<String, String> newCredMapper) {
         sendAssetRequestEmail(
-                developer,
+                accessor,
                 approver,
                 asset,
                 emailTmplFile,
@@ -457,8 +457,8 @@ public class EmailService {
 
     private String getEmailSubject(EmailType emailType) {
         switch (emailType) {
-            case DEVELOPER_ASSET_REQUEST_NOTIFY:
-                return "Developer Asset Access Request";
+            case ACCESSOR_ASSET_REQUEST_NOTIFY:
+                return "Accessor Asset Access Request";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Approval Asset Access Request";
             case ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY:
@@ -472,8 +472,8 @@ public class EmailService {
 
     private String getErrorMessage(EmailType emailType) {
         switch (emailType) {
-            case DEVELOPER_ASSET_REQUEST_NOTIFY:
-                return "Failed to send developer asset request email to %s";
+            case ACCESSOR_ASSET_REQUEST_NOTIFY:
+                return "Failed to send accessor asset request email to %s";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Failed to send approval asset access request email to %s";
             case ASSET_QUERY_CHANGE_REQUEST_NOTIFY:

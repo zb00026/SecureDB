@@ -47,7 +47,7 @@ public class UnixAccessRequestService {
     private final AssetCredentialsRepository assetCredentialsRepository;
     
     /**
-     * Create a new Unix access request from a developer
+     * Create a new Unix access request from a accessor
      * Generates SSH key pair if this is the first request for this user-asset combination
      */
     @Transactional
@@ -118,7 +118,7 @@ public class UnixAccessRequestService {
         accessRequest.setRequestedUsername(createDTO.getRequestedUsername());
         accessRequest.setRequestTime(LocalDateTime.now());
         accessRequest.setRequestReason(createDTO.getRequestReason());
-        accessRequest.setDeveloperApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for developer
+        accessRequest.setAccessorApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for accessor
         accessRequest.setAssetApproverStatus(ApprovalStatus.REQUESTED); // Needs asset owner approval
         accessRequest.setPublicKey(publicKey);
         accessRequest.setEncryptedPrivateKey(encryptedPrivateKey);
@@ -203,7 +203,7 @@ public class UnixAccessRequestService {
     }
     
     /**
-     * Get all access requests by current user (for developer)
+     * Get all access requests by current user (for accessor)
      */
     public List<AccessRequest> getMyAccessRequests() {
         User currentUser = userService.getCurrentUser();

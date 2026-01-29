@@ -1859,7 +1859,7 @@ public class DatabaseAccessService {
         userCredential.setAsset(credential.getAsset());
         userCredential.setUsername(username);
         userCredential.setPassword(password);
-        userCredential.setUserAccessType(Roles.DEVELOPER.getOriginalName());
+        userCredential.setUserAccessType(Roles.ACCESSOR.getOriginalName());
         userCredential.setUser(requestor);
         userCredential.setIsTemporaryPassword(true);
         assetCredentialsRepository.saveAndFlush(userCredential);
@@ -4401,12 +4401,12 @@ public class DatabaseAccessService {
         if (grantablePermissions.isEmpty()) {
             warnings.add("Cannot grant any permissions to other users - will not be able to approve access requests");
         } else if (grantablePermissions.size() < 3) {
-            warnings.add("Limited grant permissions - may not be able to provide full access to developers");
+            warnings.add("Limited grant permissions - may not be able to provide full access to accessors");
         }
 
         // Check table access
         if (tableAnalysis.getAccessibleTables().isEmpty()) {
-            warnings.add("No table access detected - cannot provide database access to developers");
+            warnings.add("No table access detected - cannot provide database access to accessors");
         } else if (tableAnalysis.getGrantableTables().isEmpty()) {
             warnings.add("Cannot grant table access to other users - limited access management capabilities");
         }

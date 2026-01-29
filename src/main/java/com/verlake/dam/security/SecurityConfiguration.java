@@ -85,9 +85,9 @@ public class SecurityConfiguration {
                 .requestMatchers("/ws/terminal/connect").permitAll() // Allow WebSocket connections
                 .requestMatchers("/ws/unix-groups").permitAll() // Allow Unix group WebSocket connections
                 .requestMatchers("/api/settings/timezone/**").permitAll() // Allow timezone APIs for all users
-                .requestMatchers("/api/freshdesk/**").hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name()) // Freshdesk endpoints require DEVELOPER role
+                .requestMatchers("/api/freshdesk/**").hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ACCESSOR.name()) // Freshdesk endpoints require ACCESSOR role
                 .requestMatchers("/api" + Roles.ADMIN.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
-                .requestMatchers("/api" + Roles.DEVELOPER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name())
+                .requestMatchers("/api" + Roles.ACCESSOR.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ACCESSOR.name())
                 .requestMatchers("/api" + Roles.APPROVER.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.APPROVER.name())
                 .requestMatchers("/api" + Roles.AUDITOR.getAvailablePath()).hasAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
                 .requestMatchers("/api" + Roles.ASSET_OWNER.getAvailablePath(), "/api/ai/chat/**").hasAnyAuthority(
@@ -95,7 +95,7 @@ public class SecurityConfiguration {
                     Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                 .requestMatchers("/api/audit-trails/**").hasAnyAuthority(Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name(), Constants.SECURITY_ROLE_PREFIX + Roles.AUDITOR.name())
                 .requestMatchers("/api/schema/**").hasAnyAuthority(
-                    Constants.SECURITY_ROLE_PREFIX + Roles.DEVELOPER.name(),
+                    Constants.SECURITY_ROLE_PREFIX + Roles.ACCESSOR.name(),
                     Constants.SECURITY_ROLE_PREFIX + Roles.ASSET_OWNER.name(),
                     Constants.SECURITY_ROLE_PREFIX + Roles.ADMIN.name())
                 .anyRequest().denyAll();
@@ -109,12 +109,12 @@ public class SecurityConfiguration {
         log.info("  - Admin paths: /api{}", Roles.ADMIN.getAvailablePath());
         log.info("  - AI Chat paths: /api/ai/chat/** (Admin only)");
         log.info("  - Asset Owner paths: /api/asset_owner/assets/**");
-        log.info("  - Developer paths: /api{}", Roles.DEVELOPER.getAvailablePath());
+        log.info("  - Accessor paths: /api{}", Roles.ACCESSOR.getAvailablePath());
         log.info("  - Approver paths: /api{}", Roles.APPROVER.getAvailablePath());
         log.info("  - Auditor paths: /api{}", Roles.AUDITOR.getAvailablePath());
         log.info("  - Asset Owner paths: /api{}", Roles.ASSET_OWNER.getAvailablePath());
         log.info("  - Audit trails: /api/audit-trails/**");
-        log.info("  - Freshdesk endpoints (except auth/health): /api/freshdesk/** (DEVELOPER role required)");
+        log.info("  - Freshdesk endpoints (except auth/health): /api/freshdesk/** (ACCESSOR role required)");
         log.info("  - All other requests: DENY ALL");
     }
     

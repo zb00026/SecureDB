@@ -96,7 +96,7 @@ public class FreshdeskService {
     }
 
     /**
-     * Authenticate Freshdesk user as Hagrids developer
+     * Authenticate Freshdesk user as Hagrids accessor
      * 
      * @param email Freshdesk user email
      * @param freshdeskToken Optional Freshdesk token for validation
@@ -112,9 +112,9 @@ public class FreshdeskService {
             throw new UserNotFoundException("User not found in Hagrids. Please contact administrator to create an account.");
         }
         
-        // Verify user has DEVELOPER role
-        if (!userService.hasRole(user, Roles.DEVELOPER.getOriginalName())) {
-            throw new AccessDeniedException("User does not have DEVELOPER role. Access denied.");
+        // Verify user has ACCESSOR role
+        if (!userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
+            throw new AccessDeniedException("User does not have ACCESSOR role. Access denied.");
         }
         
         // Verify user is active
@@ -137,16 +137,16 @@ public class FreshdeskService {
     }
 
     /**
-     * Get assets available to the developer
-     * Returns only assets where the developer has access requests approved by asset owner
+     * Get assets available to the accessor
+     * Returns only assets where the accessor has access requests approved by asset owner
      */
-    public List<AssetDTO> getAssetsForDeveloper(String token) {
-        log.debug("Getting assets for developer");
+    public List<AssetDTO> getAssetsForAccessor(String token) {
+        log.debug("Getting assets for accessor");
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
-        // Get all access requests for the developer that are approved by asset owner
+        // Get all access requests for the accessor that are approved by asset owner
         List<AccessRequest> approvedRequests = accessRequestRepository.findByRequestor(user)
                 .stream()
                 .filter(req -> req.getAssetApproverStatus() == ApprovalStatus.APPROVED)
@@ -167,13 +167,13 @@ public class FreshdeskService {
     }
 
     /**
-     * Get access requests for the developer
+     * Get access requests for the accessor
      */
-    public List<Map<String, Object>> getAccessRequestsForDeveloper(String token, Long assetId) {
-        log.debug("Getting access requests for developer, assetId: {}", assetId);
+    public List<Map<String, Object>> getAccessRequestsForAccessor(String token, Long assetId) {
+        log.debug("Getting access requests for accessor, assetId: {}", assetId);
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         List<AccessRequest> requests;
         if (assetId != null) {
@@ -197,7 +197,7 @@ public class FreshdeskService {
         log.debug("Getting schema for requestId: {}", requestId);
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         // Verify user owns this access request
         AccessRequest request = accessRequestRepository.findById(requestId)
@@ -222,11 +222,11 @@ public class FreshdeskService {
      * Execute a database query
      */
     public Map<String, Object> executeQuery(String token, AccessQueryDTO queryDto) {
-        log.info("Executing query for developer, assetId: {}, requestId: {}", 
+        log.info("Executing query for accessor, assetId: {}, requestId: {}", 
                 queryDto.getAssetId(), queryDto.getRequestId());
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         // Verify user owns this access request
         if (queryDto.getRequestId() != null) {
@@ -239,7 +239,7 @@ public class FreshdeskService {
         }
         
         try {
-            return queryExecutionService.executeQueryForDeveloper(queryDto);
+            return queryExecutionService.executeQueryForAccessor(queryDto);
         } catch (Exception e) {
             log.error("Failed to execute query", e);
             throw new QueryExecutionException("Failed to execute query: " + e.getMessage(), e);
@@ -253,7 +253,7 @@ public class FreshdeskService {
         log.info("Converting natural language to SQL");
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         // Extract request parameters
         Long requestId = request.get("requestId") != null ? 
@@ -265,7 +265,7 @@ public class FreshdeskService {
         }
         
         if (requestId == null) {
-            throw new InvalidRequestException("requestId is required for developer queries");
+            throw new InvalidRequestException("requestId is required for accessor queries");
         }
         
         // Verify user owns this access request
@@ -282,7 +282,7 @@ public class FreshdeskService {
         queryDto.setNaturalLanguageQuery(naturalLanguageQuery);
         
         try {
-            return naturalLanguageToSqlService.convertNaturalLanguageToSqlForDeveloper(queryDto);
+            return naturalLanguageToSqlService.convertNaturalLanguageToSqlForAccessor(queryDto);
         } catch (Exception e) {
             log.error("Failed to convert natural language to SQL", e);
             throw new QueryExecutionException("Failed to convert query: " + e.getMessage(), e);
@@ -492,11 +492,11 @@ public class FreshdeskService {
     }
 
     /**
-     * Verify user has DEVELOPER role
+     * Verify user has ACCESSOR role
      */
-    private void verifyDeveloperRole(User user) {
-        if (!userService.hasRole(user, Roles.DEVELOPER.getOriginalName())) {
-            throw new AccessDeniedException("Access denied: DEVELOPER role required");
+    private void verifyAccessorRole(User user) {
+        if (!userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
+            throw new AccessDeniedException("Access denied: ACCESSOR role required");
         }
     }
 

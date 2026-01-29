@@ -312,7 +312,7 @@ public class TerminalController extends TextWebSocketHandler {
             String token = (String) data.get(TERMINAL_TOKEN);
             String authProviderStr = (String) data.get(TERMINAL_AUTH_PROVIDER);
             Long assetId = data.get(TERMINAL_ASSET_ID) != null ? Long.valueOf(data.get(TERMINAL_ASSET_ID).toString()) : null;
-            String userAccessType = (String) data.get(Constants.WS_FIELD_USER_ACCESS_TYPE); // ASSET_OWNER or DEVELOPER
+            String userAccessType = (String) data.get(Constants.WS_FIELD_USER_ACCESS_TYPE); // ASSET_OWNER or ACCESSOR
             
             log.info("Handling authentication for asset: {}, provider: {}, accessType: {}", assetId, authProviderStr, userAccessType);
             
@@ -322,14 +322,14 @@ public class TerminalController extends TextWebSocketHandler {
             }
             
             if (userAccessType == null || userAccessType.isEmpty()) {
-                sendErrorResponse(session, "userAccessType is required (ASSET_OWNER or DEVELOPER)");
+                sendErrorResponse(session, "userAccessType is required (ASSET_OWNER or ACCESSOR)");
                 return;
             }
             
             // Validate userAccessType
             if (!Roles.ASSET_OWNER.getOriginalName().equals(userAccessType) && 
-                !Roles.DEVELOPER.getOriginalName().equals(userAccessType)) {
-                sendErrorResponse(session, "Invalid userAccessType. Must be ASSET_OWNER or DEVELOPER");
+                !Roles.ACCESSOR.getOriginalName().equals(userAccessType)) {
+                sendErrorResponse(session, "Invalid userAccessType. Must be ASSET_OWNER or ACCESSOR");
                 return;
             }
             

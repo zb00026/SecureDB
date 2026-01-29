@@ -31,7 +31,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     void deleteByAsset(Asset asset);
     
     // Find requests by approval status
-    List<AccessRequest> findByDeveloperApproverStatus(ApprovalStatus status);
+    List<AccessRequest> findByAccessorApproverStatus(ApprovalStatus status);
     List<AccessRequest> findByAssetApproverStatus(ApprovalStatus status);
     
     // Find pending requests (both statuses are REQUESTED)
@@ -53,28 +53,28 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     @Query("SELECT ar FROM AccessRequest ar WHERE ar.asset = :asset AND ar.requestor = :requestor ORDER BY ar.requestTime DESC")
     List<AccessRequest> findLatestRequestByAssetAndRequestor(@Param("asset") Asset asset, @Param("requestor") User requestor);
     
-    // Find all requests that need developer approval
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'REQUESTED' ORDER BY ar.requestTime ASC")
-    List<AccessRequest> findRequestsNeedingDeveloperApproval();
+    // Find all requests that need accessor approval
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.accessorApproverStatus = 'REQUESTED' ORDER BY ar.requestTime ASC")
+    List<AccessRequest> findRequestsNeedingAccessorApproval();
     
     // Find all requests that need asset owner approval
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'APPROVED' AND ar.assetApproverStatus = 'REQUESTED' ORDER BY ar.requestTime ASC")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.accessorApproverStatus = 'APPROVED' AND ar.assetApproverStatus = 'REQUESTED' ORDER BY ar.requestTime ASC")
     List<AccessRequest> findRequestsNeedingAssetApproval();
     
     // Find all approved requests
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'APPROVED' AND ar.assetApproverStatus = 'APPROVED'")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.accessorApproverStatus = 'APPROVED' AND ar.assetApproverStatus = 'APPROVED'")
     List<AccessRequest> findApprovedRequests();
     
     // Find all rejected requests
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus = 'REJECTED' OR ar.assetApproverStatus = 'REJECTED'")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.accessorApproverStatus = 'REJECTED' OR ar.assetApproverStatus = 'REJECTED'")
     List<AccessRequest> findRejectedRequests();
     
     // Count pending requests for an asset
-    @Query("SELECT COUNT(ar) FROM AccessRequest ar WHERE ar.asset = :asset AND (ar.developerApproverStatus = 'REQUESTED' OR ar.assetApproverStatus = 'REQUESTED')")
+    @Query("SELECT COUNT(ar) FROM AccessRequest ar WHERE ar.asset = :asset AND (ar.accessorApproverStatus = 'REQUESTED' OR ar.assetApproverStatus = 'REQUESTED')")
     Long countPendingRequestsForAsset(@Param("asset") Asset asset);
     
     // Find requests by multiple statuses
-    @Query("SELECT ar FROM AccessRequest ar WHERE ar.developerApproverStatus IN :statuses OR ar.assetApproverStatus IN :statuses")
+    @Query("SELECT ar FROM AccessRequest ar WHERE ar.accessorApproverStatus IN :statuses OR ar.assetApproverStatus IN :statuses")
     List<AccessRequest> findByStatuses(@Param("statuses") List<ApprovalStatus> statuses);
 
 
@@ -93,7 +93,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
            "AND ar.expiryDate < :currentDate " +
            "AND ac.isDeleted = false " +
            "AND ac.userAccessType = :userAccessType " +
-           "AND (ar.developerApproverStatus != 'EXPIRED' AND ar.assetApproverStatus != 'EXPIRED')")
+           "AND (ar.accessorApproverStatus != 'EXPIRED' AND ar.assetApproverStatus != 'EXPIRED')")
     List<AccessRequest> findExpiredByRequestorAndUserAccessType(
             @Param("requestor") User requestor,
             @Param("currentDate") LocalDateTime currentDate,

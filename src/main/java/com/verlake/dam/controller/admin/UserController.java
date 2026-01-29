@@ -7,9 +7,13 @@ import com.verlake.dam.entity.user.dto.UserFilter;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.service.auth.GlobalAuthProviderService;
 import com.verlake.dam.service.auth.KeycloakService;
-import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserCsvService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.Constants;
@@ -52,7 +56,10 @@ public class UserController {
     private GlobalAuthProviderService globalAuthProviderService;
 
     @Autowired
-    private EmailService emailService;
+    private NotificationTaskRepository notificationTaskRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Value("${auth.provider}")
     private String authProvider;
@@ -132,9 +139,9 @@ public class UserController {
         
         userRepository.save(user);
         
-        // Select appropriate email template based on global auth provider
-        String emailTmplFile = globalAuthProviderService.getEmailTemplate();
-        emailService.sendInvitationEmail(user, emailTmplFile);
+        // Create notification task for invitation email (processed asynchronously by notification job)
+        createInvitationNotificationTask(user);
+        
         return ResponseEntity.status(HttpStatus.OK).body(user);
     }
 
@@ -323,6 +330,46 @@ public class UserController {
                 .header("Content-Type", Constants.CONTENT_TYPE_JSON)
                 .header("Cache-Control", Constants.CACHE_CONTROL_NO_CACHE)
                 .body(body);
+    }
+
+    /**
+     * Creates a NotificationTask for invitation email
+     * This ensures user creation succeeds even if email sending fails
+     */
+    private void createInvitationNotificationTask(User user) {
+        try {
+            // Get auth provider from global auth provider service
+            AuthProvider userAuthProvider = globalAuthProviderService.getCurrentAuthProvider();
+            
+            // Create notification data with auth provider information
+            ObjectNode notificationData = objectMapper.createObjectNode();
+            ObjectNode dataNode = objectMapper.createObjectNode();
+            dataNode.put("authProvider", userAuthProvider.toString());
+            
+            // Only include password for non-SSO users
+            if (user.getPassword() != null) {
+                dataNode.put("tempPassword", user.getPassword());
+            }
+            
+            notificationData.set(Constants.ACCESS_OBJECT_ATTR_DATA, dataNode);
+            
+            // Create the notification task
+            NotificationTask task = new NotificationTask();
+            task.setReceiver(user);
+            task.setSender(null); // No specific sender for invitation emails
+            task.setAsset(null); // No asset associated with invitation emails
+            task.setEmailType(EmailType.INVITATION);
+            task.setNotificationMessage(objectMapper.writeValueAsString(notificationData));
+            task.setSent(false);
+            
+            // Save the notification task - it will be picked up by the batch job
+            notificationTaskRepository.save(task);
+            log.debug("Created invitation notification task for user: {}", user.getEmail());
+        } catch (Exception e) {
+            // Log error but don't fail user creation
+            log.error("Failed to create invitation notification task for user {}: {}", 
+                    user.getEmail(), e.getMessage(), e);
+        }
     }
 
 }

@@ -88,8 +88,8 @@ public class RoleBasedAuditTrailFilter extends AuditTrailFilter {
             case ADMIN, AUDITOR:
                 // Admin and Auditor can see all audit logs - no additional filters
                 break;
-            case DEVELOPER:
-                addDeveloperFilters(predicates, root, cb);
+            case ACCESSOR:
+                addAccessorFilters(predicates, root, cb);
                 break;
         }
     }
@@ -166,12 +166,12 @@ public class RoleBasedAuditTrailFilter extends AuditTrailFilter {
         }
     }
 
-    private void addDeveloperFilters(List<Predicate> predicates, jakarta.persistence.criteria.Root<AuditTrail> root, 
+    private void addAccessorFilters(List<Predicate> predicates, jakarta.persistence.criteria.Root<AuditTrail> root, 
                                    jakarta.persistence.criteria.CriteriaBuilder cb) {
-        // Exclude audit logs where asset is null for developers
+        // Exclude audit logs where asset is null for accessors
         predicates.add(cb.isNotNull(root.get(Constants.AUDIT_TRAIL_FIELD_ASSET)));
         
-        // Developers can only see their own audit logs
+        // Accessors can only see their own audit logs
         if (currentUserEmail != null) {
             predicates.add(cb.equal(
                 cb.upper(root.get(Constants.AUDIT_TRAIL_FIELD_USER)),

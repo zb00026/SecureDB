@@ -308,13 +308,13 @@ public class AuditEntityListener {
     private String getAccessRequestActionDescription(AuditAction action, Object target) {
         try {
             // Check if this is an approval/rejection action
-            Object developerStatus = target.getClass().getMethod(Constants.METHOD_GET_DEVELOPER_APPROVER_STATUS).invoke(target);
+            Object accessorStatus = target.getClass().getMethod(Constants.METHOD_GET_ACCESSOR_APPROVER_STATUS).invoke(target);
             Object assetStatus = target.getClass().getMethod(Constants.METHOD_GET_ASSET_APPROVER_STATUS).invoke(target);
             
             if (action == AuditAction.UPDATE) {
-                if (developerStatus != null && developerStatus.toString().equals(Constants.APPROVAL_STATUS_APPROVED)) {
+                if (accessorStatus != null && accessorStatus.toString().equals(Constants.APPROVAL_STATUS_APPROVED)) {
                     return Constants.AUDIT_ACTION_APPROVE;
-                } else if (developerStatus != null && developerStatus.toString().equals(Constants.APPROVAL_STATUS_REJECTED)) {
+                } else if (accessorStatus != null && accessorStatus.toString().equals(Constants.APPROVAL_STATUS_REJECTED)) {
                     return Constants.AUDIT_ACTION_REJECT;
                 } else if (assetStatus != null && assetStatus.toString().equals(Constants.APPROVAL_STATUS_APPROVED)) {
                     return Constants.AUDIT_ACTION_APPROVE;

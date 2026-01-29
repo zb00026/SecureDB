@@ -68,7 +68,7 @@ public class AssetValidationUtils {
      * @throws com.verlake.dam.exception.AccessRequestExpiredException if access request has expired
      */
     public void validateAccessRequestStatus(AccessRequest accessRequest) {
-        if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
+        if (!accessRequest.getAccessorApproverStatus().equals(ApprovalStatus.APPROVED) &&
                 !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
             throw new IllegalArgumentException("Access request is not approved");
         }

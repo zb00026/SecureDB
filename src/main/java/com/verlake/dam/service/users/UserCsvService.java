@@ -466,8 +466,8 @@ public class UserCsvService {
         csvContent.append(Constants.CSV_HEADER + "\n");
         
         // Sample data with examples using role names
-        csvContent.append("John,Doe,john.doe@example.com,\"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\"\n");
-        csvContent.append("Jane,Smith,jane.smith@example.com," + Constants.ROLE_DEVELOPER + "\n");
+        csvContent.append("John,Doe,john.doe@example.com,\"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\"\n");
+        csvContent.append("Jane,Smith,jane.smith@example.com," + Constants.ROLE_ACCESSOR + "\n");
         csvContent.append("Bob,Johnson,bob.johnson@example.com,\"" + Constants.ROLE_ASSET_OWNER + "\"\n");
         csvContent.append("Alice,Brown,alice.brown@example.com," + Constants.ROLE_APPROVER + "\n");
         csvContent.append("Charlie,Wilson,charlie.wilson@example.com," + Constants.ROLE_AUDITOR + "\n");
@@ -478,11 +478,11 @@ public class UserCsvService {
         csvContent.append("# - " + Constants.USER_FIELD_FIRST_NAME + ": Required, user's first name\n");
         csvContent.append("# - " + Constants.USER_FIELD_LAST_NAME + ": Required, user's last name\n");
         csvContent.append("# - " + Constants.USER_FIELD_EMAIL + ": Required, must be unique and valid email format\n");
-        csvContent.append("# - " + Constants.USER_FIELD_ROLE_NAME + ": Required, comma-separated role names (e.g., \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\")\n");
+        csvContent.append("# - " + Constants.USER_FIELD_ROLE_NAME + ": Required, comma-separated role names (e.g., \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\")\n");
         csvContent.append("#\n");
         csvContent.append("# AVAILABLE ROLES:\n");
         csvContent.append("# - " + Constants.ROLE_ADMIN + ": Full system administration access\n");
-        csvContent.append("# - " + Constants.ROLE_DEVELOPER + ": Access to development resources and asset requests\n");
+        csvContent.append("# - " + Constants.ROLE_ACCESSOR + ": Access to development resources and asset requests\n");
         csvContent.append("# - " + Constants.ROLE_ASSET_OWNER + ": Manage and approve access to owned assets\n");
         csvContent.append("# - " + Constants.ROLE_APPROVER + ": Approve user access requests\n");
         csvContent.append("# - " + Constants.ROLE_AUDITOR + ": View audit logs and system activity\n");
@@ -491,7 +491,7 @@ public class UserCsvService {
         csvContent.append("# NOTES:\n");
         csvContent.append("# - Role names are case-sensitive\n");
         csvContent.append("# - Multiple roles can be assigned using comma separation\n");
-        csvContent.append("# - For multiple roles, wrap in quotes: \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\"\n");
+        csvContent.append("# - For multiple roles, wrap in quotes: \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\"\n");
         csvContent.append("# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n");
         csvContent.append("# - Remove sample data and add your users\n");
         

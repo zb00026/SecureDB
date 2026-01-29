@@ -10,7 +10,7 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import java.util.List;
 import java.util.Random;
 
-public class DeveloperAssetPage extends BasePage {
+public class AccessorAssetPage extends BasePage {
 
     @FindBy(className = "chakra-spinner")
     public WebElement chakraSpinner;
@@ -24,14 +24,14 @@ public class DeveloperAssetPage extends BasePage {
     private String keycloakAuthUrl;
     private String baseUrl;
 
-    public DeveloperAssetPage(WebDriver browser, String baseUrl) {
+    public AccessorAssetPage(WebDriver browser, String baseUrl) {
         super(browser);
         PageFactory.initElements(browser, this);
         this.baseUrl = baseUrl;
     }
 
     public void navigate() {
-        browser.navigate().to(baseUrl + "/developer/assets");
+        browser.navigate().to(baseUrl + "/accessor/assets");
     }
 
     public WebElement getAssetRow(String assetName, String dbType, String hostAddress, String portNumber, String dbName) {
