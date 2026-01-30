@@ -271,13 +271,12 @@ public class UnixGroupDTO {
             boolean read = readPermission != null && readPermission;
             boolean write = writePermission != null && writePermission;
             boolean execute = executePermission != null && executePermission;
+
+            String perm = (read ? "r" : "-") +
+                    (write ? "w" : "-") +
+                    (execute ? "x" : "-");
             
-            StringBuilder perm = new StringBuilder();
-            perm.append(read ? "r" : "-");
-            perm.append(write ? "w" : "-");
-            perm.append(execute ? "x" : "-");
-            
-            return perm.toString();
+            return perm;
         }
 
         /**

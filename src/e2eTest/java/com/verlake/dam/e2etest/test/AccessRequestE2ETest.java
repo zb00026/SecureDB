@@ -9,7 +9,6 @@ import org.junit.jupiter.api.*;
 public class AccessRequestE2ETest extends BaseE2ETest {
 
     private AccessorAssetPage accessorAssetPage;
-    private ApproveAccessRequestPage approveAccessRequestPage;
 
     @BeforeAll
     void setupTestData() {
@@ -79,7 +78,7 @@ public class AccessRequestE2ETest extends BaseE2ETest {
     void loginAssetOwnerApproveAccessRequest() throws InterruptedException {
         // Login as asset owner
         loginWithCredential(assetOwnerUsername, assetOwnerPassword);
-        approveAccessRequestPage = new ApproveAccessRequestPage(browser, baseUrl);
+        ApproveAccessRequestPage approveAccessRequestPage = new ApproveAccessRequestPage(browser, baseUrl);
         approveAccessRequestPage.navigate();
         Thread.sleep(1000);
         approveAccessRequestPage.clickApproveAccessRequestByCriteria(assetName, assetDescription, "NewAccessorFName NewAccessorLName", accessorUsername);

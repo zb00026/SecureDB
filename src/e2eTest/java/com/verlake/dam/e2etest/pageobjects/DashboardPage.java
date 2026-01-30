@@ -13,7 +13,7 @@ import java.time.Duration;
 
 public class DashboardPage extends BasePage {
 
-    private String baseUrl;
+    private final String baseUrl;
 
     @FindBy(id="btnLogout")
     public WebElement btnLogout;

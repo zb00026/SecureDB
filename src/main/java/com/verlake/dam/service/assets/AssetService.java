@@ -12,7 +12,6 @@ import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.AssetLockedException;
 import com.verlake.dam.exception.DatabaseAccessException;
-import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
 import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
@@ -59,7 +58,6 @@ public class AssetService {
     private final KeycloakService keycloakService;
     private final DatabaseAccessService databaseAccessService;
     private final DatabaseConnectionUtils databaseConnectionUtils;
-    private final NotificationTaskRepository notificationTaskRepository;
     private final AccessLevelObjectRepository accessLevelObjectRepository;
     
     @PersistenceContext
@@ -76,7 +74,7 @@ public class AssetService {
                         AssetObjectRepository assetObjectRepository,
                         KeycloakService keycloakService, DatabaseAccessService databaseAccessService,
                         DatabaseConnectionUtils databaseConnectionUtils,
-                        NotificationTaskRepository notificationTaskRepository, AccessLevelObjectRepository accessLevelObjectRepository) {
+                        AccessLevelObjectRepository accessLevelObjectRepository) {
         this.assetRepository = assetRepository;
         this.assetApproversRepository = assetApproversRepository;
         this.accessLevelRepository = accessLevelRepository;
@@ -87,7 +85,6 @@ public class AssetService {
         this.keycloakService = keycloakService;
         this.databaseAccessService = databaseAccessService;
         this.databaseConnectionUtils = databaseConnectionUtils;
-        this.notificationTaskRepository = notificationTaskRepository;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
     }
 

@@ -527,14 +527,12 @@ public class AssetQueryChangeRequestService {
 
             if (success && result != null) {
                 Object dataObj = result.get(Constants.QUERY_RESULT_FIELD_DATA);
-                if (dataObj instanceof List) {
-                    List<?> data = (List<?>) dataObj;
+                if (dataObj instanceof List<?> data) {
                     auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data.size());
                 }
                 
                 Object headersObj = result.get("headers");
-                if (headersObj instanceof List) {
-                    List<?> headers = (List<?>) headersObj;
+                if (headersObj instanceof List<?> headers) {
                     auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers.size());
                 }
             }

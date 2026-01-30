@@ -562,11 +562,7 @@ public class AccessRequestService {
         
         // Set asset approver status
         // If approving, check if both approvers need to approve
-        if (approvalStatus == ApprovalStatus.APPROVED) {
-            accessRequest.setAssetApproverStatus(ApprovalStatus.APPROVED);
-        } else {
-            accessRequest.setAssetApproverStatus(approvalStatus);
-        }
+        accessRequest.setAssetApproverStatus(approvalStatus);
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
         accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));

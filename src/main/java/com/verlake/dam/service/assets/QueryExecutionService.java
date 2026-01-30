@@ -2,23 +2,22 @@ package com.verlake.dam.service.assets;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.entity.Role;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.exception.QueryExecutionException;
-import com.verlake.dam.repository.assets.AccessRequestRepository;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.service.ai.DataMaskingService;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.DatabaseQueryUtils;
 import com.verlake.dam.utils.IpAddressUtils;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -43,9 +42,6 @@ public class QueryExecutionService {
     private final AssetValidationUtils assetValidationUtils;
     private final AssetService assetService;
     private final ObjectMapper objectMapper;
-    private final KeycloakService keycloakService;
-    private final AccessRequestRepository accessRequestRepository;
-    private final AssetCredentialsRepository assetCredentialsRepository;
     private final AccessRequestService accessRequestService;
 
     public QueryExecutionService(DatabaseAccessService databaseAccessService,
@@ -55,9 +51,6 @@ public class QueryExecutionService {
                                  AssetQueryChangeRequestService assetQueryChangeRequestService,
                                  AssetValidationUtils assetValidationUtils,
                                  AssetService assetService,
-                                 KeycloakService keycloakService, 
-                                 AccessRequestRepository accessRequestRepository, 
-                                 AssetCredentialsRepository assetCredentialsRepository,
                                  AccessRequestService accessRequestService,
                                  ObjectMapper objectMapper) {
         this.databaseAccessService = databaseAccessService;
@@ -67,10 +60,7 @@ public class QueryExecutionService {
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.assetValidationUtils = assetValidationUtils;
         this.assetService = assetService;
-        this.keycloakService = keycloakService;
         this.objectMapper = objectMapper;
-        this.accessRequestRepository = accessRequestRepository;
-        this.assetCredentialsRepository = assetCredentialsRepository;
         this.accessRequestService = accessRequestService;
     }
 
@@ -309,6 +299,7 @@ public class QueryExecutionService {
     /**
      * Context class to hold execution-specific information
      */
+    @Getter
     public static class QueryExecutionContext {
         private final Asset asset;
         private final AssetCredential credential;
@@ -330,22 +321,6 @@ public class QueryExecutionService {
             return new QueryExecutionContext(asset, credential, null, Constants.QUERY_EXECUTION_TYPE_ASSET_OWNER);
         }
 
-        public Asset getAsset() {
-            return asset;
-        }
-
-        public AssetCredential getCredential() {
-            return credential;
-        }
-
-        public AccessRequest getAccessRequest() {
-            return accessRequest;
-        }
-
-        public String getExecutionType() {
-            return executionType;
-        }
-
         public String getUserRole(User currentUser) {
             if (currentUser.getRoles().isEmpty()) {
                 return Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? "Accessor" : "Asset Owner";
@@ -353,7 +328,7 @@ public class QueryExecutionService {
             
             // Get all roles as a comma-separated string for masking policy matching
             return currentUser.getRoles().stream()
-                    .map(role -> role.getName())
+                    .map(Role::getName)
                     .collect(Collectors.joining(","));
         }
         
@@ -366,7 +341,7 @@ public class QueryExecutionService {
             }
             
             return currentUser.getRoles().stream()
-                    .map(role -> role.getName())
+                    .map(Role::getName)
                     .collect(Collectors.toList());
         }
 

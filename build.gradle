@@ -187,7 +187,7 @@ tasks.named('test') {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	options.compilerArgs << "-parameters";
+	options.compilerArgs << "-parameters"
 }
 
 // Include ansible folder in the JAR
@@ -199,7 +199,7 @@ configurations {
 		exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
 	}
 	// Force MongoDB driver versions to ensure consistency
-	all {
+    configureEach {
 		resolutionStrategy {
 			force 'org.mongodb:mongodb-driver-core:4.+'
 			force 'org.mongodb:bson:4.+'

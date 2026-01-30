@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,7 @@ public class SSHConnectionService {
             }
 
             log.debug("Sending input to SSH shell: {}", input.replaceAll(SSH_REGEX_NEWLINE, SSH_NEWLINE_ESCAPE));
-            outputStream.write(input.getBytes(ENCODING_UTF8));
+            outputStream.write(input.getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
         }
 
@@ -134,15 +135,11 @@ public class SSHConnectionService {
         }
 
         private void handleSuccessfulRead(byte[] buffer, int bytesRead, Consumer<String> outputCallback) {
-            try {
-                String output = new String(buffer, 0, bytesRead, ENCODING_UTF8);
-                log.debug("Received SSH output: {} bytes", bytesRead);
+            String output = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+            log.debug("Received SSH output: {} bytes", bytesRead);
 
-                if (outputCallback != null) {
-                    outputCallback.accept(output);
-                }
-            } catch (java.io.UnsupportedEncodingException e) {
-                log.error("Unsupported encoding error", e);
+            if (outputCallback != null) {
+                outputCallback.accept(output);
             }
         }
 
@@ -343,7 +340,7 @@ public class SSHConnectionService {
             String keyName = "ssh-key-" + sshCredential.getUsername() + "-" + System.currentTimeMillis();
 
             // Modern JSch can load keys directly from byte arrays
-            jsch.addIdentity(keyName, decryptedSSHKey.getBytes(ENCODING_UTF8), null, null);
+            jsch.addIdentity(keyName, decryptedSSHKey.getBytes(StandardCharsets.UTF_8), null, null);
             log.debug("SSH private key loaded directly into JSch with name: {}", keyName);
 
             // Verify that the identity was added successfully
@@ -359,7 +356,7 @@ public class SSHConnectionService {
         } catch (DatabaseAccessException e) {
             log.error("Failed to decrypt SSH key from AWS Secrets Manager or database", e);
             throw new SecurityException("Failed to decrypt SSH key: " + e.getMessage(), e);
-        } catch (JSchException | java.io.UnsupportedEncodingException e) {
+        } catch (JSchException e) {
             log.error("Failed to set up SSH key authentication", e);
             throw new JSchException("Failed to set up SSH key authentication: " + e.getMessage(), e);
         }
@@ -797,7 +794,7 @@ public class SSHConnectionService {
             commandOutput = extractCommandOutput(fullOutput, command);
         }
 
-        log.debug("Extracted command output: {}", commandOutput.toString());
+        log.debug("Extracted command output: {}", commandOutput);
         return commandOutput.toString();
     }
 

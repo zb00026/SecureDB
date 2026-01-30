@@ -15,7 +15,7 @@ public class ApproveAccessRequestPage extends BasePage {
     public WebElement chakraSpinner;
 
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public ApproveAccessRequestPage(WebDriver browser, String baseUrl) {
         super(browser);

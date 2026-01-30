@@ -171,7 +171,7 @@ public class KeycloakService {
             credential.setType(CredentialRepresentation.PASSWORD);
             credential.setValue(password);
             credential.setTemporary(isTemporaryPsd);
-            user.setCredentials(Arrays.asList(credential));
+            user.setCredentials(List.of(credential));
         }
 
         Response response = usersResource.create(user);
@@ -211,7 +211,7 @@ public class KeycloakService {
             String accountClientId = accountClients.get(0).getId();
             log.info("Found account client with ID: {}", accountClientId);
             RoleRepresentation manageAccountRole = realmResource.clients().get(accountClientId).roles().get("manage-account").toRepresentation();
-            realmResource.users().get(userId).roles().clientLevel(accountClientId).add(Arrays.asList(manageAccountRole));
+            realmResource.users().get(userId).roles().clientLevel(accountClientId).add(Collections.singletonList(manageAccountRole));
         }
 
         log.info("User created successfully in Keycloak: {}", username);

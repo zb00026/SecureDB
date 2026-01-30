@@ -22,7 +22,7 @@ public class AccessorAssetPage extends BasePage {
     public WebElement btnAccessRequest;
 
     private String keycloakAuthUrl;
-    private String baseUrl;
+    private final String baseUrl;
 
     public AccessorAssetPage(WebDriver browser, String baseUrl) {
         super(browser);

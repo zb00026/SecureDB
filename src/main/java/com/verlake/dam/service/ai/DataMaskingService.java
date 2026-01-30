@@ -37,8 +37,8 @@ public class DataMaskingService {
         
         // Parse multiple roles from comma-separated string
         List<String> userRoles = userRole.contains(",") ? 
-            Arrays.asList(userRole.split(",")) : 
-            Arrays.asList(userRole);
+            Arrays.asList(userRole.split(",")) :
+                List.of(userRole);
         
         // Get applicable masking policies for all user roles
         List<AIMaskingPolicy> policies = getApplicablePoliciesForMultipleRoles(asset, userRoles);

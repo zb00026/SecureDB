@@ -370,7 +370,7 @@ public class SchemaAnalysisService {
         } else if (value.length() > 10) {
             return value.substring(0, 3) + "...";
         } else {
-            return value.substring(0, 1) + "***";
+            return value.charAt(0) + "***";
         }
     }
     

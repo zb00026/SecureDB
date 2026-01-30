@@ -79,7 +79,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
     @Value("${auth.provider}")
     private String authProvider;
 
-    private AssetObjectRepository assetObjectRepository;
+    private final AssetObjectRepository assetObjectRepository;
     @Autowired
     private AccessRequestRepository accessRequestRepository;
 

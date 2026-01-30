@@ -19,7 +19,7 @@ public class AssetCredentialsPage extends BasePage {
     @FindBy(id = "btnConfirmRelinquish")
     private WebElement btnConfirmRelinquish;
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public AssetCredentialsPage(WebDriver driver, String baseUrl) {
         super(driver);

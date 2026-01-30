@@ -1098,7 +1098,7 @@ public class UnixGroupService {
             log.debug("Command completed with exit status: {}", exitStatus);
             
             if (!errorOutput.isEmpty()) {
-                log.warn("Command produced error output: {}", errorOutput.toString());
+                log.warn("Command produced error output: {}", errorOutput);
             }
         }
         

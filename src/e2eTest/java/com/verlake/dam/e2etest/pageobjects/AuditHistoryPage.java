@@ -21,7 +21,7 @@ public class AuditHistoryPage extends BasePage {
     @FindBy(className = "chakra-spinner")
     public WebElement chakraSpinner;
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public AuditHistoryPage(WebDriver driver, String baseUrl) {
         super(driver);

@@ -129,7 +129,6 @@ public class AssetController extends BaseAssetAccessController {
      * Lock out users in the asset database (Admin only)
      * 
      * @param id           Asset ID
-     * @param lockAllUsers If true, locks all database users including applications.
      *                     If false, only locks Hagrids users.
      */
     @PostMapping("/{id}/lockout")
@@ -150,7 +149,6 @@ public class AssetController extends BaseAssetAccessController {
      * Unlock users in the asset database (Admin only)
      * 
      * @param id             Asset ID
-     * @param unlockAllUsers If true, unlocks all database users. If false, only
      *                       unlocks Hagrids users.
      */
     @PostMapping("/{id}/unlock")

@@ -375,7 +375,7 @@ public class AuditEntityListener {
             if (asset != null) {
                 Object assetName = asset.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(asset);
                 if (assetName != null) {
-                    return Constants.ENTITY_DESC_REQUEST_FOR + assetName.toString();
+                    return Constants.ENTITY_DESC_REQUEST_FOR + assetName;
                 }
             }
             // Fallback to ID
@@ -392,7 +392,7 @@ public class AuditEntityListener {
             if (asset != null) {
                 Object assetName = asset.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(asset);
                 if (assetName != null) {
-                    return Constants.ENTITY_DESC_CREDENTIAL_FOR + assetName.toString();
+                    return Constants.ENTITY_DESC_CREDENTIAL_FOR + assetName;
                 }
             }
             // Fallback to ID
@@ -409,7 +409,7 @@ public class AuditEntityListener {
             if (asset != null) {
                 Object assetName = asset.getClass().getMethod(Constants.METHOD_GET_NAME).invoke(asset);
                 if (assetName != null) {
-                    return Constants.ENTITY_DESC_APPROVER_FOR + assetName.toString();
+                    return Constants.ENTITY_DESC_APPROVER_FOR + assetName;
                 }
             }
             // Fallback to ID

@@ -22,7 +22,7 @@ import java.util.Map;
 @Slf4j
 public class FirebaseMessagingService {
 
-    private NotificationTaskRepository notificationTaskRepository;
+    private final NotificationTaskRepository notificationTaskRepository;
 
     public FirebaseMessagingService(NotificationTaskRepository notificationTaskRepository) {
         this.notificationTaskRepository = notificationTaskRepository;
