@@ -498,6 +498,7 @@ public class Constants {
     public static final String QUERY_RESULT_STATUS_FAILED = "FAILED";
     public static final String QUERY_RESULT_NO_DATA_RETURNED = "No data returned";
     public static final String QUERY_RESULT_ROWS_RETURNED = " rows returned";
+    public static final String QUERY_RESULT_SEPARATOR = " | Result: ";
 
     // Keycloak constants
     public static final String KEYCLOAK_CLIENT_ATTRIBUTES = "attributes";

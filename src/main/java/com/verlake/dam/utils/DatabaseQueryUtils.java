@@ -181,7 +181,7 @@ public class DatabaseQueryUtils {
             } else if (!success) {
                 appendFailureResult(newValue, errorMessage);
             } else {
-                newValue.append(" | Result: ").append(Constants.QUERY_RESULT_STATUS_SUCCESS)
+                newValue.append(Constants.QUERY_RESULT_SEPARATOR).append(Constants.QUERY_RESULT_STATUS_SUCCESS)
                         .append(" - ").append(Constants.QUERY_RESULT_NO_DATA_RETURNED);
             }
             
@@ -196,7 +196,7 @@ public class DatabaseQueryUtils {
      * Append success result information to the newValue string
      */
     private static void appendSuccessResult(StringBuilder newValue, Map<String, Object> result) {
-        newValue.append(" | Result: ");
+        newValue.append(Constants.QUERY_RESULT_SEPARATOR);
         
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_RESULTS);
@@ -220,7 +220,7 @@ public class DatabaseQueryUtils {
      * Append failure result information to the newValue string
      */
     private static void appendFailureResult(StringBuilder newValue, String errorMessage) {
-        newValue.append(" | Result: ").append(Constants.QUERY_RESULT_STATUS_FAILED);
+        newValue.append(Constants.QUERY_RESULT_SEPARATOR).append(Constants.QUERY_RESULT_STATUS_FAILED);
         if (errorMessage != null) {
             newValue.append(" - ").append(errorMessage);
         }
@@ -246,7 +246,7 @@ public class DatabaseQueryUtils {
      */
     private static String createFallbackValue(String query, boolean success) {
         String status = success ? Constants.QUERY_RESULT_STATUS_SUCCESS : Constants.QUERY_RESULT_STATUS_FAILED;
-        return "Query: " + query + " | Result: " + status;
+        return "Query: " + query + Constants.QUERY_RESULT_SEPARATOR + status;
     }
     
     /**

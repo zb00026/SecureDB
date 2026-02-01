@@ -463,7 +463,7 @@ public class UserCsvService {
 
         // CSV Header
 
-        String csvContent = Constants.CSV_HEADER + "\n" +
+        return Constants.CSV_HEADER + "\n" +
 
                 // Sample data with examples using role names
                 "John,Doe,john.doe@example.com,\"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\"\n" +
@@ -494,8 +494,6 @@ public class UserCsvService {
                 "# - For multiple roles, wrap in quotes: \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\"\n" +
                 "# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n" +
                 "# - Remove sample data and add your users\n";
-        
-        return csvContent;
     }
 
     /**

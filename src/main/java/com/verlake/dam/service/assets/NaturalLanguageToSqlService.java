@@ -363,7 +363,7 @@ public class NaturalLanguageToSqlService {
      */
     private String createPrompt(String naturalLanguageQuery, String schemaText, DatabaseType databaseType) {
 
-        String prompt = "You are a SQL expert. Convert the following natural language query to syntactically correct SQL.\n\n" +
+        return "You are a SQL expert. Convert the following natural language query to syntactically correct SQL.\n\n" +
                 "Database Type: " + databaseType.name() + "\n\n" +
                 "Database Schema:\n" +
                 schemaText + "\n\n" +
@@ -379,8 +379,6 @@ public class NaturalLanguageToSqlService {
                 "8. If the query asks for aggregations, use appropriate GROUP BY clauses.\n" +
                 "9. Ensure table names and column names match exactly as shown in the schema.\n\n" +
                 "SQL Query:";
-        
-        return prompt;
     }
     
     /**

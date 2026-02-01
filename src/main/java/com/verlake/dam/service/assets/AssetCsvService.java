@@ -321,7 +321,7 @@ public class AssetCsvService {
 
         // CSV Header
 
-        String csvContent = Constants.ASSET_CSV_HEADER + "\n" +
+        return Constants.ASSET_CSV_HEADER + "\n" +
 
                 // Sample data
                 "Production Database,Main production database for customer data,DATABASE,MYSQL,db.example.com,3306,customer_db,admin@example.com\n" +
@@ -355,8 +355,6 @@ public class AssetCsvService {
                 "# - If owner email is not provided, no asset owner will be assigned\n" +
                 "# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n" +
                 "# - Remove sample data and add your assets\n";
-        
-        return csvContent;
     }
 
     /**
