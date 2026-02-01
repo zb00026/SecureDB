@@ -61,6 +61,7 @@ public class FreshdeskService {
     private final DatabaseSchemaService databaseSchemaService;
     private final QueryExecutionService queryExecutionService;
     private final NaturalLanguageToSqlService naturalLanguageToSqlService;
+    private final SecureRandom secureRandom = new SecureRandom();
     
     @Value("${keycloak.auth-server-url}")
     private String keycloakAuthServerUrl;
@@ -451,12 +452,11 @@ public class FreshdeskService {
     private String generateSecureTempPassword() {
         // Generate a secure random password for temporary use
         // This password will be used only to get a token and is marked as temporary
-        SecureRandom random = new SecureRandom();
         StringBuilder password = new StringBuilder();
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
         
         for (int i = 0; i < 32; i++) {
-            password.append(chars.charAt(random.nextInt(chars.length())));
+            password.append(chars.charAt(secureRandom.nextInt(chars.length())));
         }
         
         return password.toString();

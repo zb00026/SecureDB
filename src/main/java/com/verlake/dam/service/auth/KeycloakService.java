@@ -37,6 +37,7 @@ public class KeycloakService {
     private final String clientId;
     private final String clientSecret;
     private final String realmName;
+    private final SecureRandom secureRandom = new SecureRandom();
     
     // Cache SSO status to avoid repeated API calls
     private Boolean ssoEnabled = null;
@@ -415,9 +416,8 @@ public class KeycloakService {
     }
 
     private String generateRandomUserKey() {
-        SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[20];
-        random.nextBytes(bytes);
+        secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); // Random 20-character key
     }
 
