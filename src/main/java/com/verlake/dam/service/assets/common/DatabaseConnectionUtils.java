@@ -326,13 +326,6 @@ public class DatabaseConnectionUtils {
     
     /**
      * Decrypts traditional encrypted SSH key using user's key
-     */
-    private String decryptTraditionalSshKey(AssetCredential credential) {
-        return decryptTraditionalSshKey(credential, null);
-    }
-    
-    /**
-     * Decrypts traditional encrypted SSH key using user's key
      * 
      * @param credential The credential containing encrypted SSH key
      * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
