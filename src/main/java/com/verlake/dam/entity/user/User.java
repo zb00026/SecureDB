@@ -1,6 +1,7 @@
 package com.verlake.dam.entity.user;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.Role;
@@ -19,7 +20,7 @@ import java.util.Set;
 @Data
 @EntityListeners(AuditEntityListener.class)
 @Audited(entity = "USER")
-
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
