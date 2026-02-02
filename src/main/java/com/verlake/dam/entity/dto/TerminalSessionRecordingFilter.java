@@ -1,13 +1,12 @@
 package com.verlake.dam.entity.dto;
 
 import com.verlake.dam.entity.terminal.TerminalSessionRecording;
+import jakarta.persistence.criteria.Predicate;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.format.annotation.DateTimeFormat;
-import jakarta.persistence.criteria.Predicate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

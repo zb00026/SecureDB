@@ -2,13 +2,13 @@ package com.verlake.dam.entity.dto.unix;
 
 import com.verlake.dam.entity.dto.PageRequestDTO;
 import com.verlake.dam.entity.unix.UnixGroup;
+import jakarta.persistence.criteria.Predicate;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
-import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.List;
 

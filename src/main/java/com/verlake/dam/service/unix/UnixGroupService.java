@@ -1,23 +1,23 @@
 package com.verlake.dam.service.unix;
 
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.dto.unix.*;
+import com.verlake.dam.entity.terminal.TerminalSession;
 import com.verlake.dam.entity.unix.AclPermission;
 import com.verlake.dam.entity.unix.UnixGroup;
 import com.verlake.dam.entity.unix.UnixGroupFolderAccess;
 import com.verlake.dam.entity.unix.UnixGroupInfo;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.entity.terminal.TerminalSession;
+import com.verlake.dam.exception.UnixGroupException;
 import com.verlake.dam.repository.unix.UnixGroupRepository;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.terminal.SSHConnectionService;
 import com.verlake.dam.service.terminal.TerminalService;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.UnixCommandBuilder;
-import com.verlake.dam.exception.UnixGroupException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -1098,7 +1098,7 @@ public class UnixGroupService {
             log.debug("Command completed with exit status: {}", exitStatus);
             
             if (!errorOutput.isEmpty()) {
-                log.warn("Command produced error output: {}", errorOutput.toString());
+                log.warn("Command produced error output: {}", errorOutput);
             }
         }
         

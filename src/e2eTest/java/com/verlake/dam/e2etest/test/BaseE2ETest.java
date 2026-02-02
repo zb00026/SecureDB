@@ -1,23 +1,14 @@
 package com.verlake.dam.e2etest.test;
 
 import com.verlake.dam.e2etest.pageobjects.*;
-import lombok.Getter;
-import org.junit.jupiter.api.*;
-import org.openqa.selenium.Dimension;
-import static org.assertj.core.api.Assertions.assertThat;
-import org.junit.jupiter.api.extension.TestWatcher;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestWatcher;
+import org.openqa.selenium.Dimension;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.OutputType;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(TestWatcherExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -34,8 +25,8 @@ public abstract class BaseE2ETest extends BaseLoginTest implements TestWatcher {
 
     protected String auditorUsername;
     protected String auditorPassword;
-    protected String developerUsername;
-    protected String developerPassword;
+    protected String accessorUsername;
+    protected String accessorPassword;
     protected String assetOwnerUsername;
     protected String assetOwnerPassword;
 
@@ -57,8 +48,8 @@ public abstract class BaseE2ETest extends BaseLoginTest implements TestWatcher {
         keycloakAuthUrl = getEnvVariable("KEYCLOAK_AUTH_URL");
         auditorUsername = getEnvVariable("KEYCLOAK_AUDITOR_USER");
         auditorPassword = getEnvVariable("KEYCLOAK_AUDITOR_PASSWORD");
-        developerUsername = getEnvVariable("KEYCLOAK_DEVELOPER_USER");
-        developerPassword = getEnvVariable("KEYCLOAK_DEVELOPER_PASSWORD");
+        accessorUsername = getEnvVariable("KEYCLOAK_ACCESSOR_USER");
+        accessorPassword = getEnvVariable("KEYCLOAK_ACCESSOR_PASSWORD");
         assetOwnerUsername = getEnvVariable("KEYCLOAK_ASSET_OWNER_USER");
         assetOwnerPassword = getEnvVariable("KEYCLOAK_ASSET_OWNER_PASSWORD");
 

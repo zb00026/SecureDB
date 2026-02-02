@@ -1,13 +1,14 @@
 package com.verlake.dam.service;
 
+import com.verlake.dam.utils.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.verlake.dam.utils.Constants;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -231,7 +232,7 @@ public class SystemInfoService {
             
             // Generate SHA-256 hash
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(fingerprintString.getBytes("UTF-8"));
+            byte[] hash = digest.digest(fingerprintString.getBytes(StandardCharsets.UTF_8));
             
             // Convert to hex string
             StringBuilder hexString = new StringBuilder();
@@ -279,7 +280,7 @@ public class SystemInfoService {
             
             // Generate SHA-256 hash
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(hardwareString.getBytes("UTF-8"));
+            byte[] hash = digest.digest(hardwareString.getBytes(StandardCharsets.UTF_8));
             
             // Convert to hex string and take first 12 characters
             StringBuilder hexString = new StringBuilder();

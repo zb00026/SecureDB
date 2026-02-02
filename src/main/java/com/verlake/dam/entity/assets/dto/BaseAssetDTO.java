@@ -4,9 +4,8 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.enums.UnixServerType;
 import com.verlake.dam.enums.LockType;
-
+import com.verlake.dam.enums.UnixServerType;
 import lombok.Data;
 
 import java.util.List;

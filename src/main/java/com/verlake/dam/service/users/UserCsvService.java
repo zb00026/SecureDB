@@ -1,19 +1,20 @@
 package com.verlake.dam.service.users;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.verlake.dam.entity.Role;
-import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.firebase.NotificationTask;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.exception.EmailSendingException;
+import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.RoleRepository;
 import com.verlake.dam.repository.UserRepository;
-import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.email.EmailService;
-import com.verlake.dam.exception.EmailSendingException;
-import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.I18nUtils;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,8 +27,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 @Slf4j
@@ -461,42 +460,40 @@ public class UserCsvService {
      * Generates sample CSV content for bulk user upload
      */
     public String generateSampleCsvContent() {
-        StringBuilder csvContent = new StringBuilder();
-        
+
         // CSV Header
-        csvContent.append(Constants.CSV_HEADER + "\n");
-        
-        // Sample data with examples using role names
-        csvContent.append("John,Doe,john.doe@example.com,\"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\"\n");
-        csvContent.append("Jane,Smith,jane.smith@example.com," + Constants.ROLE_DEVELOPER + "\n");
-        csvContent.append("Bob,Johnson,bob.johnson@example.com,\"" + Constants.ROLE_ASSET_OWNER + "\"\n");
-        csvContent.append("Alice,Brown,alice.brown@example.com," + Constants.ROLE_APPROVER + "\n");
-        csvContent.append("Charlie,Wilson,charlie.wilson@example.com," + Constants.ROLE_AUDITOR + "\n");
-        csvContent.append("David,Lee,david.lee@example.com," + Constants.ROLE_NONE + "\n");
-        
-        // Add comment lines explaining the format
-        csvContent.append("# INSTRUCTIONS:\n");
-        csvContent.append("# - " + Constants.USER_FIELD_FIRST_NAME + ": Required, user's first name\n");
-        csvContent.append("# - " + Constants.USER_FIELD_LAST_NAME + ": Required, user's last name\n");
-        csvContent.append("# - " + Constants.USER_FIELD_EMAIL + ": Required, must be unique and valid email format\n");
-        csvContent.append("# - " + Constants.USER_FIELD_ROLE_NAME + ": Required, comma-separated role names (e.g., \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\")\n");
-        csvContent.append("#\n");
-        csvContent.append("# AVAILABLE ROLES:\n");
-        csvContent.append("# - " + Constants.ROLE_ADMIN + ": Full system administration access\n");
-        csvContent.append("# - " + Constants.ROLE_DEVELOPER + ": Access to development resources and asset requests\n");
-        csvContent.append("# - " + Constants.ROLE_ASSET_OWNER + ": Manage and approve access to owned assets\n");
-        csvContent.append("# - " + Constants.ROLE_APPROVER + ": Approve user access requests\n");
-        csvContent.append("# - " + Constants.ROLE_AUDITOR + ": View audit logs and system activity\n");
-        csvContent.append("# - " + Constants.ROLE_NONE + ": No access to any system resources\n");
-        csvContent.append("#\n");
-        csvContent.append("# NOTES:\n");
-        csvContent.append("# - Role names are case-sensitive\n");
-        csvContent.append("# - Multiple roles can be assigned using comma separation\n");
-        csvContent.append("# - For multiple roles, wrap in quotes: \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_DEVELOPER + "\"\n");
-        csvContent.append("# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n");
-        csvContent.append("# - Remove sample data and add your users\n");
-        
-        return csvContent.toString();
+
+        return Constants.CSV_HEADER + "\n" +
+
+                // Sample data with examples using role names
+                "John,Doe,john.doe@example.com,\"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\"\n" +
+                "Jane,Smith,jane.smith@example.com," + Constants.ROLE_ACCESSOR + "\n" +
+                "Bob,Johnson,bob.johnson@example.com,\"" + Constants.ROLE_ASSET_OWNER + "\"\n" +
+                "Alice,Brown,alice.brown@example.com," + Constants.ROLE_APPROVER + "\n" +
+                "Charlie,Wilson,charlie.wilson@example.com," + Constants.ROLE_AUDITOR + "\n" +
+                "David,Lee,david.lee@example.com," + Constants.ROLE_NONE + "\n" +
+
+                // Add comment lines explaining the format
+                "# INSTRUCTIONS:\n" +
+                "# - " + Constants.USER_FIELD_FIRST_NAME + ": Required, user's first name\n" +
+                "# - " + Constants.USER_FIELD_LAST_NAME + ": Required, user's last name\n" +
+                "# - " + Constants.USER_FIELD_EMAIL + ": Required, must be unique and valid email format\n" +
+                "# - " + Constants.USER_FIELD_ROLE_NAME + ": Required, comma-separated role names (e.g., \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\")\n" +
+                "#\n" +
+                "# AVAILABLE ROLES:\n" +
+                "# - " + Constants.ROLE_ADMIN + ": Full system administration access\n" +
+                "# - " + Constants.ROLE_ACCESSOR + ": Access to development resources and asset requests\n" +
+                "# - " + Constants.ROLE_ASSET_OWNER + ": Manage and approve access to owned assets\n" +
+                "# - " + Constants.ROLE_APPROVER + ": Approve user access requests\n" +
+                "# - " + Constants.ROLE_AUDITOR + ": View audit logs and system activity\n" +
+                "# - " + Constants.ROLE_NONE + ": No access to any system resources\n" +
+                "#\n" +
+                "# NOTES:\n" +
+                "# - Role names are case-sensitive\n" +
+                "# - Multiple roles can be assigned using comma separation\n" +
+                "# - For multiple roles, wrap in quotes: \"" + Constants.ROLE_ADMIN + "," + Constants.ROLE_ACCESSOR + "\"\n" +
+                "# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n" +
+                "# - Remove sample data and add your users\n";
     }
 
     /**
@@ -591,7 +588,7 @@ public class UserCsvService {
             response.put(Constants.RESPONSE_TOTAL_USERS, userDataList.size());
             response.put(Constants.RESPONSE_SUCCESSFUL_USERS, 0);
             response.put(Constants.RESPONSE_FAILED_USERS, userDataList.size());
-            response.put(Constants.RESPONSE_ERRORS, Arrays.asList(e.getMessage()));
+            response.put(Constants.RESPONSE_ERRORS, Collections.singletonList(e.getMessage()));
             
             return response;
         }

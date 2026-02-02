@@ -1,13 +1,16 @@
 package com.verlake.dam.service.ai;
 
-import com.verlake.dam.entity.ai.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.entity.ai.AIMaskingPolicy;
+import com.verlake.dam.entity.ai.ChatMessage;
+import com.verlake.dam.entity.ai.FieldSuggestion;
+import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.SensitiveCategory;
 import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.entity.AuditTrail;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.CommonUtils;
@@ -17,7 +20,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -31,7 +37,7 @@ public class AIChatService {
     private final UserService userService;
     private final AuditTrailService auditTrailService;
     private final AIPromptService promptService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     // In-memory chat sessions (consider using Redis for production)
     private final Map<String, List<ChatMessage>> chatSessions = new ConcurrentHashMap<>();
@@ -52,7 +58,8 @@ public class AIChatService {
             AssetRepository assetRepository,
             UserService userService,
             AuditTrailService auditTrailService,
-            AIPromptService promptService) {
+            AIPromptService promptService,
+            ObjectMapper objectMapper) {
         this.geminiAIService = geminiAIService;
         this.schemaAnalysisService = schemaAnalysisService;
         this.maskingPolicyService = maskingPolicyService;
@@ -60,6 +67,7 @@ public class AIChatService {
         this.userService = userService;
         this.auditTrailService = auditTrailService;
         this.promptService = promptService;
+        this.objectMapper = objectMapper;
     }
 
     /**

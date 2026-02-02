@@ -1,7 +1,7 @@
 package com.verlake.dam.service.unix;
 
-import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.unix.UnixGroup;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
@@ -9,8 +9,8 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.unix.UnixGroupRepository;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.auth.KeycloakService;
@@ -20,10 +20,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ public class UnixAccessRequestService {
     private final AssetCredentialsRepository assetCredentialsRepository;
     
     /**
-     * Create a new Unix access request from a developer
+     * Create a new Unix access request from a accessor
      * Generates SSH key pair if this is the first request for this user-asset combination
      */
     @Transactional
@@ -118,7 +118,7 @@ public class UnixAccessRequestService {
         accessRequest.setRequestedUsername(createDTO.getRequestedUsername());
         accessRequest.setRequestTime(LocalDateTime.now());
         accessRequest.setRequestReason(createDTO.getRequestReason());
-        accessRequest.setDeveloperApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for developer
+        accessRequest.setAccessorApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for accessor
         accessRequest.setAssetApproverStatus(ApprovalStatus.REQUESTED); // Needs asset owner approval
         accessRequest.setPublicKey(publicKey);
         accessRequest.setEncryptedPrivateKey(encryptedPrivateKey);
@@ -203,7 +203,7 @@ public class UnixAccessRequestService {
     }
     
     /**
-     * Get all access requests by current user (for developer)
+     * Get all access requests by current user (for accessor)
      */
     public List<AccessRequest> getMyAccessRequests() {
         User currentUser = userService.getCurrentUser();

@@ -1,11 +1,14 @@
 package com.verlake.dam.service.assets;
 
-import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.dto.ColumnSchemaDTO;
+import com.verlake.dam.entity.assets.dto.DatabaseSchemaDTO;
+import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
+import com.verlake.dam.entity.assets.dto.TableSchemaDTO;
 import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.exception.DatabaseAccessException;
-import com.verlake.dam.exception.AIPromptException;
 import com.verlake.dam.exception.AIGeminiException;
+import com.verlake.dam.exception.AIPromptException;
+import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.ai.GeminiAIService;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.utils.CommonUtils;
@@ -36,18 +39,18 @@ public class NaturalLanguageToSqlService {
     }
     
     /**
-     * Convert natural language query to SQL for Developer
+     * Convert natural language query to SQL for Accessor
      */
-    public Map<String, Object> convertNaturalLanguageToSqlForDeveloper(NaturalLanguageQueryDTO request) throws CommonUtils.CryptoException {
-        log.info("Converting natural language to SQL for developer - requestId: {}, query: {}", 
+    public Map<String, Object> convertNaturalLanguageToSqlForAccessor(NaturalLanguageQueryDTO request) throws CommonUtils.CryptoException {
+        log.info("Converting natural language to SQL for accessor - requestId: {}, query: {}", 
                 request.getRequestId(), request.getNaturalLanguageQuery());
         
         if (request.getRequestId() == null) {
-            throw new IllegalArgumentException("requestId is required for developer queries");
+            throw new IllegalArgumentException("requestId is required for accessor queries");
         }
         
-        // Get database schema for the developer's access request
-        DatabaseSchemaDTO schema = databaseSchemaService.getSchemaForDeveloper(request.getRequestId());
+        // Get database schema for the accessor's access request
+        DatabaseSchemaDTO schema = databaseSchemaService.getSchemaForAccessor(request.getRequestId());
         
         // Get asset information
         com.verlake.dam.entity.assets.AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(request.getRequestId());
@@ -359,26 +362,23 @@ public class NaturalLanguageToSqlService {
      * Create prompt for LLM to convert NL to SQL
      */
     private String createPrompt(String naturalLanguageQuery, String schemaText, DatabaseType databaseType) {
-        StringBuilder prompt = new StringBuilder();
-        
-        prompt.append("You are a SQL expert. Convert the following natural language query to syntactically correct SQL.\n\n");
-        prompt.append("Database Type: ").append(databaseType.name()).append("\n\n");
-        prompt.append("Database Schema:\n");
-        prompt.append(schemaText).append("\n\n");
-        prompt.append("Natural Language Query: ").append(naturalLanguageQuery).append("\n\n");
-        prompt.append("Instructions:\n");
-        prompt.append("1. Use ONLY the table and column names provided in the schema above.\n");
-        prompt.append("2. Generate syntactically correct SQL for ").append(databaseType.name()).append(" database.\n");
-        prompt.append("3. Use proper SQL syntax, including appropriate JOINs, WHERE clauses, GROUP BY, HAVING, etc.\n");
-        prompt.append("4. Return ONLY the SQL query without any explanation or markdown formatting.\n");
-        prompt.append("5. Do not include code blocks (```sql or ```).\n");
-        prompt.append("6. If the query asks for a count, use COUNT() function.\n");
-        prompt.append("7. If the query asks for filtering, use appropriate WHERE conditions.\n");
-        prompt.append("8. If the query asks for aggregations, use appropriate GROUP BY clauses.\n");
-        prompt.append("9. Ensure table names and column names match exactly as shown in the schema.\n\n");
-        prompt.append("SQL Query:");
-        
-        return prompt.toString();
+
+        return "You are a SQL expert. Convert the following natural language query to syntactically correct SQL.\n\n" +
+                "Database Type: " + databaseType.name() + "\n\n" +
+                "Database Schema:\n" +
+                schemaText + "\n\n" +
+                "Natural Language Query: " + naturalLanguageQuery + "\n\n" +
+                "Instructions:\n" +
+                "1. Use ONLY the table and column names provided in the schema above.\n" +
+                "2. Generate syntactically correct SQL for " + databaseType.name() + " database.\n" +
+                "3. Use proper SQL syntax, including appropriate JOINs, WHERE clauses, GROUP BY, HAVING, etc.\n" +
+                "4. Return ONLY the SQL query without any explanation or markdown formatting.\n" +
+                "5. Do not include code blocks (```sql or ```).\n" +
+                "6. If the query asks for a count, use COUNT() function.\n" +
+                "7. If the query asks for filtering, use appropriate WHERE conditions.\n" +
+                "8. If the query asks for aggregations, use appropriate GROUP BY clauses.\n" +
+                "9. Ensure table names and column names match exactly as shown in the schema.\n\n" +
+                "SQL Query:";
     }
     
     /**

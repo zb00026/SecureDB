@@ -20,9 +20,9 @@ public class KeycloakLoginPage extends BasePage {
     @FindBy(id="kc-login")
     public WebElement loginButton;
 
-    private WebDriver browser;
+    private final WebDriver browser;
 
-    private String keycloakAuthUrl;
+    private final String keycloakAuthUrl;
 
     public KeycloakLoginPage(WebDriver browser, String keycloakAuthUrl) {
         super(browser);

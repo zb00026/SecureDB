@@ -2,41 +2,41 @@ package com.verlake.dam.service.assets;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetQueryChangeRequestRepository;
-import com.verlake.dam.repository.assets.AssetApproversRepository;
-import com.verlake.dam.repository.NotificationTaskRepository;
-import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.ai.DataMaskingService;
-import com.verlake.dam.utils.AuditDescriptionUtils;
-import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.DatabaseQueryUtils;
-import com.verlake.dam.utils.IpAddressUtils;
+import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.AccessRequestExpiredException;
 import com.verlake.dam.exception.AssetQueryChangeRequestNotFoundException;
 import com.verlake.dam.exception.QueryExecutionException;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.verlake.dam.repository.assets.AssetApproversRepository;
+import com.verlake.dam.repository.assets.AssetQueryChangeRequestRepository;
+import com.verlake.dam.service.ai.DataMaskingService;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.DatabaseQueryUtils;
+import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -58,14 +58,15 @@ public class AssetQueryChangeRequestService {
             AssetApproversRepository assetApproversRepository,
             NotificationTaskRepository notificationTaskRepository, DatabaseAccessService databaseAccessService,
             UserService userService, AccessRequestService accessRequestService, AuditTrailService auditTrailService,
-            DataMaskingService dataMaskingService) {
+            DataMaskingService dataMaskingService,
+            ObjectMapper objectMapper) {
         this.assetQueryChangeRequestRepository = assetQueryChangeRequestRepository;
         this.assetService = assetService;
         this.assetApproversRepository = assetApproversRepository;
         this.notificationTaskRepository = notificationTaskRepository;
         this.databaseAccessService = databaseAccessService;
         this.userService = userService;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.accessRequestService = accessRequestService;
         this.auditTrailService = auditTrailService;
         this.dataMaskingService = dataMaskingService;
@@ -284,7 +285,7 @@ public class AssetQueryChangeRequestService {
         return savedRequest;
     }
 
-    public Map<String, Object> runQueryFromDeveloper(AccessQueryDTO accessQueryDTO) {
+    public Map<String, Object> runQueryFromAccessor(AccessQueryDTO accessQueryDTO) {
         AccessRequest accessRequest = validateAccessRequest(accessQueryDTO);
         AssetCredential devCredential = validateAssetCredential(accessRequest);
         validateAccessRequestStatus(accessRequest);
@@ -295,7 +296,7 @@ public class AssetQueryChangeRequestService {
             Map<String, Object> result = executeQueryWithMasking(accessQueryDTO, accessRequest, devCredential);
             
             if (accessQueryDTO.isChangeRequest()) {
-                createChangeRequestForDeveloper(accessQueryDTO, accessRequest);
+                createChangeRequestForAccessor(accessQueryDTO, accessRequest);
             }
 
             createQueryAuditLog(accessQueryDTO, accessRequest.getAsset(), devCredential, true, null, result, startTime);
@@ -335,7 +336,7 @@ public class AssetQueryChangeRequestService {
      * Validate access request status
      */
     private void validateAccessRequestStatus(AccessRequest accessRequest) {
-        if (!accessRequest.getDeveloperApproverStatus().equals(ApprovalStatus.APPROVED) &&
+        if (!accessRequest.getAccessorApproverStatus().equals(ApprovalStatus.APPROVED) &&
                 !accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED)) {
             throw new IllegalArgumentException("Access request is not approved");
         }
@@ -404,7 +405,7 @@ public class AssetQueryChangeRequestService {
             String userEmail = currentUser.getEmail();
             
             // Get all user roles as comma-separated string
-            String userRole = currentUser.getRoles().isEmpty() ? "Developer" : 
+            String userRole = currentUser.getRoles().isEmpty() ? "Accessor" : 
                             currentUser.getRoles().stream()
                                     .map(role -> role.getName())
                                     .collect(java.util.stream.Collectors.joining(","));
@@ -478,9 +479,9 @@ public class AssetQueryChangeRequestService {
     }
     
     /**
-     * Create change request for Developer
+     * Create change request for Accessor
      */
-    public void createChangeRequestForDeveloper(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
+    public void createChangeRequestForAccessor(AccessQueryDTO accessQueryDTO, AccessRequest accessRequest) {
         AssetQueryChangeRequest changeRequest = new AssetQueryChangeRequest();
         changeRequest.setTicketReference(accessQueryDTO.getTicketReference());
         changeRequest.setChangeDescription(accessQueryDTO.getChangeDescription());
@@ -526,14 +527,12 @@ public class AssetQueryChangeRequestService {
 
             if (success && result != null) {
                 Object dataObj = result.get(Constants.QUERY_RESULT_FIELD_DATA);
-                if (dataObj instanceof List) {
-                    List<?> data = (List<?>) dataObj;
+                if (dataObj instanceof List<?> data) {
                     auditMetadata.put(Constants.AUDIT_FIELD_ROW_COUNT, data.size());
                 }
                 
                 Object headersObj = result.get("headers");
-                if (headersObj instanceof List) {
-                    List<?> headers = (List<?>) headersObj;
+                if (headersObj instanceof List<?> headers) {
                     auditMetadata.put(Constants.AUDIT_FIELD_COLUMN_COUNT, headers.size());
                 }
             }

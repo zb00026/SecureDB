@@ -1,7 +1,6 @@
 package com.verlake.dam.e2etest.pageobjects;
 
 import org.openqa.selenium.By;
-import org.openqa.selenium.OutputType;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
@@ -16,7 +15,7 @@ public class ApproveAccessRequestPage extends BasePage {
     public WebElement chakraSpinner;
 
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public ApproveAccessRequestPage(WebDriver browser, String baseUrl) {
         super(browser);

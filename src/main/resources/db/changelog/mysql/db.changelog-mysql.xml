@@ -14,27 +14,27 @@
     </changeSet>
 
     <changeSet id="mysql-update-email-type-2" author="admin" dbms="mysql">
-        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY')"/>
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'ACCESSOR_ASSET_REQUEST_NOTIFY')"/>
     </changeSet>
 
     <changeSet id="mysql-update-email-type-3" author="admin" dbms="mysql">
-        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST')"/>
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'ACCESSOR_ASSET_REQUEST_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST')"/>
     </changeSet>
 
     <changeSet id="mysql-update-email-type-4" author="admin" dbms="mysql">
-        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR')"/>
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'ACCESSOR_ASSET_REQUEST_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR')"/>
     </changeSet>
 
     <changeSet id="mysql-update-email-type-5" author="admin" dbms="mysql">
-        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'DEVELOPER_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY')"/>
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'ACCESSOR_ASSET_REQUEST_NOTIFY', 'ACCESSOR_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY')"/>
     </changeSet>
 
     <changeSet id="mysql-update-email-type-6" author="admin" dbms="mysql">
-        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'DEVELOPER_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY', 'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY')"/>
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'ACCESSOR_ASSET_REQUEST_NOTIFY', 'ACCESSOR_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY', 'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY')"/>
     </changeSet>
 
     <changeSet id="mysql-update-email-type-7" author="admin" dbms="mysql">
-        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'DEVELOPER_ASSET_REQUEST_NOTIFY', 'DEVELOPER_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY', 'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY', 'FORGOT_PASSWORD')"/>
+        <modifyDataType tableName="emails" columnName="email_type" newDataType="ENUM('INVITATION', 'OTHER', 'RELINQUISH_ASSET_CREDENTIAL', 'ASSET_APPROVE_NOTIFY', 'ACCESSOR_ASSET_REQUEST_NOTIFY', 'ACCESSOR_RELINQUISH_ASSET_NOTIFY', 'APPROVAL_ASSET_ACCESS_REQUEST', 'ASSET_OWNER_UPDATE_ASSET_OBJECT_ERROR', 'DELETE_QUERY_ALERT', 'ASSET_QUERY_CHANGE_REQUEST_NOTIFY', 'ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY', 'FORGOT_PASSWORD')"/>
     </changeSet>
 
     <!-- Update existing tables created in common changelogs to use ENUM -->
@@ -52,7 +52,7 @@
 
     <!-- Access request status enums -->
     <changeSet id="mysql-update-access-requests-enums" author="admin" dbms="mysql">
-        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
+        <modifyDataType tableName="access_requests" columnName="accessor_approver_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
         <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"/>
     </changeSet>
 
@@ -65,22 +65,22 @@
     <changeSet id="mysql-update-approval-status-enums-new-states" author="admin" dbms="mysql">
         <comment>Update approval status ENUMs to use new states: REQUESTED, APPROVAL_IN_PROGRESS, APPROVED, REJECTED, RELINQUISHED_AFTER_APPROVED, RELINQUISHED_BEFORE_APPROVAL. Migrate existing PENDING to REQUESTED and CANCELLED to RELINQUISHED_BEFORE_APPROVAL.</comment>
         <!-- Step 1: First, expand ENUM to include all new values (keeping old ones temporarily) -->
-        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <modifyDataType tableName="access_requests" columnName="accessor_approver_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
         <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
         <modifyDataType tableName="asset_query_change_requests" columnName="approval_status" newDataType="ENUM('PENDING', 'CANCELLED', 'REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
         <!-- Step 2: Migrate existing data -->
         <sql>
             UPDATE access_requests 
-            SET developer_approver_status = 'REQUESTED' 
-            WHERE developer_approver_status = 'PENDING';
+            SET accessor_approver_status = 'REQUESTED' 
+            WHERE accessor_approver_status = 'PENDING';
             
             UPDATE access_requests 
             SET asset_approver_status = 'REQUESTED' 
             WHERE asset_approver_status = 'PENDING';
             
             UPDATE access_requests 
-            SET developer_approver_status = 'RELINQUISHED_BEFORE_APPROVAL' 
-            WHERE developer_approver_status = 'CANCELLED';
+            SET accessor_approver_status = 'RELINQUISHED_BEFORE_APPROVAL' 
+            WHERE accessor_approver_status = 'CANCELLED';
             
             UPDATE access_requests 
             SET asset_approver_status = 'RELINQUISHED_BEFORE_APPROVAL' 
@@ -95,7 +95,7 @@
             WHERE approval_status = 'CANCELLED';
         </sql>
         <!-- Step 3: Remove old values from ENUM definitions -->
-        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
+        <modifyDataType tableName="access_requests" columnName="accessor_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
         <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
         <modifyDataType tableName="asset_query_change_requests" columnName="approval_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL')"/>
     </changeSet>
@@ -111,7 +111,7 @@
         <sql>
             ALTER TABLE asset_credentials 
             MODIFY COLUMN user_access_type varchar(50) 
-            COMMENT 'Type of user access: Admin, Developer, Asset Owner, Approver, Auditor, User';
+            COMMENT 'Type of user access: Admin, Accessor, Asset Owner, Approver, Auditor, User';
         </sql>
         
         <!-- Add index for SSH credentials after user_access_type column is created -->
@@ -132,7 +132,7 @@
         <sql>
             ALTER TABLE notification_task 
             MODIFY COLUMN email_type varchar(50) 
-            COMMENT 'Type of email notification: INVITATION, RELINQUISH_ASSET_CREDENTIAL, ASSET_APPROVE_NOTIFY, DEVELOPER_ASSET_REQUEST_NOTIFY, OTHER';
+            COMMENT 'Type of email notification: INVITATION, RELINQUISH_ASSET_CREDENTIAL, ASSET_APPROVE_NOTIFY, ACCESSOR_ASSET_REQUEST_NOTIFY, OTHER';
         </sql>
     </changeSet>
 
@@ -514,7 +514,7 @@
     <!-- Add EXPIRED status to approval status ENUMs -->
     <changeSet id="mysql-add-expired-status-to-approval-enums" author="admin" dbms="mysql">
         <comment>Add EXPIRED status to approval status ENUMs for access_requests table</comment>
-        <modifyDataType tableName="access_requests" columnName="developer_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL', 'EXPIRED')"/>
+        <modifyDataType tableName="access_requests" columnName="accessor_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL', 'EXPIRED')"/>
         <modifyDataType tableName="access_requests" columnName="asset_approver_status" newDataType="ENUM('REQUESTED', 'APPROVAL_IN_PROGRESS', 'APPROVED', 'REJECTED', 'RELINQUISHED_AFTER_APPROVED', 'RELINQUISHED_BEFORE_APPROVAL', 'EXPIRED')"/>
     </changeSet>
 

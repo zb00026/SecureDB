@@ -3,11 +3,10 @@ package com.verlake.dam.service.impl;
 import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
 import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.service.auth.TokenService;
-
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 

@@ -1,7 +1,7 @@
 package com.verlake.dam.repository.terminal;
 
-import com.verlake.dam.entity.terminal.TerminalSessionRecording;
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.terminal.TerminalSessionRecording;
 import com.verlake.dam.entity.user.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

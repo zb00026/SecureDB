@@ -36,7 +36,7 @@
         </insert>
         <insert tableName="roles">
             <column name="id" value="2"/>
-            <column name="name" value="Developer"/>
+            <column name="name" value="Accessor"/>
         </insert>
         <insert tableName="roles">
             <column name="id" value="3"/>

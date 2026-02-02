@@ -18,7 +18,7 @@ public class AccessRequestSummaryDTO {
     private String accessSql;
     private String requestReason;
     private String rejectReason;
-    private ApprovalStatus developerApproverStatus;
+    private ApprovalStatus accessorApproverStatus;
     private ApprovalStatus assetApproverStatus;
     private String requestTime; // Converted to system timezone string
     private String expiryDate; // Converted to system timezone string
@@ -44,7 +44,7 @@ public class AccessRequestSummaryDTO {
                 .accessSql(accessRequest.getAccessSql())
                 .requestReason(accessRequest.getRequestReason())
                 .rejectReason(accessRequest.getRejectReason())
-                .developerApproverStatus(accessRequest.getDeveloperApproverStatus())
+                .accessorApproverStatus(accessRequest.getAccessorApproverStatus())
                 .assetApproverStatus(accessRequest.getAssetApproverStatus())
                 .requestTime(timezoneConverter.convertToSystemTimezoneString(accessRequest.getRequestTime()))
                 .expiryDate(timezoneConverter.convertToSystemTimezoneString(accessRequest.getExpiryDate()))

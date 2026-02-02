@@ -1,22 +1,24 @@
 package com.verlake.dam.entity.dto.unix;
 
-import com.verlake.dam.entity.assets.Asset;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.unix.UnixGroup;
 import com.verlake.dam.entity.unix.UnixGroupFolderAccess;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -163,7 +165,7 @@ public class UnixGroupDTO {
         private String folderPath;
 
         // Backend format: Access type enum
-        @com.fasterxml.jackson.annotation.JsonSetter("accessType")
+        @JsonSetter("accessType")
         private UnixGroupFolderAccess.AccessType accessType;
 
         // Backend format: Permissions as string
@@ -175,7 +177,7 @@ public class UnixGroupDTO {
         private Boolean executePermission;
 
         // Frontend format: Permissions as object (for JSON deserialization)
-        @com.fasterxml.jackson.annotation.JsonIgnore
+        @JsonIgnore
         private Object permissionsObject;
 
         @Builder.Default
@@ -269,13 +271,10 @@ public class UnixGroupDTO {
             boolean read = readPermission != null && readPermission;
             boolean write = writePermission != null && writePermission;
             boolean execute = executePermission != null && executePermission;
-            
-            StringBuilder perm = new StringBuilder();
-            perm.append(read ? "r" : "-");
-            perm.append(write ? "w" : "-");
-            perm.append(execute ? "x" : "-");
-            
-            return perm.toString();
+
+            return (read ? "r" : "-") +
+                    (write ? "w" : "-") +
+                    (execute ? "x" : "-");
         }
 
         /**
@@ -298,7 +297,7 @@ public class UnixGroupDTO {
          * Custom setter for accessType from frontend JSON
          * This handles the case where frontend sends simplified names like "READ" instead of "READ_ONLY"
          */
-        @com.fasterxml.jackson.annotation.JsonSetter("accessType")
+        @JsonSetter("accessType")
         public void setAccessTypeFromJson(Object accessTypeValue) {
             if (accessTypeValue instanceof String accessTypeStr) {
                 this.accessType = mapFrontendAccessTypeToEnum(accessTypeStr);
@@ -343,10 +342,10 @@ public class UnixGroupDTO {
             if (permissionsValue instanceof String string) {
                 // Backend format: permissions as string
                 this.permissions = string;
-            } else if (permissionsValue instanceof java.util.Map) {
+            } else if (permissionsValue instanceof Map) {
                 // Frontend format: permissions as object
                 @SuppressWarnings("unchecked")
-                java.util.Map<String, Object> permissionsMap = (java.util.Map<String, Object>) permissionsValue;
+                Map<String, Object> permissionsMap = (Map<String, Object>) permissionsValue;
                 extractPermissionsFromMap(permissionsMap);
             }
         }
@@ -356,9 +355,9 @@ public class UnixGroupDTO {
          * This method can be called to extract individual permissions from a permissions object
          */
         public void extractPermissionsFromObject(Object permissionsObj) {
-            if (permissionsObj instanceof java.util.Map) {
+            if (permissionsObj instanceof Map) {
                 @SuppressWarnings("unchecked")
-                java.util.Map<String, Object> permissionsMap = (java.util.Map<String, Object>) permissionsObj;
+                Map<String, Object> permissionsMap = (Map<String, Object>) permissionsObj;
                 extractPermissionsFromMap(permissionsMap);
             }
         }
@@ -367,7 +366,7 @@ public class UnixGroupDTO {
          * Helper method to extract permissions from a Map and set individual permission fields
          * This eliminates code duplication between setPermissionsFromJson and extractPermissionsFromObject
          */
-        private void extractPermissionsFromMap(java.util.Map<String, Object> permissionsMap) {
+        private void extractPermissionsFromMap(Map<String, Object> permissionsMap) {
             Object read = permissionsMap.get("read");
             Object write = permissionsMap.get("write");
             Object execute = permissionsMap.get("execute");

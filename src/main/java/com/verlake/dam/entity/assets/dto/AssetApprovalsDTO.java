@@ -1,7 +1,6 @@
 package com.verlake.dam.entity.assets.dto;
 
 import com.verlake.dam.entity.assets.Asset;
-
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

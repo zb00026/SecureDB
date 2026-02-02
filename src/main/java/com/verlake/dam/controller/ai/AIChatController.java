@@ -1,13 +1,13 @@
 package com.verlake.dam.controller.ai;
 
 
+import com.verlake.dam.entity.ai.ApplyPolicyRequest;
 import com.verlake.dam.entity.ai.ChatMessage;
 import com.verlake.dam.entity.ai.ChatMessageRequest;
-import com.verlake.dam.entity.ai.ApplyPolicyRequest;
 import com.verlake.dam.exception.AIChatException;
 import com.verlake.dam.service.ai.AIChatService;
-import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;

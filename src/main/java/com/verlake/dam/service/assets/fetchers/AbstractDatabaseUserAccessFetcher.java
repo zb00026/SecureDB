@@ -1,7 +1,7 @@
 package com.verlake.dam.service.assets.fetchers;
 
-import com.verlake.dam.entity.assets.dto.UserAccessDTO;
 import com.verlake.dam.entity.assets.dto.PermissionDTO;
+import com.verlake.dam.entity.assets.dto.UserAccessDTO;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.Connection;

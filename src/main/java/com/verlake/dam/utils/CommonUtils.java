@@ -6,24 +6,24 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import javax.crypto.*;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.security.spec.InvalidKeySpecException;
-
-import java.util.Arrays;
-import java.util.Base64;
 
 public class CommonUtils {
+
+    // Reusable SecureRandom instance for better performance
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private CommonUtils() {
         throw new UnsupportedOperationException("Utility class should not be instantiated");
@@ -31,10 +31,9 @@ public class CommonUtils {
 
     // Generate a random hex string of given length
     public static String generateInviteCode(int length) {
-        SecureRandom random = new SecureRandom();
         StringBuilder hexCode = new StringBuilder();
         for (int i = 0; i < length; i++) {
-            hexCode.append(Integer.toHexString(random.nextInt(16))); // Generate random hex digit
+            hexCode.append(Integer.toHexString(SECURE_RANDOM.nextInt(16))); // Generate random hex digit
         }
         return hexCode.toString().toUpperCase(); // Convert to uppercase
     }
@@ -81,8 +80,7 @@ public class CommonUtils {
 
             // Generate random IV (12 bytes is recommended for GCM)
             byte[] iv = new byte[12];
-            SecureRandom secureRandom = new SecureRandom();
-            secureRandom.nextBytes(iv);
+            SECURE_RANDOM.nextBytes(iv);
             GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv); // 128-bit authentication tag
 
             cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);

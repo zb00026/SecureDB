@@ -2,13 +2,12 @@ package com.verlake.dam.service.users;
 
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserFilter;
-import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -19,15 +18,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
-import java.util.*;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 @Service
 @Slf4j
 public class UserService {
     private final UserRepository userRepository;
-    
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -183,7 +183,6 @@ public class UserService {
      * Generates a complex password that meets all complexity requirements
      */
     public String generateComplexPassword() {
-        SecureRandom random = new SecureRandom();
         String upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         String lowerCase = "abcdefghijklmnopqrstuvwxyz";
         String digits = "0123456789";
@@ -193,20 +192,20 @@ public class UserService {
         StringBuilder password = new StringBuilder();
         
         // Ensure at least one character from each required category
-        password.append(upperCase.charAt(random.nextInt(upperCase.length())));
-        password.append(lowerCase.charAt(random.nextInt(lowerCase.length())));
-        password.append(digits.charAt(random.nextInt(digits.length())));
-        password.append(specialChars.charAt(random.nextInt(specialChars.length())));
+        password.append(upperCase.charAt(secureRandom.nextInt(upperCase.length())));
+        password.append(lowerCase.charAt(secureRandom.nextInt(lowerCase.length())));
+        password.append(digits.charAt(secureRandom.nextInt(digits.length())));
+        password.append(specialChars.charAt(secureRandom.nextInt(specialChars.length())));
 
         // Fill the rest with random characters to reach 12+ characters
         for (int i = 4; i < 12; i++) {
-            password.append(allChars.charAt(random.nextInt(allChars.length())));
+            password.append(allChars.charAt(secureRandom.nextInt(allChars.length())));
         }
 
         // Shuffle the password to avoid predictable patterns
         char[] passwordArray = password.toString().toCharArray();
         for (int i = passwordArray.length - 1; i > 0; i--) {
-            int j = random.nextInt(i + 1);
+            int j = secureRandom.nextInt(i + 1);
             char temp = passwordArray[i];
             passwordArray[i] = passwordArray[j];
             passwordArray[j] = temp;
@@ -228,9 +227,6 @@ public class UserService {
      * Generates a secure temporary password that meets complexity requirements
      */
     public String generateSecureTemporaryPassword() {
-        // Use a secure random generator
-        java.security.SecureRandom random = new java.security.SecureRandom();
-        
         // Define character sets
         String lowercase = Constants.PSSWD_LOWERCASE;
         String uppercase = Constants.PSSWD_UPPERCASE;
@@ -241,14 +237,14 @@ public class UserService {
         StringBuilder password = new StringBuilder();
         
         // Ensure at least one character from each required set
-        password.append(lowercase.charAt(random.nextInt(lowercase.length())));
-        password.append(uppercase.charAt(random.nextInt(uppercase.length())));
-        password.append(digits.charAt(random.nextInt(digits.length())));
-        password.append(specials.charAt(random.nextInt(specials.length())));
+        password.append(lowercase.charAt(secureRandom.nextInt(lowercase.length())));
+        password.append(uppercase.charAt(secureRandom.nextInt(uppercase.length())));
+        password.append(digits.charAt(secureRandom.nextInt(digits.length())));
+        password.append(specials.charAt(secureRandom.nextInt(specials.length())));
         
         // Fill the rest randomly (minimum 12 characters total)
         for (int i = 4; i < 16; i++) {
-            password.append(allChars.charAt(random.nextInt(allChars.length())));
+            password.append(allChars.charAt(secureRandom.nextInt(allChars.length())));
         }
         
         // Shuffle the password to avoid predictable patterns
@@ -256,7 +252,7 @@ public class UserService {
         for (char c : password.toString().toCharArray()) {
             passwordChars.add(c);
         }
-        Collections.shuffle(passwordChars, random);
+        Collections.shuffle(passwordChars, secureRandom);
         
         StringBuilder shuffledPassword = new StringBuilder();
         for (char c : passwordChars) {

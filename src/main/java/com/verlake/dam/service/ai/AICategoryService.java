@@ -4,13 +4,14 @@ import com.verlake.dam.entity.ai.AICategory;
 import com.verlake.dam.entity.ai.FieldSuggestion;
 import com.verlake.dam.exception.AICategoryException;
 import com.verlake.dam.repository.ai.AICategoryRepository;
-import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j

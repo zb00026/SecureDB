@@ -1,23 +1,21 @@
 package com.verlake.dam.service.unix;
 
+import com.verlake.dam.entity.AuditTrail;
+import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.entity.AuditTrail;
 import com.verlake.dam.entity.unix.UnixGroup;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.repository.AuditTrailRepository;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.service.terminal.SSHConnectionService;
-import com.verlake.dam.service.unix.SSHKeyPairService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.Constants;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -84,9 +82,9 @@ public class UnixAccessApprovalService {
             // Generate temporary SSH key pair and add public key to authorized_keys
             String privateKey = generateAndAddSSHKeyPair(request);
             
-            // Create AssetCredential for developer with unencrypted private key
-            // The private key will be encrypted later with developer's key when they access it
-            createDeveloperCredential(request, privateKey);
+            // Create AssetCredential for accessor with unencrypted private key
+            // The private key will be encrypted later with accessor's key when they access it
+            createAccessorCredential(request, privateKey);
 
             request.setAssetApproverStatus(ApprovalStatus.APPROVED);
 
@@ -321,24 +319,24 @@ public class UnixAccessApprovalService {
         
         log.info("Public key added to user {}. Result: {}", username, result);
         
-        // Return unencrypted private key - will be encrypted later with developer's key
+        // Return unencrypted private key - will be encrypted later with accessor's key
         return privateKey;
     }
     
     /**
-     * Create AssetCredential for developer with unencrypted private key
-     * The private key will be encrypted later with developer's key when they access it
+     * Create AssetCredential for accessor with unencrypted private key
+     * The private key will be encrypted later with accessor's key when they access it
      */
-    private void createDeveloperCredential(AccessRequest request, String privateKey) {
+    private void createAccessorCredential(AccessRequest request, String privateKey) {
         // Check if credential already exists
         boolean credentialExists = assetCredentialsRepository
                 .findByAssetIdAndUserId(request.getAsset().getId(), request.getRequestor().getId())
                 .stream()
-                .anyMatch(cred -> Roles.DEVELOPER.getOriginalName().equals(cred.getUserAccessType()));
+                .anyMatch(cred -> Roles.ACCESSOR.getOriginalName().equals(cred.getUserAccessType()));
         
         if (credentialExists) {
             AssetCredential devCredential = assetCredentialsRepository
-                    .findByUserIdAndAssetIdAndUserAccessType(request.getRequestor().getId(), request.getAsset().getId(), Roles.DEVELOPER.getOriginalName())
+                    .findByUserIdAndAssetIdAndUserAccessType(request.getRequestor().getId(), request.getAsset().getId(), Roles.ACCESSOR.getOriginalName())
                     .orElse(null);
             if (devCredential != null) {
                 devCredential.setUsername(request.getRequestedUsername());
@@ -346,22 +344,22 @@ public class UnixAccessApprovalService {
                 devCredential.setSshKeyFile(privateKey);
                 assetCredentialsRepository.saveAndFlush(devCredential);
             }
-            log.info("Developer credential already exists for user: {}", request.getRequestor().getEmail());
+            log.info("Accessor credential already exists for user: {}", request.getRequestor().getEmail());
             return;
         }
         
-        AssetCredential developerCredential = AssetCredential.builder()
+        AssetCredential accessorCredential = AssetCredential.builder()
                 .asset(request.getAsset())
                 .user(request.getRequestor())
                 .username(request.getRequestedUsername())
-                .sshKeyFile(privateKey) // Store unencrypted private key - will be encrypted with developer's key later
-                .userAccessType(Roles.DEVELOPER.getOriginalName())
+                .sshKeyFile(privateKey) // Store unencrypted private key - will be encrypted with accessor's key later
+                .userAccessType(Roles.ACCESSOR.getOriginalName())
                 .isDeleted(false)
                 .build();
         
-        assetCredentialsRepository.save(developerCredential);
+        assetCredentialsRepository.save(accessorCredential);
         
-        log.info("Developer credential created with SSH key pair for user: {}", 
+        log.info("Accessor credential created with SSH key pair for user: {}", 
                 request.getRequestor().getEmail());
     }
     

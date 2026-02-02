@@ -5,15 +5,14 @@ import com.verlake.dam.entity.SystemSettings;
 import com.verlake.dam.service.s3.S3Service;
 import com.verlake.dam.service.s3.S3SettingsService;
 import com.verlake.dam.service.settings.SystemSettingsService;
-
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
 
 import java.util.HashMap;
 import java.util.Map;

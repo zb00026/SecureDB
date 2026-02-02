@@ -1,7 +1,7 @@
 package com.verlake.dam.utils;
 
-import com.verlake.dam.enums.UnixServerType;
 import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.enums.UnixServerType;
 
 /**
  * Builder for Unix commands that are compatible across different server types

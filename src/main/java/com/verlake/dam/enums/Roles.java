@@ -5,7 +5,7 @@ import java.util.stream.Collectors;
 
 public enum Roles {
     ADMIN,
-    DEVELOPER,
+    ACCESSOR,
     ASSET_OWNER,
     APPROVER,
     AUDITOR;

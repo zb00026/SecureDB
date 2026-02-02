@@ -1,4 +1,4 @@
-package com.verlake.dam.controller.developer;
+package com.verlake.dam.controller.accessor;
 
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
@@ -14,13 +14,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Controller for developers to request Unix asset access
+ * Controller for accessors to request Unix asset access
  */
 @RestController
-@RequestMapping("/api/developer/unix-access")
+@RequestMapping("/api/accessor/unix-access")
 @Slf4j
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('DEVELOPER')")
+@PreAuthorize("hasRole('ACCESSOR')")
 public class UnixAccessRequestController {
     
     private final UnixAccessRequestService unixAccessRequestService;

@@ -24,7 +24,7 @@ public class AssetsPage extends BasePage {
     @FindBy(id = "flexAssetDetailForm")
     private WebElement assetDetailForm;
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public AssetsPage(WebDriver driver, String baseUrl) {
         super(driver);

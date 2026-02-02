@@ -1,6 +1,7 @@
 package com.verlake.dam.utils;
 
 import com.verlake.dam.enums.DatabaseType;
+
 import java.util.List;
 import java.util.Map;
 
@@ -180,7 +181,8 @@ public class DatabaseQueryUtils {
             } else if (!success) {
                 appendFailureResult(newValue, errorMessage);
             } else {
-                newValue.append(" | Result: SUCCESS - No data returned");
+                newValue.append(Constants.QUERY_RESULT_SEPARATOR).append(Constants.QUERY_RESULT_STATUS_SUCCESS)
+                        .append(" - ").append(Constants.QUERY_RESULT_NO_DATA_RETURNED);
             }
             
             return newValue.toString();
@@ -194,21 +196,23 @@ public class DatabaseQueryUtils {
      * Append success result information to the newValue string
      */
     private static void appendSuccessResult(StringBuilder newValue, Map<String, Object> result) {
-        newValue.append(" | Result: ");
+        newValue.append(Constants.QUERY_RESULT_SEPARATOR);
         
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> resultsList = (List<Map<String, Object>>) result.get(Constants.QUERY_RESULT_FIELD_RESULTS);
         
         if (resultsList != null && !resultsList.isEmpty()) {
             int totalRows = calculateTotalRows(resultsList);
-            newValue.append("SUCCESS - ").append(totalRows).append(" rows returned");
+            newValue.append(Constants.QUERY_RESULT_STATUS_SUCCESS).append(" - ")
+                    .append(totalRows).append(Constants.QUERY_RESULT_ROWS_RETURNED);
             
             if (totalRows > 0) {
                 newValue.append(" | Sample data: ");
                 addSampleData(newValue, resultsList);
             }
         } else {
-            newValue.append("SUCCESS - No data returned");
+            newValue.append(Constants.QUERY_RESULT_STATUS_SUCCESS).append(" - ")
+                    .append(Constants.QUERY_RESULT_NO_DATA_RETURNED);
         }
     }
     
@@ -216,7 +220,7 @@ public class DatabaseQueryUtils {
      * Append failure result information to the newValue string
      */
     private static void appendFailureResult(StringBuilder newValue, String errorMessage) {
-        newValue.append(" | Result: FAILED");
+        newValue.append(Constants.QUERY_RESULT_SEPARATOR).append(Constants.QUERY_RESULT_STATUS_FAILED);
         if (errorMessage != null) {
             newValue.append(" - ").append(errorMessage);
         }
@@ -241,7 +245,8 @@ public class DatabaseQueryUtils {
      * Create fallback value when detailed creation fails
      */
     private static String createFallbackValue(String query, boolean success) {
-        return "Query: " + query + " | Result: " + (success ? "SUCCESS" : "FAILED");
+        String status = success ? Constants.QUERY_RESULT_STATUS_SUCCESS : Constants.QUERY_RESULT_STATUS_FAILED;
+        return "Query: " + query + Constants.QUERY_RESULT_SEPARATOR + status;
     }
     
     /**

@@ -1,8 +1,8 @@
 package com.verlake.dam.entity.assets.dto;
 
-import java.util.List;
-
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class AssetUpdateDTO {

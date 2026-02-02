@@ -2,21 +2,17 @@ package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.controller.common.BaseAssetAccessController;
 import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.AssetUpdateDTO;
-import com.verlake.dam.entity.assets.dto.AssetAccessDTO;
 import com.verlake.dam.entity.assets.dto.PingResult;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.AssetCsvService;
+import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.I18nUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,8 +27,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
-
-import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/api/admin/assets")
@@ -135,8 +129,7 @@ public class AssetController extends BaseAssetAccessController {
      * Lock out users in the asset database (Admin only)
      * 
      * @param id           Asset ID
-     * @param lockAllUsers If true, locks all database users including applications.
-     *                     If false, only locks Hagrid users.
+     *                     If false, only locks Hagrids users.
      */
     @PostMapping("/{id}/lockout")
     public ResponseEntity<Map<String, Object>> lockoutAssetUsers(
@@ -156,8 +149,7 @@ public class AssetController extends BaseAssetAccessController {
      * Unlock users in the asset database (Admin only)
      * 
      * @param id             Asset ID
-     * @param unlockAllUsers If true, unlocks all database users. If false, only
-     *                       unlocks Hagrid users.
+     *                       unlocks Hagrids users.
      */
     @PostMapping("/{id}/unlock")
     public ResponseEntity<Map<String, Object>> unlockAssetUsers(

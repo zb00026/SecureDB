@@ -12,19 +12,17 @@ import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.exception.FirebaseMessagingOperationException;
 import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.utils.Constants;
-
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
 public class FirebaseMessagingService {
 
-    private NotificationTaskRepository notificationTaskRepository;
+    private final NotificationTaskRepository notificationTaskRepository;
 
     public FirebaseMessagingService(NotificationTaskRepository notificationTaskRepository) {
         this.notificationTaskRepository = notificationTaskRepository;

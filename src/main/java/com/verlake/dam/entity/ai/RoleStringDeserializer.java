@@ -18,7 +18,7 @@ public class RoleStringDeserializer extends JsonDeserializer<List<Role>> {
 
     @Override
     public List<Role> deserialize(JsonParser p, DeserializationContext ctxt) 
-            throws IOException, JsonProcessingException {
+            throws IOException {
         
         List<Role> roles = new ArrayList<>();
         JsonNode node = p.getCodec().readTree(p);

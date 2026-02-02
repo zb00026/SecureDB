@@ -1,18 +1,18 @@
 package com.verlake.dam.entity.user;
 
 
-import com.verlake.dam.entity.user.dto.UserApproverDTO;
-import jakarta.persistence.*;
-import lombok.Data;
-
-import com.verlake.dam.listener.AuditEntityListener;
-import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.Role;
+import com.verlake.dam.entity.user.dto.UserApproverDTO;
+import com.verlake.dam.listener.AuditEntityListener;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.SpringContext;
+import jakarta.persistence.*;
+import lombok.Data;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")

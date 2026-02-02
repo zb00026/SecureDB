@@ -1,17 +1,18 @@
 package com.verlake.dam.entity.assets;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.verlake.dam.annotation.Audited;
-import com.verlake.dam.entity.user.User;
-import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.listener.AuditEntityListener;
 import com.verlake.dam.entity.assets.dto.AssetApprovalsDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
-
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.listener.AuditEntityListener;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class AccessRequest {
     private Asset asset;
     
     @Transient
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     private AssetDTO assetDTO;
 
     @Transient
@@ -54,14 +55,14 @@ public class AccessRequest {
     private String rejectReason;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "developer_approver_status")
-    private ApprovalStatus developerApproverStatus = ApprovalStatus.REQUESTED;
+    @Column(name = "accessor_approver_status")
+    private ApprovalStatus accessorApproverStatus = ApprovalStatus.REQUESTED;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "asset_approver_status")
     private ApprovalStatus assetApproverStatus = ApprovalStatus.REQUESTED;
 
-    // This is used to check if the password is a temporary password for developer request when approver approves the access request
+    // This is used to check if the password is a temporary password for accessor request when approver approves the access request
     @Column(name = "is_temp_password", columnDefinition = "tinyint(1)")
     private Boolean isTempPassword;
 

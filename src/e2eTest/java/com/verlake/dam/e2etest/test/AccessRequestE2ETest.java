@@ -3,13 +3,12 @@ package com.verlake.dam.e2etest.test;
 import com.verlake.dam.e2etest.pageobjects.*;
 import org.junit.jupiter.api.*;
 
-@DisplayName("Developer Access Request Operations")
+@DisplayName("Accessor Access Request Operations")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class AccessRequestE2ETest extends BaseE2ETest {
 
-    private DeveloperAssetPage developerAssetPage;
-    private ApproveAccessRequestPage approveAccessRequestPage;
+    private AccessorAssetPage accessorAssetPage;
 
     @BeforeAll
     void setupTestData() {
@@ -61,15 +60,15 @@ public class AccessRequestE2ETest extends BaseE2ETest {
 
     @Test
     @Order(3)
-    @DisplayName("Log in as Developer and create Access Request")
-    void loginDeveloperCreateAccessRequest() throws InterruptedException {
-        loginWithCredential(developerUsername, developerPassword);
-        developerAssetPage = new DeveloperAssetPage(browser, baseUrl);
-        developerAssetPage.navigate();
+    @DisplayName("Log in as Accessor and create Access Request")
+    void loginAccessorCreateAccessRequest() throws InterruptedException {
+        loginWithCredential(accessorUsername, accessorPassword);
+        accessorAssetPage = new AccessorAssetPage(browser, baseUrl);
+        accessorAssetPage.navigate();
 
-        developerAssetPage.clickRequestAccessAssetByCriteria(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName);
-        developerAssetPage.requestAccess();
-        developerAssetPage.takeScreenshot("Developer Access Request");
+        accessorAssetPage.clickRequestAccessAssetByCriteria(assetName, assetDbType, assetHostAddress, assetPortNumber, assetDatabaseName);
+        accessorAssetPage.requestAccess();
+        accessorAssetPage.takeScreenshot("Accessor Access Request");
         dashboardPage.logout();
     }
 
@@ -79,10 +78,10 @@ public class AccessRequestE2ETest extends BaseE2ETest {
     void loginAssetOwnerApproveAccessRequest() throws InterruptedException {
         // Login as asset owner
         loginWithCredential(assetOwnerUsername, assetOwnerPassword);
-        approveAccessRequestPage = new ApproveAccessRequestPage(browser, baseUrl);
+        ApproveAccessRequestPage approveAccessRequestPage = new ApproveAccessRequestPage(browser, baseUrl);
         approveAccessRequestPage.navigate();
         Thread.sleep(1000);
-        approveAccessRequestPage.clickApproveAccessRequestByCriteria(assetName, assetDescription, "NewDeveloperFName NewDeveloperLName", developerUsername);
+        approveAccessRequestPage.clickApproveAccessRequestByCriteria(assetName, assetDescription, "NewAccessorFName NewAccessorLName", accessorUsername);
         dashboardPage.logout();
         System.out.println(browser.getCurrentUrl());
 
@@ -90,14 +89,14 @@ public class AccessRequestE2ETest extends BaseE2ETest {
 
     @Test
     @Order(5)
-    @DisplayName("Log in as Developer and update password of approved access request")
-    void loginDeveloperUpdateApprovedAccessRequestPassword() throws InterruptedException {
+    @DisplayName("Log in as Accessor and update password of approved access request")
+    void loginAccessorUpdateApprovedAccessRequestPassword() throws InterruptedException {
         System.out.println(browser.getCurrentUrl());
-        loginWithCredential(developerUsername, developerPassword);
-        developerAssetPage = new DeveloperAssetPage(browser, baseUrl);
-        developerAssetPage.navigate();
+        loginWithCredential(accessorUsername, accessorPassword);
+        accessorAssetPage = new AccessorAssetPage(browser, baseUrl);
+        accessorAssetPage.navigate();
 
-        developerAssetPage.updateApprovedAccessRequestPassword(assetName, assetDescription, assetHostAddress, assetPortNumber, assetDatabaseName, "!Q029OLkdj25!*");
+        accessorAssetPage.updateApprovedAccessRequestPassword(assetName, assetDescription, assetHostAddress, assetPortNumber, assetDatabaseName, "!Q029OLkdj25!*");
         dashboardPage.logout();
     }
 }

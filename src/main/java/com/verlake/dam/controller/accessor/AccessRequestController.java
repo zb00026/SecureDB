@@ -1,16 +1,15 @@
-package com.verlake.dam.controller.developer;
+package com.verlake.dam.controller.accessor;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.verlake.dam.controller.common.BaseAssetAccessController;
 import com.verlake.dam.entity.assets.AccessLevelObject;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
-import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
-import com.verlake.dam.entity.assets.dto.AssetDTO;
+import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.service.assets.AccessLevelService;
+import com.verlake.dam.service.assets.*;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
@@ -19,21 +18,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.verlake.dam.service.assets.AccessRequestService;
-import com.verlake.dam.service.assets.AssetService;
-import com.verlake.dam.service.assets.QueryExecutionService;
-import com.verlake.dam.service.assets.NaturalLanguageToSqlService;
-import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-
 @RestController
-@RequestMapping("/api/developer/assets")
+@RequestMapping("/api/accessor/assets")
 @Slf4j
 public class AccessRequestController extends BaseAssetAccessController {
 
@@ -74,12 +64,12 @@ public class AccessRequestController extends BaseAssetAccessController {
      */
     @GetMapping("/{id}/access")
     public ResponseEntity<?> getAssetAccess(@PathVariable Long id) {
-        return super.getAssetAccess(id, Roles.DEVELOPER.getOriginalName());
+        return super.getAssetAccess(id, Roles.ACCESSOR.getOriginalName());
     }
 
     @Override
     protected ResponseEntity<?> handleGenericError(RuntimeException e) {
-        // Developer controller returns 500 with error message for generic errors
+        // Accessor controller returns 500 with error message for generic errors
                     Map<String, String> errorResponse = Map.of(Constants.ERROR_FIELD_ERROR, "Failed to fetch asset access information");
         return ResponseEntity.status(500).body(errorResponse);
     }
@@ -202,51 +192,51 @@ public class AccessRequestController extends BaseAssetAccessController {
     @PostMapping("/run_query")
     public ResponseEntity<Map<String, Object>> runAssetQuery(@RequestBody AccessQueryDTO queryDto) {
         String currentUserEmail = CommonUtils.getEmailFromSession();
-        log.info("Developer {} executing query on asset ID: {} via access request: {}", 
+        log.info("Accessor {} executing query on asset ID: {} via access request: {}", 
                 currentUserEmail, queryDto.getAssetId(), queryDto.getRequestId());
         
         try {
             // Use the shared query execution service
-            Map<String, Object> queryResult = queryExecutionService.executeQueryForDeveloper(queryDto);
+            Map<String, Object> queryResult = queryExecutionService.executeQueryForAccessor(queryDto);
             
             Map<String, Object> response = new LinkedHashMap<>();
             response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
             response.put("results", queryResult);
             
-            log.info("Developer {} successfully executed query via access request: {} - results returned", 
+            log.info("Accessor {} successfully executed query via access request: {} - results returned", 
                     currentUserEmail, queryDto.getRequestId());
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error running query for developer {}: {}", currentUserEmail, e.getMessage(), e);
+            log.error("Error running query for accessor {}: {}", currentUserEmail, e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
 
     /**
-     * Convert natural language query to SQL for Developer
-     * POST /api/developer/assets/convert_nl_to_sql
+     * Convert natural language query to SQL for Accessor
+     * POST /api/accessor/assets/convert_nl_to_sql
      */
     @PostMapping("/convert_nl_to_sql")
     public ResponseEntity<Map<String, Object>> convertNaturalLanguageToSql(@RequestBody NaturalLanguageQueryDTO request) {
         String currentUserEmail = CommonUtils.getEmailFromSession();
-        log.info("Developer {} converting NL to SQL - requestId: {}, query: {}", 
+        log.info("Accessor {} converting NL to SQL - requestId: {}, query: {}", 
                 currentUserEmail, request.getRequestId(), request.getNaturalLanguageQuery());
         
         try {
-            Map<String, Object> result = naturalLanguageToSqlService.convertNaturalLanguageToSqlForDeveloper(request);
+            Map<String, Object> result = naturalLanguageToSqlService.convertNaturalLanguageToSqlForAccessor(request);
             
             Map<String, Object> response = new LinkedHashMap<>();
             response.put(Constants.STATUS_NAME, Constants.getMessage("status.success"));
             response.putAll(result);
             
-            log.info("Developer {} successfully converted NL to SQL via access request: {}", 
+            log.info("Accessor {} successfully converted NL to SQL via access request: {}", 
                     currentUserEmail, request.getRequestId());
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error converting NL to SQL for developer {}: {}", currentUserEmail, e.getMessage(), e);
+            log.error("Error converting NL to SQL for accessor {}: {}", currentUserEmail, e.getMessage(), e);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

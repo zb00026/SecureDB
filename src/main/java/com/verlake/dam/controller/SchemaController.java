@@ -22,8 +22,8 @@ public class SchemaController {
      * Get database schema for the logged-in user
      * 
      * @param assetId Asset ID (required for asset owners)
-     * @param requestId Access request ID (required for developers)
-     * @param isAssetOwner true if requesting as asset owner, false if as developer (optional, auto-detected if not provided)
+     * @param requestId Access request ID (required for accessors)
+     * @param isAssetOwner true if requesting as asset owner, false if as accessor (optional, auto-detected if not provided)
      * @return Database schema filtered by user's permissions
      */
     @GetMapping
@@ -47,10 +47,10 @@ public class SchemaController {
     }
 
     /**
-     * Get database schema by asset ID (supports both asset owners and developers)
+     * Get database schema by asset ID (supports both asset owners and accessors)
      * 
      * @param assetId Asset ID
-     * @param isAssetOwner true if requesting as asset owner, false if as developer (optional, auto-detected if not provided)
+     * @param isAssetOwner true if requesting as asset owner, false if as accessor (optional, auto-detected if not provided)
      */
     @GetMapping("/asset/{assetId}")
     @PreAuthorize("isAuthenticated()")
@@ -71,8 +71,8 @@ public class SchemaController {
     }
 
     /**
-     * Get database schema by access request ID (for developers)
-     * requestId explicitly indicates developer access, so isAssetOwner is ignored
+     * Get database schema by access request ID (for accessors)
+     * requestId explicitly indicates accessor access, so isAssetOwner is ignored
      */
     @GetMapping("/request/{requestId}")
     @PreAuthorize("isAuthenticated()")
@@ -80,7 +80,7 @@ public class SchemaController {
         log.debug("Fetching database schema for request ID: {}", requestId);
         
         try {
-            // requestId explicitly indicates developer path, ignore isAssetOwner
+            // requestId explicitly indicates accessor path, ignore isAssetOwner
             DatabaseSchemaDTO schema = databaseSchemaService.getSchemaForCurrentUser(null, requestId, false);
             log.info("Successfully fetched schema for request {} with {} tables and {} total columns", 
                     requestId, schema.getTotalTables(), schema.getTotalColumns());

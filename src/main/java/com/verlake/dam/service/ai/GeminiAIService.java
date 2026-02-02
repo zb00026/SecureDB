@@ -3,10 +3,10 @@ package com.verlake.dam.service.ai;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.entity.ai.FieldSuggestion;
-import com.verlake.dam.exception.AIPromptException;
+import com.verlake.dam.entity.ai.MaskingIntent;
 import com.verlake.dam.exception.AIGeminiException;
+import com.verlake.dam.exception.AIPromptException;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +53,8 @@ public class GeminiAIService {
     public GeminiAIService(RestTemplate restTemplate, String geminiApiKey, String geminiModelName,
                           int geminiMaxTokens, float geminiTemperature, int geminiTopK, float geminiTopP,
                           int geminiMaxRetries, int geminiBaseDelayMs, int geminiMaxDelayMs,
-                          AIPromptService promptService, AISensitivePatternService patternService) {
+                          AIPromptService promptService, AISensitivePatternService patternService,
+                          ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.apiKey = geminiApiKey;
         this.modelName = geminiModelName;
@@ -64,7 +65,7 @@ public class GeminiAIService {
         this.maxRetries = geminiMaxRetries;
         this.baseDelayMs = geminiBaseDelayMs;
         this.maxDelayMs = geminiMaxDelayMs;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.promptService = promptService;
         this.patternService = patternService;
     }
@@ -468,7 +469,7 @@ public class GeminiAIService {
         Map<String, Object> content = new HashMap<>();
         Map<String, Object> part = new HashMap<>();
         part.put("text", prompt);
-        content.put(Constants.GEMINI_JSON_FIELD_PARTS, Arrays.asList(part));
+        content.put(Constants.GEMINI_JSON_FIELD_PARTS, List.of(part));
         
         Map<String, Object> generationConfig = new HashMap<>();
         generationConfig.put("temperature", temperature);
@@ -477,7 +478,7 @@ public class GeminiAIService {
         generationConfig.put("maxOutputTokens", maxTokens);
         
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("contents", Arrays.asList(content));
+        requestBody.put("contents", List.of(content));
         requestBody.put("generationConfig", generationConfig);
         
         return requestBody;
@@ -606,7 +607,7 @@ public class GeminiAIService {
             return handleEmptyModelResponse();
         }
         
-        log.warn("Content found but no extractable text. Content structure: {}", content.toString());
+        log.warn("Content found but no extractable text. Content structure: {}", content);
         return null;
     }
     
@@ -666,7 +667,7 @@ public class GeminiAIService {
             return candidateText.asText();
         }
         
-        log.warn("No content found in candidate. Candidate structure: {}", candidate.toString());
+        log.warn("No content found in candidate. Candidate structure: {}", candidate);
         return null;
     }
     
@@ -680,7 +681,7 @@ public class GeminiAIService {
             return responseText.asText();
         }
         
-        log.warn("No candidates found in response. Response structure: {}", root.toString());
+        log.warn("No candidates found in response. Response structure: {}", root);
         log.warn("Unable to extract text from Gemini 2.5 Flash response. Full response: {}", responseBody);
         return "I received your request but the AI service returned an empty or unreadable response. This might be due to content policies, model limitations, or a format change. Please try rephrasing your request or use manual policy creation.";
     }

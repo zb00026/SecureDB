@@ -157,7 +157,7 @@ public final class AuditDescriptionUtils {
     private static String buildActor(String userEmail, String entityType) {
         String user = safe(userEmail);
         boolean isSystem = Constants.AUDIT_SYSTEM_USER.equals(user) ||
-                (entityType != null && Constants.ENTITY_TYPE_EMAIL.equalsIgnoreCase(entityType));
+                (Constants.ENTITY_TYPE_EMAIL.equalsIgnoreCase(entityType));
         return isSystem ? "System" : ("User " + user);
     }
 

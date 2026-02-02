@@ -3,9 +3,9 @@ package com.verlake.dam.controller.asset_owner;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.ai.AIMaskingPolicy;
-import com.verlake.dam.entity.ai.dto.AIMaskingPolicyDTO;
 import com.verlake.dam.entity.ai.FieldSuggestion;
 import com.verlake.dam.entity.ai.MaskingIntent;
+import com.verlake.dam.entity.ai.dto.AIMaskingPolicyDTO;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.exception.AIMaskingPolicyException;
@@ -18,10 +18,10 @@ import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +43,8 @@ public class OwnerMaskingPolicyController {
     private AIMaskingPolicyService maskingPolicyService;
     @Autowired
     private AssetRepository assetRepository;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * Get masking policies for assets owned by the current user
@@ -168,7 +170,6 @@ public class OwnerMaskingPolicyController {
             throw new IllegalArgumentException(Constants.ERROR_EMPTY_REQUEST_BODY);
         }
 
-        ObjectMapper mapper = new ObjectMapper();
         List<AIMaskingPolicy> requests = new ArrayList<>();
         JsonNode payload = body;
         
@@ -179,10 +180,10 @@ public class OwnerMaskingPolicyController {
         try {
             if (payload.isArray()) {
                 for (JsonNode node : payload) {
-                    requests.add(mapper.treeToValue(node, AIMaskingPolicy.class));
+                    requests.add(objectMapper.treeToValue(node, AIMaskingPolicy.class));
                 }
             } else if (payload.isObject()) {
-                requests.add(mapper.treeToValue(payload, AIMaskingPolicy.class));
+                requests.add(objectMapper.treeToValue(payload, AIMaskingPolicy.class));
             } else {
                 throw new IllegalArgumentException(Constants.ERROR_INVALID_JSON_FORMAT);
             }

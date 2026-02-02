@@ -19,7 +19,7 @@ public class SettingsPage extends BasePage {
     @FindBy(className = "chakra-spinner")
     public WebElement chakraSpinner;
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public SettingsPage(WebDriver driver, String baseUrl) {
         super(driver);

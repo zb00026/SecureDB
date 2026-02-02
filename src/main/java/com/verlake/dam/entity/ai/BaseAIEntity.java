@@ -1,12 +1,10 @@
 package com.verlake.dam.entity.ai;
 
-import com.verlake.dam.annotation.Audited;
 import com.verlake.dam.listener.AuditEntityListener;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 
 import java.time.LocalDateTime;
 

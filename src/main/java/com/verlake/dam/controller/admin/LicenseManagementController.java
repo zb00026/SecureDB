@@ -2,7 +2,6 @@ package com.verlake.dam.controller.admin;
 
 import com.verlake.dam.configuration.LicenseManager;
 import com.verlake.dam.entity.License;
-import com.verlake.dam.entity.dto.LicenseStatusDTO;
 import com.verlake.dam.exception.LicenseException;
 import com.verlake.dam.service.LicenseService;
 import com.verlake.dam.service.SystemInfoService;
@@ -12,14 +11,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/admin/license")

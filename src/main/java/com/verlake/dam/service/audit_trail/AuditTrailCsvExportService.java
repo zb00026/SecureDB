@@ -114,54 +114,54 @@ public class AuditTrailCsvExportService {
      * @throws IOException if writing fails
      */
     private void writeCsvRow(Writer writer, AuditTrail auditTrail) throws IOException {
-        StringBuilder row = new StringBuilder();
-        
+
         // ID
-        row.append(escapeCsvValue(auditTrail.getId() != null ? auditTrail.getId().toString() : ""));
-        row.append(",");
+
+        String row = escapeCsvValue(auditTrail.getId() != null ? auditTrail.getId().toString() : "") +
+                "," +
+
+                // Timestamp
+                escapeCsvValue(auditTrail.getTimestamp() != null ?
+                        auditTrail.getTimestamp().format(DATE_TIME_FORMATTER) : "") +
+                "," +
+
+                // User
+                escapeCsvValue(auditTrail.getUser()) +
+                "," +
+
+                // Action
+                escapeCsvValue(auditTrail.getAction()) +
+                "," +
+
+                // Instance ID
+                escapeCsvValue(auditTrail.getInstanceId()) +
+                "," +
+
+                // IP Address
+                escapeCsvValue(auditTrail.getIpAddress()) +
+                "," +
+
+                // Asset ID
+                escapeCsvValue(auditTrail.getAsset() != null ?
+                        auditTrail.getAsset().getId().toString() : "") +
+                "," +
+
+                // Previous Value
+                escapeCsvValue(auditTrail.getPreviousValue()) +
+                "," +
+
+                // New Value
+                escapeCsvValue(auditTrail.getNewValue()) +
+                "," +
+
+                // Action Metadata
+                escapeCsvValue(auditTrail.getActionMetadata()) +
+                "," +
+
+                // Synced
+                (auditTrail.isSynced() ? "Yes" : "No");
         
-        // Timestamp
-        row.append(escapeCsvValue(auditTrail.getTimestamp() != null ? 
-                auditTrail.getTimestamp().format(DATE_TIME_FORMATTER) : ""));
-        row.append(",");
-        
-        // User
-        row.append(escapeCsvValue(auditTrail.getUser()));
-        row.append(",");
-        
-        // Action
-        row.append(escapeCsvValue(auditTrail.getAction()));
-        row.append(",");
-        
-        // Instance ID
-        row.append(escapeCsvValue(auditTrail.getInstanceId()));
-        row.append(",");
-        
-        // IP Address
-        row.append(escapeCsvValue(auditTrail.getIpAddress()));
-        row.append(",");
-        
-        // Asset ID
-        row.append(escapeCsvValue(auditTrail.getAsset() != null ? 
-                auditTrail.getAsset().getId().toString() : ""));
-        row.append(",");
-        
-        // Previous Value
-        row.append(escapeCsvValue(auditTrail.getPreviousValue()));
-        row.append(",");
-        
-        // New Value
-        row.append(escapeCsvValue(auditTrail.getNewValue()));
-        row.append(",");
-        
-        // Action Metadata
-        row.append(escapeCsvValue(auditTrail.getActionMetadata()));
-        row.append(",");
-        
-        // Synced
-        row.append(auditTrail.isSynced() ? "Yes" : "No");
-        
-        writer.write(row.toString());
+        writer.write(row);
         writer.write("\n");
     }
 

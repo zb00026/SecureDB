@@ -1,29 +1,34 @@
 package com.verlake.dam.service.assets;
 
-import com.verlake.dam.entity.assets.AccessLevel;
-import com.verlake.dam.entity.assets.AssetApprover;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.*;
 import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.AssetType;
+import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.exception.AssetLockedException;
 import com.verlake.dam.exception.DatabaseAccessException;
-import com.verlake.dam.repository.NotificationTaskRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -40,17 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.enums.AssetType;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoDatabase;
-import org.bson.Document;
-
 @Service
 @Slf4j
 public class AssetService {
@@ -64,7 +58,6 @@ public class AssetService {
     private final KeycloakService keycloakService;
     private final DatabaseAccessService databaseAccessService;
     private final DatabaseConnectionUtils databaseConnectionUtils;
-    private final NotificationTaskRepository notificationTaskRepository;
     private final AccessLevelObjectRepository accessLevelObjectRepository;
     
     @PersistenceContext
@@ -81,7 +74,7 @@ public class AssetService {
                         AssetObjectRepository assetObjectRepository,
                         KeycloakService keycloakService, DatabaseAccessService databaseAccessService,
                         DatabaseConnectionUtils databaseConnectionUtils,
-                        NotificationTaskRepository notificationTaskRepository, AccessLevelObjectRepository accessLevelObjectRepository) {
+                        AccessLevelObjectRepository accessLevelObjectRepository) {
         this.assetRepository = assetRepository;
         this.assetApproversRepository = assetApproversRepository;
         this.accessLevelRepository = accessLevelRepository;
@@ -92,7 +85,6 @@ public class AssetService {
         this.keycloakService = keycloakService;
         this.databaseAccessService = databaseAccessService;
         this.databaseConnectionUtils = databaseConnectionUtils;
-        this.notificationTaskRepository = notificationTaskRepository;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
     }
 
@@ -204,7 +196,7 @@ public class AssetService {
                 List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserId(asset.getId(), userId);
                 credentials.forEach(assetCredential -> {
                     assetObjectRepository.deleteByAssetCredential(assetCredential);
-                    //Remove existing developer's access request for this asset
+                    //Remove existing accessor's access request for this asset
                     accessRequestRepository.findByAsset(assetCredential.getAsset()).forEach(accessLevelObjectRepository::deleteByAccessRequest);
                     accessRequestRepository.deleteByAsset(assetCredential.getAsset());
                 } );
@@ -587,7 +579,7 @@ public class AssetService {
      * This is a critical security operation - coded defensively
      * 
      * @param assetId The asset ID
-     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrid users.
+     * @param lockAllUsers If true, locks all database users. If false, only locks Hagrids users.
      * @return Map containing operation results
      * @throws SecurityException if current user is not admin or asset owner
      * @throws IllegalArgumentException if asset not found
@@ -644,7 +636,7 @@ public class AssetService {
      * This is a critical security operation - coded defensively
      * 
      * @param assetId The asset ID
-     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrid users.
+     * @param unlockAllUsers If true, unlocks all database users. If false, only unlocks Hagrids users.
      * @return Map containing operation results
      * @throws SecurityException if current user is not admin or asset owner
      * @throws IllegalArgumentException if asset not found
@@ -742,7 +734,7 @@ public class AssetService {
      * @param asset The asset to validate
      * @throws AssetLockedException if the asset is locked
      */
-    public void validateAssetNotLocked(Asset asset, boolean isDeveloper) {
+    public void validateAssetNotLocked(Asset asset, boolean isAccessor) {
         if (asset == null) {
             throw new IllegalArgumentException("Asset cannot be null");
         }
@@ -754,8 +746,8 @@ public class AssetService {
             throw new AssetLockedException(message);
         }
         
-        // Check if asset owner has locked all users (lock_type = LOCK_ALL_DB_USERS) and current user is developer
-        if (isDeveloper && asset.getLockType() == LockType.LOCK_ALL_DB_USERS) {
+        // Check if asset owner has locked all users (lock_type = LOCK_ALL_DB_USERS) and current user is accessor
+        if (isAccessor && asset.getLockType() == LockType.LOCK_ALL_DB_USERS) {
             String message = Constants.getMessage(Constants.ERROR_ASSET_LOCKED) + 
                            " (Asset: " + asset.getName() + ", ID: " + asset.getId() + 
                            " - Locked by asset owner)";

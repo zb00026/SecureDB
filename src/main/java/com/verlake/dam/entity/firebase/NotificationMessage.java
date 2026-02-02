@@ -1,9 +1,10 @@
 package com.verlake.dam.entity.firebase;
 
-import lombok.Data;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Map;
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Data;
+
+import java.util.Map;
 
 @Data
 public class NotificationMessage {

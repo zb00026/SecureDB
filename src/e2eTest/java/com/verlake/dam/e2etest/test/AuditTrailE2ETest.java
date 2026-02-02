@@ -1,6 +1,7 @@
 package com.verlake.dam.e2etest.test;
 
-import com.verlake.dam.e2etest.pageobjects.*;
+import com.verlake.dam.e2etest.pageobjects.SettingsPage;
+import com.verlake.dam.e2etest.pageobjects.UserManagementPage;
 import org.junit.jupiter.api.*;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
@@ -93,10 +94,10 @@ public class AuditTrailE2ETest extends BaseE2ETest {
         userPage.modifyUser(auditorUsername, "NewAuditorFName", "NewAuditorLName");
         Thread.sleep(2000);
 
-        userPage.createUser(developerUsername, "Test", "User2", developerPassword, "Developer");
+        userPage.createUser(accessorUsername, "Test", "User2", accessorPassword, "Accessor");
         Thread.sleep(2000);
 
-        userPage.modifyUser(developerUsername, "NewDeveloperFName", "NewDeveloperLName");
+        userPage.modifyUser(accessorUsername, "NewAccessorFName", "NewAccessorLName");
         Thread.sleep(2000);
 
         userPage.createUser(approverUsername, "Test", "User1", approverPassword, "Approver");

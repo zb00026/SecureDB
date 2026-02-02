@@ -14,10 +14,7 @@ import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
-import org.keycloak.representations.idm.UserProfileAttributeMetadata;
-import org.keycloak.representations.idm.UserProfileMetadata;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.keycloak.representations.userprofile.config.UPConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
@@ -40,6 +37,7 @@ public class KeycloakService {
     private final String clientId;
     private final String clientSecret;
     private final String realmName;
+    private final SecureRandom secureRandom = new SecureRandom();
     
     // Cache SSO status to avoid repeated API calls
     private Boolean ssoEnabled = null;
@@ -174,7 +172,7 @@ public class KeycloakService {
             credential.setType(CredentialRepresentation.PASSWORD);
             credential.setValue(password);
             credential.setTemporary(isTemporaryPsd);
-            user.setCredentials(Arrays.asList(credential));
+            user.setCredentials(List.of(credential));
         }
 
         Response response = usersResource.create(user);
@@ -214,7 +212,7 @@ public class KeycloakService {
             String accountClientId = accountClients.get(0).getId();
             log.info("Found account client with ID: {}", accountClientId);
             RoleRepresentation manageAccountRole = realmResource.clients().get(accountClientId).roles().get("manage-account").toRepresentation();
-            realmResource.users().get(userId).roles().clientLevel(accountClientId).add(Arrays.asList(manageAccountRole));
+            realmResource.users().get(userId).roles().clientLevel(accountClientId).add(Collections.singletonList(manageAccountRole));
         }
 
         log.info("User created successfully in Keycloak: {}", username);
@@ -418,9 +416,8 @@ public class KeycloakService {
     }
 
     private String generateRandomUserKey() {
-        SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[20];
-        random.nextBytes(bytes);
+        secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); // Random 20-character key
     }
 

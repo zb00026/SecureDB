@@ -1,19 +1,17 @@
 package com.verlake.dam.service.assets;
 
-import com.verlake.dam.entity.assets.AccessLevel;
-import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.assets.AssetObject;
-import com.verlake.dam.entity.assets.AccessLevelObject;
-import com.verlake.dam.entity.assets.AccessRequest;
-import com.verlake.dam.exception.AccessLevelNotFoundException;
-import com.verlake.dam.repository.assets.AccessLevelRepository;
-import com.verlake.dam.repository.assets.AssetObjectRepository;
-import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.exception.AccessLevelNotFoundException;
+import com.verlake.dam.repository.assets.AccessLevelObjectRepository;
+import com.verlake.dam.repository.assets.AccessLevelRepository;
+import com.verlake.dam.repository.assets.AssetObjectRepository;
 import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 
 
@@ -36,13 +30,16 @@ public class AccessLevelService {
     private final AccessLevelRepository accessLevelRepository;
     private final AssetObjectRepository assetObjectRepository;
     private final AccessLevelObjectRepository accessLevelObjectRepository;
+    private final ObjectMapper objectMapper;
 
     public AccessLevelService(AccessLevelRepository accessLevelRepository, 
                             AssetObjectRepository assetObjectRepository,
-                            AccessLevelObjectRepository accessLevelObjectRepository) {
+                            AccessLevelObjectRepository accessLevelObjectRepository,
+                            ObjectMapper objectMapper) {
         this.accessLevelRepository = accessLevelRepository;
         this.assetObjectRepository = assetObjectRepository;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
+        this.objectMapper = objectMapper;
     }
 
     public List<String> getAvailableObjects(AssetType assetType, DatabaseType databaseType) {
@@ -78,7 +75,6 @@ public class AccessLevelService {
     public ArrayNode getAssetObjectsWithData(Asset asset) {
         List<AccessLevel> accessLevels = getAccessLevels(asset.getType(), asset.getDatabaseType());
         
-        ObjectMapper objectMapper = new ObjectMapper();
         ArrayNode rootArray = objectMapper.createArrayNode();
         
         // Group access levels by object type

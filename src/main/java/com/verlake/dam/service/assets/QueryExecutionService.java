@@ -2,29 +2,33 @@ package com.verlake.dam.service.assets;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.AuditTrail;
-import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.user.User;
+import com.verlake.dam.entity.Role;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import com.verlake.dam.entity.user.User;
 import com.verlake.dam.exception.QueryExecutionException;
-import com.verlake.dam.repository.assets.AccessRequestRepository;
-import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.service.audit_trail.AuditTrailService;
-import com.verlake.dam.service.auth.KeycloakService;
-import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.ai.DataMaskingService;
-import com.verlake.dam.utils.*;
+import com.verlake.dam.service.assets.common.AssetValidationUtils;
+import com.verlake.dam.service.audit_trail.AuditTrailService;
+import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.utils.CommonUtils;
+import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.DatabaseQueryUtils;
+import com.verlake.dam.utils.IpAddressUtils;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 
 /**
- * Shared service for query execution logic used by both Developer and Asset Owner controllers
+ * Shared service for query execution logic used by both Accessor and Asset Owner controllers
  */
 @Service
 @Slf4j
@@ -38,9 +42,6 @@ public class QueryExecutionService {
     private final AssetValidationUtils assetValidationUtils;
     private final AssetService assetService;
     private final ObjectMapper objectMapper;
-    private final KeycloakService keycloakService;
-    private final AccessRequestRepository accessRequestRepository;
-    private final AssetCredentialsRepository assetCredentialsRepository;
     private final AccessRequestService accessRequestService;
 
     public QueryExecutionService(DatabaseAccessService databaseAccessService,
@@ -50,10 +51,8 @@ public class QueryExecutionService {
                                  AssetQueryChangeRequestService assetQueryChangeRequestService,
                                  AssetValidationUtils assetValidationUtils,
                                  AssetService assetService,
-                                 KeycloakService keycloakService, 
-                                 AccessRequestRepository accessRequestRepository, 
-                                 AssetCredentialsRepository assetCredentialsRepository,
-                                 AccessRequestService accessRequestService) {
+                                 AccessRequestService accessRequestService,
+                                 ObjectMapper objectMapper) {
         this.databaseAccessService = databaseAccessService;
         this.userService = userService;
         this.dataMaskingService = dataMaskingService;
@@ -61,17 +60,14 @@ public class QueryExecutionService {
         this.assetQueryChangeRequestService = assetQueryChangeRequestService;
         this.assetValidationUtils = assetValidationUtils;
         this.assetService = assetService;
-        this.keycloakService = keycloakService;
-        this.objectMapper = new ObjectMapper();
-        this.accessRequestRepository = accessRequestRepository;
-        this.assetCredentialsRepository = assetCredentialsRepository;
+        this.objectMapper = objectMapper;
         this.accessRequestService = accessRequestService;
     }
 
     /**
-     * Execute query for Developer with access request validation
+     * Execute query for Accessor with access request validation
      */
-    public Map<String, Object> executeQueryForDeveloper(AccessQueryDTO accessQueryDTO) throws CommonUtils.CryptoException {
+    public Map<String, Object> executeQueryForAccessor(AccessQueryDTO accessQueryDTO) throws CommonUtils.CryptoException {
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(accessQueryDTO.getRequestId());
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
         
@@ -84,13 +80,13 @@ public class QueryExecutionService {
         assetValidationUtils.validateAccessRequestStatus(accessRequest);
 
         long startTime = System.currentTimeMillis();
-        QueryExecutionContext context = QueryExecutionContext.forDeveloper(accessRequest, credential);
+        QueryExecutionContext context = QueryExecutionContext.forAccessor(accessRequest, credential);
 
         try {
             Map<String, Object> result = executeQueryWithContext(accessQueryDTO, context);
             
             if (accessQueryDTO.isChangeRequest()) {
-                assetQueryChangeRequestService.createChangeRequestForDeveloper(accessQueryDTO, accessRequest);
+                assetQueryChangeRequestService.createChangeRequestForAccessor(accessQueryDTO, accessRequest);
             }
 
             createQueryAuditLog(accessQueryDTO, context, true, null, result, startTime);
@@ -98,7 +94,7 @@ public class QueryExecutionService {
             
         } catch (Exception e) {
             String errorMessage = e.getMessage();
-            log.error("Error executing query for developer: {}", accessQueryDTO.getRequestId(), e);
+            log.error("Error executing query for accessor: {}", accessQueryDTO.getRequestId(), e);
             createQueryAuditLog(accessQueryDTO, context, false, errorMessage, null, startTime);
             throw new IllegalArgumentException("Failed to execute query: " + e.getMessage(), e);
         }
@@ -303,6 +299,7 @@ public class QueryExecutionService {
     /**
      * Context class to hold execution-specific information
      */
+    @Getter
     public static class QueryExecutionContext {
         private final Asset asset;
         private final AssetCredential credential;
@@ -316,38 +313,22 @@ public class QueryExecutionService {
             this.executionType = executionType;
         }
 
-        public static QueryExecutionContext forDeveloper(AccessRequest accessRequest, AssetCredential credential) {
-            return new QueryExecutionContext(accessRequest.getAsset(), credential, accessRequest, Constants.QUERY_EXECUTION_TYPE_DEVELOPER);
+        public static QueryExecutionContext forAccessor(AccessRequest accessRequest, AssetCredential credential) {
+            return new QueryExecutionContext(accessRequest.getAsset(), credential, accessRequest, Constants.QUERY_EXECUTION_TYPE_ACCESSOR);
         }
 
         public static QueryExecutionContext forAssetOwner(Asset asset, AssetCredential credential) {
             return new QueryExecutionContext(asset, credential, null, Constants.QUERY_EXECUTION_TYPE_ASSET_OWNER);
         }
 
-        public Asset getAsset() {
-            return asset;
-        }
-
-        public AssetCredential getCredential() {
-            return credential;
-        }
-
-        public AccessRequest getAccessRequest() {
-            return accessRequest;
-        }
-
-        public String getExecutionType() {
-            return executionType;
-        }
-
         public String getUserRole(User currentUser) {
             if (currentUser.getRoles().isEmpty()) {
-                return Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? "Developer" : "Asset Owner";
+                return Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? "Accessor" : "Asset Owner";
             }
             
             // Get all roles as a comma-separated string for masking policy matching
             return currentUser.getRoles().stream()
-                    .map(role -> role.getName())
+                    .map(Role::getName)
                     .collect(Collectors.joining(","));
         }
         
@@ -356,22 +337,22 @@ public class QueryExecutionService {
          */
         public List<String> getUserRoles(User currentUser) {
             if (currentUser.getRoles().isEmpty()) {
-                return List.of(Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? "Developer" : "Asset Owner");
+                return List.of(Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? "Accessor" : "Asset Owner");
             }
             
             return currentUser.getRoles().stream()
-                    .map(role -> role.getName())
+                    .map(Role::getName)
                     .collect(Collectors.toList());
         }
 
         public String getAuditAction() {
-            return Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) ? 
-                   Constants.AUDIT_ACTION_DEVELOPER_QUERY_EXECUTION : 
+            return Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) ? 
+                   Constants.AUDIT_ACTION_ACCESSOR_QUERY_EXECUTION : 
                    Constants.AUDIT_ACTION_ASSET_OWNER_QUERY_EXECUTION;
         }
 
         public void addAuditDetails(Map<String, Object> auditDetails, AccessQueryDTO accessQueryDTO) {
-            if (Constants.QUERY_EXECUTION_TYPE_DEVELOPER.equals(executionType) && accessRequest != null) {
+            if (Constants.QUERY_EXECUTION_TYPE_ACCESSOR.equals(executionType) && accessRequest != null) {
                 auditDetails.put("accessRequestId", accessRequest.getId());
                 auditDetails.put("requestId", accessQueryDTO.getRequestId());
             }

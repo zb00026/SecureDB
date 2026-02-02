@@ -5,10 +5,13 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.DatabaseSchemaDTO;
+import com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.AuthProvider;
 import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.*;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.assets.DatabaseSchemaService;
@@ -19,23 +22,24 @@ import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.auth.TokenService;
 import com.verlake.dam.service.auth.TokenServiceManager;
 import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.exception.UserNotFoundException;
-import com.verlake.dam.exception.AuthenticationException;
-import com.verlake.dam.exception.AccessDeniedException;
-import com.verlake.dam.exception.InvalidRequestException;
-import com.verlake.dam.exception.AccessRequestNotFoundException;
-import com.verlake.dam.exception.QueryExecutionException;
-import com.verlake.dam.exception.JwtTokenException;
+import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import lombok.extern.slf4j.Slf4j;
+import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
+import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +61,7 @@ public class FreshdeskService {
     private final DatabaseSchemaService databaseSchemaService;
     private final QueryExecutionService queryExecutionService;
     private final NaturalLanguageToSqlService naturalLanguageToSqlService;
+    private final SecureRandom secureRandom = new SecureRandom();
     
     @Value("${keycloak.auth-server-url}")
     private String keycloakAuthServerUrl;
@@ -92,7 +97,7 @@ public class FreshdeskService {
     }
 
     /**
-     * Authenticate Freshdesk user as Hagrids developer
+     * Authenticate Freshdesk user as Hagrids accessor
      * 
      * @param email Freshdesk user email
      * @param freshdeskToken Optional Freshdesk token for validation
@@ -108,9 +113,9 @@ public class FreshdeskService {
             throw new UserNotFoundException("User not found in Hagrids. Please contact administrator to create an account.");
         }
         
-        // Verify user has DEVELOPER role
-        if (!userService.hasRole(user, Roles.DEVELOPER.getOriginalName())) {
-            throw new AccessDeniedException("User does not have DEVELOPER role. Access denied.");
+        // Verify user has ACCESSOR role
+        if (!userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
+            throw new AccessDeniedException("User does not have ACCESSOR role. Access denied.");
         }
         
         // Verify user is active
@@ -133,16 +138,16 @@ public class FreshdeskService {
     }
 
     /**
-     * Get assets available to the developer
-     * Returns only assets where the developer has access requests approved by asset owner
+     * Get assets available to the accessor
+     * Returns only assets where the accessor has access requests approved by asset owner
      */
-    public List<AssetDTO> getAssetsForDeveloper(String token) {
-        log.debug("Getting assets for developer");
+    public List<AssetDTO> getAssetsForAccessor(String token) {
+        log.debug("Getting assets for accessor");
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
-        // Get all access requests for the developer that are approved by asset owner
+        // Get all access requests for the accessor that are approved by asset owner
         List<AccessRequest> approvedRequests = accessRequestRepository.findByRequestor(user)
                 .stream()
                 .filter(req -> req.getAssetApproverStatus() == ApprovalStatus.APPROVED)
@@ -163,13 +168,13 @@ public class FreshdeskService {
     }
 
     /**
-     * Get access requests for the developer
+     * Get access requests for the accessor
      */
-    public List<Map<String, Object>> getAccessRequestsForDeveloper(String token, Long assetId) {
-        log.debug("Getting access requests for developer, assetId: {}", assetId);
+    public List<Map<String, Object>> getAccessRequestsForAccessor(String token, Long assetId) {
+        log.debug("Getting access requests for accessor, assetId: {}", assetId);
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         List<AccessRequest> requests;
         if (assetId != null) {
@@ -193,7 +198,7 @@ public class FreshdeskService {
         log.debug("Getting schema for requestId: {}", requestId);
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         // Verify user owns this access request
         AccessRequest request = accessRequestRepository.findById(requestId)
@@ -205,7 +210,7 @@ public class FreshdeskService {
         
         try {
             return databaseSchemaService.getSchemaForCurrentUser(null, requestId, false);
-        } catch (com.verlake.dam.utils.CommonUtils.CryptoException e) {
+        } catch (CommonUtils.CryptoException e) {
             log.error("Failed to get schema for requestId: {}", requestId, e);
             throw new QueryExecutionException("Failed to fetch schema: " + e.getMessage(), e);
         } catch (Exception e) {
@@ -218,11 +223,11 @@ public class FreshdeskService {
      * Execute a database query
      */
     public Map<String, Object> executeQuery(String token, AccessQueryDTO queryDto) {
-        log.info("Executing query for developer, assetId: {}, requestId: {}", 
+        log.info("Executing query for accessor, assetId: {}, requestId: {}", 
                 queryDto.getAssetId(), queryDto.getRequestId());
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         // Verify user owns this access request
         if (queryDto.getRequestId() != null) {
@@ -235,7 +240,7 @@ public class FreshdeskService {
         }
         
         try {
-            return queryExecutionService.executeQueryForDeveloper(queryDto);
+            return queryExecutionService.executeQueryForAccessor(queryDto);
         } catch (Exception e) {
             log.error("Failed to execute query", e);
             throw new QueryExecutionException("Failed to execute query: " + e.getMessage(), e);
@@ -249,7 +254,7 @@ public class FreshdeskService {
         log.info("Converting natural language to SQL");
         
         User user = authenticateToken(token);
-        verifyDeveloperRole(user);
+        verifyAccessorRole(user);
         
         // Extract request parameters
         Long requestId = request.get("requestId") != null ? 
@@ -261,7 +266,7 @@ public class FreshdeskService {
         }
         
         if (requestId == null) {
-            throw new InvalidRequestException("requestId is required for developer queries");
+            throw new InvalidRequestException("requestId is required for accessor queries");
         }
         
         // Verify user owns this access request
@@ -273,13 +278,12 @@ public class FreshdeskService {
         }
         
         // Create NaturalLanguageQueryDTO
-        com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO queryDto = 
-                new com.verlake.dam.entity.assets.dto.NaturalLanguageQueryDTO();
+        NaturalLanguageQueryDTO queryDto = new NaturalLanguageQueryDTO();
         queryDto.setRequestId(requestId);
         queryDto.setNaturalLanguageQuery(naturalLanguageQuery);
         
         try {
-            return naturalLanguageToSqlService.convertNaturalLanguageToSqlForDeveloper(queryDto);
+            return naturalLanguageToSqlService.convertNaturalLanguageToSqlForAccessor(queryDto);
         } catch (Exception e) {
             log.error("Failed to convert natural language to SQL", e);
             throw new QueryExecutionException("Failed to convert query: " + e.getMessage(), e);
@@ -294,17 +298,17 @@ public class FreshdeskService {
     private String generateHagridsToken(User user) {
         try {
             // Get Keycloak user ID using KeycloakService
-            org.keycloak.admin.client.resource.RealmResource realm = keycloakService.getRealmInstance();
-            org.keycloak.admin.client.resource.UsersResource usersResource = realm.users();
+            RealmResource realm = keycloakService.getRealmInstance();
+            UsersResource usersResource = realm.users();
             
             // Find user by email
-            List<org.keycloak.representations.idm.UserRepresentation> users = usersResource.search(user.getEmail());
+            List<UserRepresentation> users = usersResource.search(user.getEmail());
             if (users == null || users.isEmpty()) {
                 log.error("Keycloak user not found for email: {}", user.getEmail());
                 throw new UserNotFoundException("Keycloak user not found. Please contact administrator.");
             }
             
-            org.keycloak.representations.idm.UserRepresentation keycloakUser = users.get(0);
+            UserRepresentation keycloakUser = users.get(0);
             String keycloakUserId = keycloakUser.getId();
             String keycloakUsername = keycloakUser.getUsername();
             
@@ -334,22 +338,21 @@ public class FreshdeskService {
      * and generate a token by temporarily setting a password, getting a token, then resetting it
      */
     private String generateTokenViaTemporaryPassword(String keycloakUserId, String keycloakUsername, String userEmail) {
-        org.keycloak.admin.client.resource.RealmResource realm = keycloakService.getRealmInstance();
-        org.keycloak.admin.client.resource.UserResource userResource = realm.users().get(keycloakUserId);
+        RealmResource realm = keycloakService.getRealmInstance();
+        UserResource userResource = realm.users().get(keycloakUserId);
         
         // Generate a secure temporary password
         String tempPassword = generateSecureTempPassword();
         
         try {
             // Get current user representation to check required actions
-            org.keycloak.representations.idm.UserRepresentation userRep = userResource.toRepresentation();
-            java.util.List<String> originalRequiredActions = userRep.getRequiredActions() != null ? 
-                new java.util.ArrayList<>(userRep.getRequiredActions()) : new java.util.ArrayList<>();
+            UserRepresentation userRep = userResource.toRepresentation();
+            List<String> originalRequiredActions = userRep.getRequiredActions() != null ? 
+                new ArrayList<>(userRep.getRequiredActions()) : new ArrayList<>();
             
             // Set temporary password for the user
-            org.keycloak.representations.idm.CredentialRepresentation credential = 
-                new org.keycloak.representations.idm.CredentialRepresentation();
-            credential.setType(org.keycloak.representations.idm.CredentialRepresentation.PASSWORD);
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
             credential.setValue(tempPassword);
             credential.setTemporary(false); // Set as non-temporary to avoid required actions
             
@@ -360,7 +363,7 @@ public class FreshdeskService {
             // This is safe for Freshdesk integration since users authenticate via Freshdesk
             userRep = userResource.toRepresentation();
             if (userRep.getRequiredActions() != null && !userRep.getRequiredActions().isEmpty()) {
-                userRep.setRequiredActions(new java.util.ArrayList<>());
+                userRep.setRequiredActions(new ArrayList<>());
                 userResource.update(userRep);
                 log.debug("Cleared required actions for user: {}", userEmail);
             }
@@ -370,7 +373,7 @@ public class FreshdeskService {
             
             // Restore original required actions (except UPDATE_PASSWORD which we don't want)
             if (!originalRequiredActions.isEmpty()) {
-                java.util.List<String> restoredActions = originalRequiredActions.stream()
+                List<String> restoredActions = originalRequiredActions.stream()
                     .filter(action -> !"UPDATE_PASSWORD".equals(action))
                     .toList();
                 
@@ -449,12 +452,11 @@ public class FreshdeskService {
     private String generateSecureTempPassword() {
         // Generate a secure random password for temporary use
         // This password will be used only to get a token and is marked as temporary
-        java.security.SecureRandom random = new java.security.SecureRandom();
         StringBuilder password = new StringBuilder();
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
         
         for (int i = 0; i < 32; i++) {
-            password.append(chars.charAt(random.nextInt(chars.length())));
+            password.append(chars.charAt(secureRandom.nextInt(chars.length())));
         }
         
         return password.toString();
@@ -469,10 +471,10 @@ public class FreshdeskService {
         // This should use your existing token validation logic
         UserDTO userDto = new UserDTO();
         userDto.setToken(token);
-        userDto.setAuthProvider(com.verlake.dam.enums.AuthProvider.KEYCLOAK);
+        userDto.setAuthProvider(AuthProvider.KEYCLOAK);
         
         try {
-            TokenService tokenService = tokenServiceManager.getService(com.verlake.dam.enums.AuthProvider.KEYCLOAK);
+            TokenService tokenService = tokenServiceManager.getService(AuthProvider.KEYCLOAK);
             authService.validateToken(userDto, tokenService);
             User user = authService.authenticateUser(userDto, tokenService);
             
@@ -490,11 +492,11 @@ public class FreshdeskService {
     }
 
     /**
-     * Verify user has DEVELOPER role
+     * Verify user has ACCESSOR role
      */
-    private void verifyDeveloperRole(User user) {
-        if (!userService.hasRole(user, Roles.DEVELOPER.getOriginalName())) {
-            throw new AccessDeniedException("Access denied: DEVELOPER role required");
+    private void verifyAccessorRole(User user) {
+        if (!userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
+            throw new AccessDeniedException("Access denied: ACCESSOR role required");
         }
     }
 

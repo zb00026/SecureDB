@@ -1,34 +1,34 @@
 package com.verlake.dam.service.terminal;
 
+import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.terminal.TerminalSession;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.entity.user.dto.UserDTO;
-import com.verlake.dam.entity.terminal.TerminalSession;
 import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.exception.TerminalInputException;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.repository.assets.AssetRepository;
+import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.service.auth.AuthService;
+import com.verlake.dam.service.auth.KeycloakService;
+import com.verlake.dam.service.auth.TokenService;
+import com.verlake.dam.service.auth.TokenServiceManager;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.SSHCommandUtils;
-import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
-import com.verlake.dam.repository.assets.AssetRepository;
-import com.verlake.dam.service.assets.AssetService;
-import com.verlake.dam.service.users.UserService;
-import com.verlake.dam.service.auth.AuthService;
-import com.verlake.dam.service.auth.TokenService;
-import com.verlake.dam.service.auth.TokenServiceManager;
-import com.verlake.dam.service.auth.KeycloakService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import com.verlake.dam.exception.TerminalInputException;
 
 /**
  * Service for managing terminal connections to Unix servers

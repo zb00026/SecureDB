@@ -1,26 +1,28 @@
 package com.verlake.dam.controller.terminal;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.dto.unix.FolderAccessRequestDTO;
+import com.verlake.dam.entity.dto.unix.UnixFolderSuggestion;
+import com.verlake.dam.entity.terminal.TerminalSession;
+import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.enums.Roles;
+import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.terminal.TerminalService;
 import com.verlake.dam.service.unix.UnixGroupService;
-import com.verlake.dam.entity.terminal.TerminalSession;
-import com.verlake.dam.entity.assets.Asset;
-import com.verlake.dam.entity.dto.unix.UnixFolderSuggestion;
-import com.verlake.dam.entity.dto.unix.FolderAccessRequestDTO;
-import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.*;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import static com.verlake.dam.utils.Constants.*;
-import com.verlake.dam.utils.Constants;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import com.verlake.dam.enums.AuthProvider;
-import com.verlake.dam.enums.Roles;
+
+import static com.verlake.dam.utils.Constants.*;
 
 @Component
 @Slf4j
@@ -107,8 +109,8 @@ public class TerminalController extends TextWebSocketHandler {
             log.error("Error handling WebSocket message", e);
             
             Map<String, Object> errorResponse = Map.of(
-                "type", "error",
-                Constants.JSON_FIELD_MESSAGE, "Failed to process message: " + e.getMessage()
+                "type", Constants.WS_MESSAGE_TYPE_ERROR,
+                Constants.JSON_FIELD_MESSAGE, Constants.MSG_FAILED_TO_PROCESS_MESSAGE + e.getMessage()
             );
             
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorResponse)));
@@ -310,7 +312,7 @@ public class TerminalController extends TextWebSocketHandler {
             String token = (String) data.get(TERMINAL_TOKEN);
             String authProviderStr = (String) data.get(TERMINAL_AUTH_PROVIDER);
             Long assetId = data.get(TERMINAL_ASSET_ID) != null ? Long.valueOf(data.get(TERMINAL_ASSET_ID).toString()) : null;
-            String userAccessType = (String) data.get(Constants.WS_FIELD_USER_ACCESS_TYPE); // ASSET_OWNER or DEVELOPER
+            String userAccessType = (String) data.get(Constants.WS_FIELD_USER_ACCESS_TYPE); // ASSET_OWNER or ACCESSOR
             
             log.info("Handling authentication for asset: {}, provider: {}, accessType: {}", assetId, authProviderStr, userAccessType);
             
@@ -320,14 +322,14 @@ public class TerminalController extends TextWebSocketHandler {
             }
             
             if (userAccessType == null || userAccessType.isEmpty()) {
-                sendErrorResponse(session, "userAccessType is required (ASSET_OWNER or DEVELOPER)");
+                sendErrorResponse(session, "userAccessType is required (ASSET_OWNER or ACCESSOR)");
                 return;
             }
             
             // Validate userAccessType
             if (!Roles.ASSET_OWNER.getOriginalName().equals(userAccessType) && 
-                !Roles.DEVELOPER.getOriginalName().equals(userAccessType)) {
-                sendErrorResponse(session, "Invalid userAccessType. Must be ASSET_OWNER or DEVELOPER");
+                !Roles.ACCESSOR.getOriginalName().equals(userAccessType)) {
+                sendErrorResponse(session, "Invalid userAccessType. Must be ASSET_OWNER or ACCESSOR");
                 return;
             }
             

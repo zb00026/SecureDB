@@ -5,19 +5,14 @@ import com.verlake.dam.entity.dto.FilterMetaData;
 import com.verlake.dam.entity.dto.PageRequestDTO;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.utils.Constants;
-
+import jakarta.persistence.criteria.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
-import jakarta.persistence.criteria.Subquery;
-import jakarta.persistence.criteria.Join;
+
 import java.util.ArrayList;
 import java.util.List;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
 
 @Data
 @EqualsAndHashCode(callSuper = true)

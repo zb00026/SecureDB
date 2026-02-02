@@ -1,32 +1,34 @@
 package com.verlake.dam.service.assets;
 
-import com.verlake.dam.entity.assets.*;
-import com.verlake.dam.entity.assets.dto.*;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.enums.ApprovalStatus;
+import com.mongodb.client.MongoDatabase;
+import com.verlake.dam.entity.assets.AccessRequest;
+import com.verlake.dam.entity.assets.Asset;
+import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.dto.ColumnSchemaDTO;
+import com.verlake.dam.entity.assets.dto.DatabaseSchemaDTO;
+import com.verlake.dam.entity.assets.dto.TableSchemaDTO;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.service.users.UserService;
+import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.DatabaseType;
+import com.verlake.dam.enums.Roles;
+import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.repository.assets.AccessRequestRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
-import com.verlake.dam.exception.DatabaseAccessException;
 import com.verlake.dam.service.assets.common.AssetValidationUtils;
 import com.verlake.dam.service.assets.common.DatabaseConnectionUtils;
+import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
+import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.enums.Roles;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.*;
-import java.util.*;
-
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoIterable;
-import com.verlake.dam.service.assets.mongodb.MongoDBConnectionUtils;
-import org.bson.Document;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -60,8 +62,8 @@ public class DatabaseSchemaService {
      * Get database schema for the current user based on their role and permissions
      * 
      * @param assetId Asset ID (required for asset owners)
-     * @param requestId Access request ID (required for developers)
-     * @param isAssetOwner true if requesting as asset owner, false if as developer, null to auto-detect
+     * @param requestId Access request ID (required for accessors)
+     * @param isAssetOwner true if requesting as asset owner, false if as accessor, null to auto-detect
      * @return Database schema filtered by user's permissions
      */
     @Transactional(readOnly = true)
@@ -71,40 +73,40 @@ public class DatabaseSchemaService {
         
         User currentUser = userService.getCurrentUser();
         boolean hasAssetOwnerRole = userService.hasRole(currentUser, Roles.ASSET_OWNER.getOriginalName());
-        boolean hasDeveloperRole = userService.hasRole(currentUser, Roles.DEVELOPER.getOriginalName());
+        boolean hasAccessorRole = userService.hasRole(currentUser, Roles.ACCESSOR.getOriginalName());
         
-        log.debug("Current user roles - AssetOwner: {}, Developer: {}", hasAssetOwnerRole, hasDeveloperRole);
+        log.debug("Current user roles - AssetOwner: {}, Accessor: {}", hasAssetOwnerRole, hasAccessorRole);
         
-        // Priority 1: If requestId is provided, use developer path (explicit developer choice)
+        // Priority 1: If requestId is provided, use accessor path (explicit accessor choice)
         if (requestId != null) {
-            return handleDeveloperRequest(requestId, hasDeveloperRole);
+            return handleAccessorRequest(requestId, hasAccessorRole);
         }
         
         // Priority 2: If assetId is provided, determine access type
         if (assetId != null) {
-            return handleAssetRequest(assetId, isAssetOwner, currentUser, hasAssetOwnerRole, hasDeveloperRole);
+            return handleAssetRequest(assetId, isAssetOwner, currentUser, hasAssetOwnerRole, hasAccessorRole);
         }
         
         // No parameters provided
-        throw new DatabaseAccessException("Please provide either assetId (for asset owners) or requestId (for developers).", null);
+        throw new DatabaseAccessException("Please provide either assetId (for asset owners) or requestId (for accessors).", null);
     }
     
     /**
-     * Handle developer request with requestId
+     * Handle accessor request with requestId
      */
-    private DatabaseSchemaDTO handleDeveloperRequest(Long requestId, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
-        if (!hasDeveloperRole) {
-            throw new DatabaseAccessException("Insufficient permissions. You need DEVELOPER role to access schema via requestId.", null);
+    private DatabaseSchemaDTO handleAccessorRequest(Long requestId, boolean hasAccessorRole) throws CommonUtils.CryptoException {
+        if (!hasAccessorRole) {
+            throw new DatabaseAccessException("Insufficient permissions. You need ACCESSOR role to access schema via requestId.", null);
         }
-        log.debug("Using developer path with explicit requestId: {}", requestId);
-        return getSchemaForDeveloper(requestId);
+        log.debug("Using accessor path with explicit requestId: {}", requestId);
+        return getSchemaForAccessor(requestId);
     }
     
     /**
      * Handle asset request with assetId
      */
     private DatabaseSchemaDTO handleAssetRequest(Long assetId, Boolean isAssetOwner, User currentUser, 
-                                               boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
+                                               boolean hasAssetOwnerRole, boolean hasAccessorRole) throws CommonUtils.CryptoException {
         Asset asset = validateAsset(assetId);
         
         // Check if asset is locked
@@ -112,11 +114,11 @@ public class DatabaseSchemaService {
         
         // If isAssetOwner is explicitly provided, use it directly
         if (isAssetOwner != null) {
-            return handleExplicitAccessType(assetId, isAssetOwner, currentUser, hasAssetOwnerRole, hasDeveloperRole);
+            return handleExplicitAccessType(assetId, isAssetOwner, currentUser, hasAssetOwnerRole, hasAccessorRole);
         }
         
         // Auto-detect access type
-        return handleAutoDetectAccess(assetId, currentUser, asset, hasAssetOwnerRole, hasDeveloperRole);
+        return handleAutoDetectAccess(assetId, currentUser, asset, hasAssetOwnerRole, hasAccessorRole);
     }
     
     /**
@@ -134,7 +136,7 @@ public class DatabaseSchemaService {
      * Handle explicit access type (isAssetOwner parameter provided)
      */
     private DatabaseSchemaDTO handleExplicitAccessType(Long assetId, Boolean isAssetOwner, User currentUser,
-                                                     boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
+                                                     boolean hasAssetOwnerRole, boolean hasAccessorRole) throws CommonUtils.CryptoException {
         if (Boolean.TRUE.equals(isAssetOwner)) {
             if (!hasAssetOwnerRole) {
                 throw new DatabaseAccessException("Insufficient permissions. You need ASSET_OWNER role to access schema as asset owner.", null);
@@ -142,11 +144,11 @@ public class DatabaseSchemaService {
             log.info("Using asset owner path for asset {} (explicitly requested)", assetId);
             return getSchemaForAssetOwner(assetId);
         } else {
-            if (!hasDeveloperRole) {
-                throw new DatabaseAccessException("Insufficient permissions. You need DEVELOPER role to access schema as developer.", null);
+            if (!hasAccessorRole) {
+                throw new DatabaseAccessException("Insufficient permissions. You need ACCESSOR role to access schema as accessor.", null);
             }
-            log.info("Using developer path for asset {} (explicitly requested)", assetId);
-            return getSchemaForDeveloperByAssetId(assetId, currentUser);
+            log.info("Using accessor path for asset {} (explicitly requested)", assetId);
+            return getSchemaForAccessorByAssetId(assetId, currentUser);
         }
     }
     
@@ -154,7 +156,7 @@ public class DatabaseSchemaService {
      * Handle auto-detect access type (isAssetOwner parameter not provided)
      */
     private DatabaseSchemaDTO handleAutoDetectAccess(Long assetId, User currentUser, Asset asset,
-                                                   boolean hasAssetOwnerRole, boolean hasDeveloperRole) throws CommonUtils.CryptoException {
+                                                   boolean hasAssetOwnerRole, boolean hasAccessorRole) throws CommonUtils.CryptoException {
         log.debug("isAssetOwner not provided, auto-detecting access type for asset: {}", assetId);
         
         // Try asset owner path first
@@ -162,13 +164,13 @@ public class DatabaseSchemaService {
             return getSchemaForAssetOwner(assetId);
         }
         
-        // Try developer path
-        if (hasDeveloperRole) {
-            return tryDeveloperPath(assetId, currentUser);
+        // Try accessor path
+        if (hasAccessorRole) {
+            return tryAccessorPath(assetId, currentUser);
         }
         
         // No valid access found
-        throw createNoAccessException(assetId, hasAssetOwnerRole, hasDeveloperRole);
+        throw createNoAccessException(assetId, hasAssetOwnerRole, hasAccessorRole);
     }
     
     /**
@@ -182,24 +184,24 @@ public class DatabaseSchemaService {
             log.info("Auto-detected: User has asset owner credentials for asset {}. Using asset owner path.", assetId);
             return true;
         } else {
-            log.debug("User has ASSET_OWNER role but no credentials for asset {}. Checking developer access...", assetId);
+            log.debug("User has ASSET_OWNER role but no credentials for asset {}. Checking accessor access...", assetId);
             return false;
         }
     }
     
     /**
-     * Try developer path
+     * Try accessor path
      */
-    private DatabaseSchemaDTO tryDeveloperPath(Long assetId, User currentUser) throws CommonUtils.CryptoException {
-        log.debug("Checking for developer access request for asset: {}", assetId);
+    private DatabaseSchemaDTO tryAccessorPath(Long assetId, User currentUser) throws CommonUtils.CryptoException {
+        log.debug("Checking for accessor access request for asset: {}", assetId);
         try {
-            return getSchemaForDeveloperByAssetId(assetId, currentUser);
+            return getSchemaForAccessorByAssetId(assetId, currentUser);
         } catch (DatabaseAccessException e) {
             throw e;
         } catch (CommonUtils.CryptoException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Error checking developer access for asset {}: {}", assetId, e.getMessage());
+            log.error("Error checking accessor access for asset {}: {}", assetId, e.getMessage());
             throw new DatabaseAccessException("Cannot access schema for asset: " + assetId + ". Please provide requestId or ensure you have asset owner access.", e);
         }
     }
@@ -207,29 +209,29 @@ public class DatabaseSchemaService {
     /**
      * Create appropriate no access exception
      */
-    private DatabaseAccessException createNoAccessException(Long assetId, boolean hasAssetOwnerRole, boolean hasDeveloperRole) {
-        if (!hasAssetOwnerRole && !hasDeveloperRole) {
-            return new DatabaseAccessException("Insufficient permissions. You need ASSET_OWNER or DEVELOPER role to access schema.", null);
+    private DatabaseAccessException createNoAccessException(Long assetId, boolean hasAssetOwnerRole, boolean hasAccessorRole) {
+        if (!hasAssetOwnerRole && !hasAccessorRole) {
+            return new DatabaseAccessException("Insufficient permissions. You need ASSET_OWNER or ACCESSOR role to access schema.", null);
         }
         
         StringBuilder errorMsg = new StringBuilder("Cannot access schema for asset: " + assetId);
         if (hasAssetOwnerRole) {
             errorMsg.append(". You do not have asset owner credentials for this asset.");
         }
-        if (hasDeveloperRole) {
+        if (hasAccessorRole) {
             if (hasAssetOwnerRole) {
-                errorMsg.append(" Also, no approved developer access request found.");
+                errorMsg.append(" Also, no approved accessor access request found.");
             } else {
-                errorMsg.append(". No approved developer access request found. Please create and get approval for an access request first.");
+                errorMsg.append(". No approved accessor access request found. Please create and get approval for an access request first.");
             }
         }
         return new DatabaseAccessException(errorMsg.toString(), null);
     }
     
     /**
-     * Get schema for developer by assetId (finds access request automatically)
+     * Get schema for accessor by assetId (finds access request automatically)
      */
-    private DatabaseSchemaDTO getSchemaForDeveloperByAssetId(Long assetId, User currentUser) throws CommonUtils.CryptoException {
+    private DatabaseSchemaDTO getSchemaForAccessorByAssetId(Long assetId, User currentUser) throws CommonUtils.CryptoException {
         Asset asset = assetService.findById(assetId);
         if (asset == null) {
             throw new DatabaseAccessException("Asset not found: " + assetId, null);
@@ -247,7 +249,7 @@ public class DatabaseSchemaService {
         
         AccessRequest approvedRequest = requests.stream()
                 .filter(ar -> ar.getAssetApproverStatus() == ApprovalStatus.APPROVED 
-                        && ar.getDeveloperApproverStatus() == ApprovalStatus.APPROVED)
+                        && ar.getAccessorApproverStatus() == ApprovalStatus.APPROVED)
                 .findFirst()
                 .orElseThrow(() -> {
                     // Check if there are pending requests
@@ -262,16 +264,16 @@ public class DatabaseSchemaService {
                     return new DatabaseAccessException(errorMessage, null);
                 });
         
-        log.info("Found approved developer access request for asset {}. Using developer path.", assetId);
-        return getSchemaForDeveloper(approvedRequest.getId());
+        log.info("Found approved accessor access request for asset {}. Using accessor path.", assetId);
+        return getSchemaForAccessor(approvedRequest.getId());
     }
     
     /**
-     * Get database schema for a developer with access request validation
+     * Get database schema for a accessor with access request validation
      */
     @Transactional(readOnly = true)
-    public DatabaseSchemaDTO getSchemaForDeveloper(Long requestId) throws CommonUtils.CryptoException {
-        log.debug("Fetching database schema for developer with request ID: {}", requestId);
+    public DatabaseSchemaDTO getSchemaForAccessor(Long requestId) throws CommonUtils.CryptoException {
+        log.debug("Fetching database schema for accessor with request ID: {}", requestId);
         
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(requestId);
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);

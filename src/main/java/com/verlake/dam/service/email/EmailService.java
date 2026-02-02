@@ -2,10 +2,12 @@ package com.verlake.dam.service.email;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.verlake.dam.entity.Email;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
 import com.verlake.dam.entity.user.User;
-import com.verlake.dam.entity.Email;
 import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.EmailType;
 import com.verlake.dam.exception.EmailEntityCreationException;
@@ -17,23 +19,20 @@ import com.verlake.dam.utils.Constants;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
-import org.keycloak.email.EmailException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
-import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -50,6 +49,9 @@ public class EmailService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private final String hostDomainUri;
 
@@ -129,7 +131,6 @@ public class EmailService {
             email.setSentAt(LocalDateTime.now());
             
             // Ensure metadata is properly formatted and contains HTML content
-            ObjectMapper objectMapper = new ObjectMapper();
             if (metaData == null) {
                 metaData = objectMapper.createObjectNode();
             }
@@ -227,7 +228,6 @@ public class EmailService {
             }
 
             String emailSubject = "Invitation to Join Our DAM System";
-            ObjectMapper objectMapper = new ObjectMapper();
             ObjectNode metaData = objectMapper.createObjectNode();
             metaData.put(Constants.EMAIL_VAR_INVITE_CODE, inviteCode);
             metaData.put(Constants.EMAIL_VAR_REDIRECT_LINK, redirectLink);
@@ -293,7 +293,6 @@ public class EmailService {
         context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, assetCredential.getAsset().getName());
 
         String emailSubject = "Relinquish Asset";
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, assetCredential.getAsset().getName());
         metaData.put(Constants.EMAIL_VAR_ASSET_CREDENTIAL_ID, assetCredential.getId());
@@ -318,7 +317,6 @@ public class EmailService {
                 method.equals(Constants.getMessage(Constants.ASSET_ADD_NAME)) ? "added to" : "removed from");
 
         String emailSubject = "Asset Approve Notification";
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         metaData.put(Constants.EMAIL_VAR_APPROVER_NAME, approver.getFirstName() + " " + approver.getLastName());
@@ -345,7 +343,7 @@ public class EmailService {
         Context context = new Context();
         context.setVariable(Constants.EMAIL_VAR_RECEIVER_FIRST_NAME, receiver.getFirstName());
         context.setVariable(Constants.EMAIL_VAR_RECEIVER_LAST_NAME, receiver.getLastName());
-        if (emailType == EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY || emailType == EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY) {
+        if (emailType == EmailType.ACCESSOR_ASSET_REQUEST_NOTIFY || emailType == EmailType.ACCESSOR_RELINQUISH_ASSET_NOTIFY) {
             context.setVariable(Constants.EMAIL_VAR_REQUESTOR_FIRST_NAME, sender.getFirstName());
             context.setVariable(Constants.EMAIL_VAR_REQUESTOR_LAST_NAME, sender.getLastName());
         } else if (emailType == EmailType.APPROVAL_ASSET_ACCESS_REQUEST) {
@@ -364,7 +362,6 @@ public class EmailService {
         context.setVariable(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         context.setVariable(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
 
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         metaData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
@@ -381,7 +378,7 @@ public class EmailService {
         }
     }
 
-    public void sendDeveloperAssetRequestEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
+    public void sendAccessorAssetRequestEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
         HashMap<String, String> newCredMapper = new HashMap<>();
         sendAssetRequestEmail(
                 receiver,
@@ -389,11 +386,11 @@ public class EmailService {
                 asset,
                 emailTmplFile,
                 ApprovalStatus.REQUESTED,
-                EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY,
+                EmailType.ACCESSOR_ASSET_REQUEST_NOTIFY,
                 newCredMapper);
     }
 
-    public void sendDeveloperRelinquishEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
+    public void sendAccessorRelinquishEmail(User receiver, User requestor, Asset asset, String emailTmplFile) {
         HashMap<String, String> newCredMapper = new HashMap<>();
         sendAssetRequestEmail(
                 receiver,
@@ -401,18 +398,18 @@ public class EmailService {
                 asset,
                 emailTmplFile,
                 ApprovalStatus.RELINQUISHED_BEFORE_APPROVAL,
-                EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY,
+                EmailType.ACCESSOR_RELINQUISH_ASSET_NOTIFY,
                 newCredMapper);
     }
 
-    public void sendApprovalAssetAccessRequestEmail(User developer,
+    public void sendApprovalAssetAccessRequestEmail(User accessor,
             User approver,
             Asset asset,
             String emailTmplFile,
             ApprovalStatus approvalStatus,
             Map<String, String> newCredMapper) {
         sendAssetRequestEmail(
-                developer,
+                accessor,
                 approver,
                 asset,
                 emailTmplFile,
@@ -435,7 +432,6 @@ public class EmailService {
         context.setVariable(Constants.EMAIL_VAR_QUERY, alertData.getQuery());
 
         String emailSubject = "DELETE Query Alert - " + asset.getName();
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         metaData.put(Constants.EMAIL_VAR_DATABASE_TYPE, alertData.getDatabaseType());
@@ -461,8 +457,8 @@ public class EmailService {
 
     private String getEmailSubject(EmailType emailType) {
         switch (emailType) {
-            case DEVELOPER_ASSET_REQUEST_NOTIFY:
-                return "Developer Asset Access Request";
+            case ACCESSOR_ASSET_REQUEST_NOTIFY:
+                return "Accessor Asset Access Request";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Approval Asset Access Request";
             case ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY:
@@ -476,8 +472,8 @@ public class EmailService {
 
     private String getErrorMessage(EmailType emailType) {
         switch (emailType) {
-            case DEVELOPER_ASSET_REQUEST_NOTIFY:
-                return "Failed to send developer asset request email to %s";
+            case ACCESSOR_ASSET_REQUEST_NOTIFY:
+                return "Failed to send accessor asset request email to %s";
             case APPROVAL_ASSET_ACCESS_REQUEST:
                 return "Failed to send approval asset access request email to %s";
             case ASSET_QUERY_CHANGE_REQUEST_NOTIFY:
@@ -506,7 +502,6 @@ public class EmailService {
         context.setVariable(Constants.EMAIL_VAR_QUERY, query);
 
         String emailSubject = "Asset Query Change Request Notification";
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         metaData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
@@ -546,7 +541,6 @@ public class EmailService {
         String emailSubject = String.format("Query Change Request %s - %s", 
                 queryDTO.getApprovalStatus().getDisplayName(), asset.getName());
         
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode metaData = objectMapper.createObjectNode();
         metaData.put(Constants.EMAIL_VAR_ASSET_NAME, asset.getName());
         metaData.put(Constants.EMAIL_VAR_ASSET_DESCRIPTION, asset.getDescription());
@@ -586,7 +580,6 @@ public class EmailService {
             log.debug("Reset link: {}", resetLink);
             
             String emailSubject = "Password Reset Request";
-            ObjectMapper objectMapper = new ObjectMapper();
             ObjectNode metaData = objectMapper.createObjectNode();
             metaData.put(Constants.EMAIL_VAR_USER_NAME, user.getFirstName() + " " + user.getLastName());
             metaData.put("resetLink", resetLink);

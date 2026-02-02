@@ -7,8 +7,6 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import org.postgresql.util.PGobject;
 
-import java.sql.SQLException;
-
 @Converter(autoApply = true)
 public class JsonAttributeConverter implements AttributeConverter<JsonNode, Object> {
 

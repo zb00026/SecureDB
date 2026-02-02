@@ -6,13 +6,11 @@ import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AssetType;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.Roles;
-import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.repository.assets.AssetCredentialsRepository;
+import com.verlake.dam.repository.assets.AssetRepository;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.utils.I18nUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,7 +19,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -321,45 +318,43 @@ public class AssetCsvService {
      * Generates sample CSV content for bulk asset upload
      */
     public String generateSampleCsvContent() {
-        StringBuilder csvContent = new StringBuilder();
-        
+
         // CSV Header
-        csvContent.append(Constants.ASSET_CSV_HEADER + "\n");
-        
-        // Sample data
-        csvContent.append("Production Database,Main production database for customer data,DATABASE,MYSQL,db.example.com,3306,customer_db,admin@example.com\n");
-        csvContent.append("Analytics Database,Analytics and reporting database,DATABASE,POSTGRESQL,analytics.example.com,5432,analytics_db,jane.smith@example.com\n");
-        csvContent.append("Test Database,Development and testing database,DATABASE,MYSQL,test.example.com,3306,test_db,jane@example.com\n");
-        csvContent.append("Legacy System,Legacy SQL Server database,DATABASE,SQLSERVER,legacy.example.com,1433,legacy_db,bob.johnson@example.com\n");
-        
-        // Add comment lines explaining the format
-        csvContent.append("# INSTRUCTIONS:\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_NAME + ": Required, unique asset name\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_DESCRIPTION + ": Optional, asset description\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_TYPE + ": Required, asset type\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_DATABASE_TYPE + ": Required, database type\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_HOST_ADDRESS + ": Required, database host address\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_PORT_NUMBER + ": Required, database port number\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_DATABASE_NAME + ": Optional, database name\n");
-        csvContent.append("# - " + Constants.ASSET_FIELD_OWNER_EMAIL + ": Optional, asset owner email (must have ASSET_OWNER role)\n");
-        csvContent.append("#\n");
-        csvContent.append("# AVAILABLE ASSET TYPES:\n");
-        csvContent.append("# - " + AssetType.DATABASE + ": Database assets\n");
-        csvContent.append("#\n");
-        csvContent.append("# AVAILABLE DATABASE TYPES:\n");
-        csvContent.append("# - " + DatabaseType.MYSQL + ": MySQL database\n");
-        csvContent.append("# - " + DatabaseType.POSTGRESQL + ": PostgreSQL database\n");
-        csvContent.append("# - " + DatabaseType.SQLSERVER + ": Microsoft SQL Server\n");
-        csvContent.append("# - " + DatabaseType.ORACLE + ": Oracle database\n");
-        csvContent.append("#\n");
-        csvContent.append("# NOTES:\n");
-        csvContent.append("# - Asset names must be unique\n");
-        csvContent.append("# - Owner email is optional but must be a valid user with ASSET_OWNER role\n");
-        csvContent.append("# - If owner email is not provided, no asset owner will be assigned\n");
-        csvContent.append("# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n");
-        csvContent.append("# - Remove sample data and add your assets\n");
-        
-        return csvContent.toString();
+
+        return Constants.ASSET_CSV_HEADER + "\n" +
+
+                // Sample data
+                "Production Database,Main production database for customer data,DATABASE,MYSQL,db.example.com,3306,customer_db,admin@example.com\n" +
+                "Analytics Database,Analytics and reporting database,DATABASE,POSTGRESQL,analytics.example.com,5432,analytics_db,jane.smith@example.com\n" +
+                "Test Database,Development and testing database,DATABASE,MYSQL,test.example.com,3306,test_db,jane@example.com\n" +
+                "Legacy System,Legacy SQL Server database,DATABASE,SQLSERVER,legacy.example.com,1433,legacy_db,bob.johnson@example.com\n" +
+
+                // Add comment lines explaining the format
+                "# INSTRUCTIONS:\n" +
+                "# - " + Constants.ASSET_FIELD_NAME + ": Required, unique asset name\n" +
+                "# - " + Constants.ASSET_FIELD_DESCRIPTION + ": Optional, asset description\n" +
+                "# - " + Constants.ASSET_FIELD_TYPE + ": Required, asset type\n" +
+                "# - " + Constants.ASSET_FIELD_DATABASE_TYPE + ": Required, database type\n" +
+                "# - " + Constants.ASSET_FIELD_HOST_ADDRESS + ": Required, database host address\n" +
+                "# - " + Constants.ASSET_FIELD_PORT_NUMBER + ": Required, database port number\n" +
+                "# - " + Constants.ASSET_FIELD_DATABASE_NAME + ": Optional, database name\n" +
+                "# - " + Constants.ASSET_FIELD_OWNER_EMAIL + ": Optional, asset owner email (must have ASSET_OWNER role)\n" +
+                "#\n" +
+                "# AVAILABLE ASSET TYPES:\n" +
+                "# - " + AssetType.DATABASE + ": Database assets\n" +
+                "#\n" +
+                "# AVAILABLE DATABASE TYPES:\n" +
+                "# - " + DatabaseType.MYSQL + ": MySQL database\n" +
+                "# - " + DatabaseType.POSTGRESQL + ": PostgreSQL database\n" +
+                "# - " + DatabaseType.SQLSERVER + ": Microsoft SQL Server\n" +
+                "# - " + DatabaseType.ORACLE + ": Oracle database\n" +
+                "#\n" +
+                "# NOTES:\n" +
+                "# - Asset names must be unique\n" +
+                "# - Owner email is optional but must be a valid user with ASSET_OWNER role\n" +
+                "# - If owner email is not provided, no asset owner will be assigned\n" +
+                "# - Lines starting with " + Constants.CSV_COMMENT_PREFIX + " are ignored\n" +
+                "# - Remove sample data and add your assets\n";
     }
 
     /**
@@ -487,7 +482,7 @@ public class AssetCsvService {
             response.put(Constants.RESPONSE_TOTAL_ASSETS, assetDataList.size());
             response.put(Constants.RESPONSE_SUCCESSFUL_ASSETS, 0);
             response.put(Constants.RESPONSE_FAILED_ASSETS, assetDataList.size());
-            response.put(Constants.RESPONSE_ERRORS, Arrays.asList(e.getMessage()));
+            response.put(Constants.RESPONSE_ERRORS, Collections.singletonList(e.getMessage()));
             
             return response;
         }

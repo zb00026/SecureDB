@@ -4,57 +4,53 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.entity.assets.AssetCredential;
+import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
-import com.verlake.dam.entity.assets.dto.DeleteQueryAlertData;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.AuthProvider;
+import com.verlake.dam.enums.EmailType;
+import com.verlake.dam.exception.*;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.verlake.dam.service.auth.GlobalAuthProviderService;
+import com.verlake.dam.service.email.EmailService;
 import com.verlake.dam.service.firebase.FirebaseMessagingService;
 import com.verlake.dam.utils.Constants;
-import com.verlake.dam.service.email.EmailService;
-import com.verlake.dam.entity.user.User;
-import com.verlake.dam.entity.assets.AssetCredential;
-import com.verlake.dam.exception.FirebaseMessagingOperationException;
-import com.verlake.dam.exception.NotificationJobException;
-import com.verlake.dam.exception.NotificationProcessingException;
-import com.verlake.dam.exception.NotificationTimeoutException;
-import com.verlake.dam.exception.NotificationEmailException;
-
+import lombok.extern.slf4j.Slf4j;
 import org.keycloak.email.EmailException;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.data.RepositoryItemReader;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersBuilder;
-import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.data.domain.Sort;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.verlake.dam.repository.NotificationTaskRepository;
-import com.verlake.dam.enums.EmailType;
-import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import java.util.function.Consumer;
 
 @Configuration
 @EnableBatchProcessing
@@ -86,6 +82,7 @@ public class NotificationJobConfig {
     private final NotificationTaskRepository notificationTaskRepository;
     private final ObjectMapper objectMapper;
     private final JobLauncher jobLauncher;
+    private final GlobalAuthProviderService globalAuthProviderService;
 
     public NotificationJobConfig(
             FirebaseMessagingService firebaseMessagingService,
@@ -94,7 +91,8 @@ public class NotificationJobConfig {
             PlatformTransactionManager transactionManager,
             NotificationTaskRepository notificationTaskRepository,
             ObjectMapper objectMapper,
-            @Qualifier("notificationJobLauncher") JobLauncher jobLauncher) {
+            @Qualifier("notificationJobLauncher") JobLauncher jobLauncher,
+            GlobalAuthProviderService globalAuthProviderService) {
         this.firebaseMessagingService = firebaseMessagingService;
         this.emailService = emailService;
         this.jobRepository = jobRepository;
@@ -102,6 +100,7 @@ public class NotificationJobConfig {
         this.notificationTaskRepository = notificationTaskRepository;
         this.objectMapper = objectMapper;
         this.jobLauncher = jobLauncher;
+        this.globalAuthProviderService = globalAuthProviderService;
     }
 
     @Bean
@@ -251,8 +250,8 @@ public class NotificationJobConfig {
 
     private Consumer<NotificationTask> getEmailHandler(EmailType emailType) {
         return switch (emailType) {
-            case DEVELOPER_ASSET_REQUEST_NOTIFY -> this::sendDeveloperAssetRequestEmail;
-            case DEVELOPER_RELINQUISH_ASSET_NOTIFY -> this::sendDeveloperRelinquishAssetEmail;
+            case ACCESSOR_ASSET_REQUEST_NOTIFY -> this::sendAccessorAssetRequestEmail;
+            case ACCESSOR_RELINQUISH_ASSET_NOTIFY -> this::sendAccessorRelinquishAssetEmail;
             case ASSET_QUERY_CHANGE_REQUEST_NOTIFY -> this::sendAssetQueryChangeRequestEmail;
             case INVITATION -> this::sendInvitationEmailWrapper;
             case ASSET_QUERY_CHANGE_REQUEST_APPROVAL_NOTIFY -> this::sendAssetQueryChangeRequestApprovalEmailWrapper;
@@ -349,20 +348,20 @@ public class NotificationJobConfig {
         }
     }
 
-    private void sendDeveloperAssetRequestEmail(NotificationTask task) {
-        emailService.sendDeveloperAssetRequestEmail(
+    private void sendAccessorAssetRequestEmail(NotificationTask task) {
+        emailService.sendAccessorAssetRequestEmail(
                 task.getReceiver(),
                 task.getSender(),
                 task.getAsset(),
-                "developer-asset-request");
+                "accessor-asset-request");
     }
 
-    private void sendDeveloperRelinquishAssetEmail(NotificationTask task) {
-        emailService.sendDeveloperRelinquishEmail(
+    private void sendAccessorRelinquishAssetEmail(NotificationTask task) {
+        emailService.sendAccessorRelinquishEmail(
                 task.getReceiver(),
                 task.getSender(),
                 task.getAsset(),
-                "developer-relinquish-asset");
+                "accessor-relinquish-asset");
     }
 
 
@@ -507,28 +506,29 @@ public class NotificationJobConfig {
             throw new JsonParseException(null, "Data node not found in invitation notification");
         }
 
-        // Extract auth provider from notification data
-        String authProvider = dataNode.has("authProvider") ? dataNode.get("authProvider").asText() : "GOOGLE";
+        // Extract temp password from notification data
         String tempPassword = dataNode.has("tempPassword") ? dataNode.get("tempPassword").asText() : "";
         
+        // Get auth provider from global auth provider service (not from notification data)
+        // This ensures consistency with current system configuration
+        AuthProvider currentAuthProvider = globalAuthProviderService.getCurrentAuthProvider();
+        
         // For SSO users, password is not required
-        if (!"SSO".equalsIgnoreCase(authProvider) && tempPassword.isEmpty()) {
+        boolean isSSO = globalAuthProviderService.isSSOProvider() || 
+                        (currentAuthProvider == AuthProvider.KEYCLOAK && 
+                         globalAuthProviderService.shouldCreateUsersWithoutPasswords());
+        
+        if (!isSSO && tempPassword.isEmpty()) {
             throw new EmailException("Password can not be empty for non-SSO users");
         }
         
-        // Determine email template based on auth provider
-        String emailTmplFile = Constants.EMAIL_TEMPLATE_GOOGLE_INVITE;
-        if ("KEYCLOAK".equalsIgnoreCase(authProvider)) {
-            emailTmplFile = Constants.EMAIL_TEMPLATE_KEYCLOAK_INVITE;
-        } else if ("SSO".equalsIgnoreCase(authProvider)) {
-            emailTmplFile = Constants.EMAIL_TEMPLATE_SSO_INVITE;
-        }
+        // Select appropriate email template based on global auth provider
+        String emailTmplFile = globalAuthProviderService.getEmailTemplate();
         
         User user = task.getReceiver();
         if (user != null && !tempPassword.isEmpty()) {
             user.setPassword(tempPassword);
         }
-
 
         // Send invitation email
         emailService.sendInvitationEmail(task.getReceiver(), emailTmplFile);

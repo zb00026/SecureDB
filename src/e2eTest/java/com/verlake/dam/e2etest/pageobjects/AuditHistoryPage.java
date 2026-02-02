@@ -5,6 +5,7 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+
 import java.util.List;
 
 public class AuditHistoryPage extends BasePage {
@@ -20,7 +21,7 @@ public class AuditHistoryPage extends BasePage {
     @FindBy(className = "chakra-spinner")
     public WebElement chakraSpinner;
 
-    private String baseUrl;
+    private final String baseUrl;
 
     public AuditHistoryPage(WebDriver driver, String baseUrl) {
         super(driver);

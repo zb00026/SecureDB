@@ -18,7 +18,7 @@ public class NaturalLanguageQueryDTO {
     private Long assetId;
     
     /**
-     * Access request ID (required for developers)
+     * Access request ID (required for accessors)
      */
     private Long requestId;
 }

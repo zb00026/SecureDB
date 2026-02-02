@@ -1,40 +1,35 @@
 package com.verlake.dam.service.assets;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.verlake.dam.entity.assets.*;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.assets.dto.AssetCredentialDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
-import com.verlake.dam.enums.AssetType;
-import com.verlake.dam.enums.DatabaseType;
-import com.verlake.dam.enums.EmailType;
-import com.verlake.dam.enums.Roles;
+import com.verlake.dam.entity.user.User;
+import com.verlake.dam.enums.*;
 import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.repository.NotificationTaskRepository;
+import com.verlake.dam.repository.UserRepository;
 import com.verlake.dam.repository.assets.*;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.CommonUtils;
-import com.verlake.dam.utils.Constants;
 import com.verlake.dam.utils.CommonUtils.CryptoException;
-
+import com.verlake.dam.utils.Constants;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.yarn.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
-
-import com.verlake.dam.entity.user.User;
-import com.verlake.dam.enums.ApprovalStatus;
-import com.verlake.dam.repository.UserRepository;
-
-import lombok.extern.slf4j.Slf4j;
-import com.verlake.dam.repository.NotificationTaskRepository;
-import com.fasterxml.jackson.core.JsonParseException;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -175,7 +170,7 @@ public class AccessRequestService {
         request.setRequestTime(LocalDateTime.now());
         request.setRequestReason(requestDTO.getRequestReason());
         request.setAccessSql(generateSql(accessLevelObjects));
-        request.setDeveloperApproverStatus(ApprovalStatus.REQUESTED);
+        request.setAccessorApproverStatus(ApprovalStatus.REQUESTED);
         request.setAssetApproverStatus(ApprovalStatus.REQUESTED);
         request.setIsTempPassword(true);
 
@@ -213,10 +208,10 @@ public class AccessRequestService {
             Asset asset,
             boolean isAccessRequest) // true: Access Request, false: Relinquish Request
             throws ResourceNotFoundException, JsonParseException, IllegalArgumentException {
-        // Get developer approver
-        User developerApprover = null;
+        // Get accessor approver
+        User accessorApprover = null;
         if (requestor.getApprover() != null) {
-            developerApprover = userRepository.findById(requestor.getApprover().getId())
+            accessorApprover = userRepository.findById(requestor.getApprover().getId())
                     .orElse(null);
         }
 
@@ -240,8 +235,8 @@ public class AccessRequestService {
         notificationData.put(Constants.EMAIL_VAR_MESSAGE_TYPE, "1"); // 1 : success, 0: fail
         notificationData.put(Constants.EMAIL_VAR_IS_ACCESS_REQUEST, isAccessRequest ? "1" : "0");
 
-        if (developerApprover != null) {
-            sendNotificationAndEmail(developerApprover, requestor, asset, notificationData);
+        if (accessorApprover != null) {
+            sendNotificationAndEmail(accessorApprover, requestor, asset, notificationData);
         }
 
         sendNotificationsToUsers(assetOwners, requestor, asset, notificationData);
@@ -282,21 +277,21 @@ public class AccessRequestService {
         task.setAsset(asset);
         task.setNotificationMessage(notificationMessage.toJson());
         if (notificationData.get(Constants.EMAIL_VAR_IS_ACCESS_REQUEST).equals("1")) {
-            task.setEmailType(EmailType.DEVELOPER_ASSET_REQUEST_NOTIFY);
+            task.setEmailType(EmailType.ACCESSOR_ASSET_REQUEST_NOTIFY);
         } else {
-            task.setEmailType(EmailType.DEVELOPER_RELINQUISH_ASSET_NOTIFY);
+            task.setEmailType(EmailType.ACCESSOR_RELINQUISH_ASSET_NOTIFY);
         }
         notificationTaskRepository.save(task);
     }
 
     public AccessRequest createRequest(AccessRequest request) {
         request.setRequestTime(LocalDateTime.now());
-        request.setDeveloperApproverStatus(ApprovalStatus.REQUESTED);
+        request.setAccessorApproverStatus(ApprovalStatus.REQUESTED);
         request.setAssetApproverStatus(ApprovalStatus.REQUESTED);
         return accessRequestRepository.save(request);
     }
-    public List<AccessRequest> getRequestsNeedingDeveloperApproval() {
-        return accessRequestRepository.findRequestsNeedingDeveloperApproval();
+    public List<AccessRequest> getRequestsNeedingAccessorApproval() {
+        return accessRequestRepository.findRequestsNeedingAccessorApproval();
     }
 
     public List<AccessRequest> getRequestsNeedingAssetApproval() {
@@ -337,21 +332,21 @@ public class AccessRequestService {
             throw new ResourceNotFoundException(Constants.getMessage("error.no.access.request"));
         }
 
-        // Get the developer (requestor) to find their credential
-        User developer = accessRequest.getRequestor();
-        if (developer == null) {
-            throw new ResourceNotFoundException("Developer not found for access request");
+        // Get the accessor (requestor) to find their credential
+        User accessor = accessRequest.getRequestor();
+        if (accessor == null) {
+            throw new ResourceNotFoundException("Accessor not found for access request");
         }
 
-        // Find and validate developer credential
-        AssetCredential devCredential = findDeveloperCredential(accessRequest, developer);
+        // Find and validate accessor credential
+        AssetCredential devCredential = findAccessorCredential(accessRequest, accessor);
 
-        // Get developer's encryption key
-        String developerKey = getDeveloperEncryptionKey();
+        // Get accessor's encryption key
+        String accessorKey = getAccessorEncryptionKey();
 
         // Encrypt credential if it's temporary
         if (Boolean.TRUE.equals(devCredential.getIsTemporaryPassword())) {
-            encryptCredential(devCredential, credentialInfo, accessRequest.getAsset(), developerKey);
+            encryptCredential(devCredential, credentialInfo, accessRequest.getAsset(), accessorKey);
         }
 
         // Save updated credential and access request
@@ -360,42 +355,42 @@ public class AccessRequestService {
     }
 
     /**
-     * Find and validate developer credential for the access request
+     * Find and validate accessor credential for the access request
      */
-    private AssetCredential findDeveloperCredential(AccessRequest accessRequest, User developer) {
+    private AssetCredential findAccessorCredential(AccessRequest accessRequest, User accessor) {
         AssetCredential devCredential = assetCredentialsRepository
-                .findByAssetIdAndUserId(accessRequest.getAsset().getId(), developer.getId())
+                .findByAssetIdAndUserId(accessRequest.getAsset().getId(), accessor.getId())
                 .stream()
-                .filter(cred -> Roles.DEVELOPER.getOriginalName().equals(cred.getUserAccessType()))
+                .filter(cred -> Roles.ACCESSOR.getOriginalName().equals(cred.getUserAccessType()))
                 .findFirst()
                 .orElse(null);
 
         if (devCredential == null) {
-            throw new ResourceNotFoundException("Developer credential not found for this access request");
+            throw new ResourceNotFoundException("Accessor credential not found for this access request");
         }
         return devCredential;
     }
 
     /**
-     * Get developer's encryption key
+     * Get accessor's encryption key
      */
-    private String getDeveloperEncryptionKey() throws CryptoException {
-        String developerKey = keycloakService.getUserKey();
-        if (developerKey == null || developerKey.isEmpty()) {
-            throw new CryptoException("Developer encryption key not available");
+    private String getAccessorEncryptionKey() throws CryptoException {
+        String accessorKey = keycloakService.getUserKey();
+        if (accessorKey == null || accessorKey.isEmpty()) {
+            throw new CryptoException("Accessor encryption key not available");
         }
-        return developerKey;
+        return accessorKey;
     }
 
     /**
      * Encrypt credential based on asset type
      */
     private void encryptCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
-                                   Asset asset, String developerKey) throws CryptoException {
+                                   Asset asset, String accessorKey) throws CryptoException {
         if (asset.getType() == AssetType.UNIX_SERVER) {
-            encryptUnixCredential(devCredential, credentialInfo, developerKey);
+            encryptUnixCredential(devCredential, credentialInfo, accessorKey);
         } else {
-            encryptDatabaseCredential(devCredential, credentialInfo, developerKey);
+            encryptDatabaseCredential(devCredential, credentialInfo, accessorKey);
         }
     }
 
@@ -403,11 +398,11 @@ public class AccessRequestService {
      * Encrypt Unix SSH key file
      */
     private void encryptUnixCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
-                                      String developerKey) throws CryptoException {
+                                      String accessorKey) throws CryptoException {
         if (credentialInfo.getSshKeyFile() == null || credentialInfo.getSshKeyFile().isEmpty()) {
             throw new IllegalArgumentException("SSH key file is required for Unix assets");
         }
-        String encryptedSshKey = CommonUtils.encrypt(developerKey, credentialInfo.getSshKeyFile());
+        String encryptedSshKey = CommonUtils.encrypt(accessorKey, credentialInfo.getSshKeyFile());
         devCredential.setSshKeyFile(encryptedSshKey);
     }
 
@@ -415,11 +410,11 @@ public class AccessRequestService {
      * Encrypt database password
      */
     private void encryptDatabaseCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
-                                          String developerKey) throws CryptoException {
+                                          String accessorKey) throws CryptoException {
         if (credentialInfo.getPassword() == null || credentialInfo.getPassword().isEmpty()) {
             throw new IllegalArgumentException("Password is required for database assets");
         }
-        String encryptedPassword = CommonUtils.encrypt(developerKey, credentialInfo.getPassword());
+        String encryptedPassword = CommonUtils.encrypt(accessorKey, credentialInfo.getPassword());
         devCredential.setPassword(encryptedPassword);
     }
 
@@ -478,7 +473,7 @@ public class AccessRequestService {
                 .toList();
         
         // Fetch all access requests upfront
-        List<AccessRequest> allAccessRequests = new java.util.ArrayList<>();
+        List<AccessRequest> allAccessRequests = new ArrayList<>();
         
         if (!unixAssetIds.isEmpty()) {
             List<AccessRequest> unixRequests = accessRequestRepository.findPendingUnixRequestsForAssets(
@@ -501,7 +496,7 @@ public class AccessRequestService {
                 .map(cred -> cred.getAsset().getId())
                 .toList();
         Map<Long, Asset> assetMap = assetRepository.findAllById(allAssetIds).stream()
-                .collect(java.util.stream.Collectors.toMap(Asset::getId, asset -> asset));
+                .collect(Collectors.toMap(Asset::getId, asset -> asset));
         
         // Process all access requests
         for (AccessRequest request : allAccessRequests) {
@@ -543,7 +538,7 @@ public class AccessRequestService {
             List<AccessRequest> lstAccessRequests = accessRequestRepository.findByUserAndAssetAndUserAccessTypeAndNotExpired(
                     accessRequest.getRequestor(),
                     accessRequest.getAsset(),
-                    Roles.DEVELOPER.getOriginalName());
+                    Roles.ACCESSOR.getOriginalName());
 
             String existUsername = "";
 
@@ -567,11 +562,7 @@ public class AccessRequestService {
         
         // Set asset approver status
         // If approving, check if both approvers need to approve
-        if (approvalStatus == ApprovalStatus.APPROVED) {
-            accessRequest.setAssetApproverStatus(ApprovalStatus.APPROVED);
-        } else {
-            accessRequest.setAssetApproverStatus(approvalStatus);
-        }
+        accessRequest.setAssetApproverStatus(approvalStatus);
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
         accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));
@@ -585,7 +576,7 @@ public class AccessRequestService {
         notificationData.put(Constants.NOTIFICATION_KEY_ASSET_ID, accessRequest.getAsset().getId().toString());
         notificationData.put(Constants.NOTIFICATION_KEY_ASSET_NAME, accessRequest.getAsset().getName());
         notificationData.put(Constants.NOTIFICATION_KEY_ASSET_DESCRIPTION, accessRequest.getAsset().getDescription());
-        notificationData.put(Constants.NOTIFICATION_KEY_DEVELOPER_NAME,
+        notificationData.put(Constants.NOTIFICATION_KEY_ACCESSOR_NAME,
                 accessRequest.getRequestor().getFirstName() + " " + accessRequest.getRequestor().getLastName());
         notificationData.put(Constants.NOTIFICATION_KEY_APPROVER_NAME,
                 currentUser.getFirstName() + " " + currentUser.getLastName());
@@ -736,34 +727,34 @@ public class AccessRequestService {
     }
 
     /**
-     * Update expired access requests to EXPIRED status for developers
-     * This is called when a developer logs in to ensure their expired requests are marked
+     * Update expired access requests to EXPIRED status for accessors
+     * This is called when a accessor logs in to ensure their expired requests are marked
      * 
-     * @param user The developer user whose expired access requests should be updated
+     * @param user The accessor user whose expired access requests should be updated
      */
     @Transactional
     public void updateExpiredAccessRequests(User user) {
         try {
             LocalDateTime now = LocalDateTime.now();
-            String developerAccessType = Roles.DEVELOPER.getOriginalName();
+            String accessorAccessType = Roles.ACCESSOR.getOriginalName();
             
             List<AccessRequest> expiredRequests = accessRequestRepository
-                    .findExpiredByRequestorAndUserAccessType(user, now, developerAccessType);
+                    .findExpiredByRequestorAndUserAccessType(user, now, accessorAccessType);
             
             expiredRequests.forEach(ar -> {
-                ar.setDeveloperApproverStatus(ApprovalStatus.EXPIRED);
+                ar.setAccessorApproverStatus(ApprovalStatus.EXPIRED);
                 ar.setAssetApproverStatus(ApprovalStatus.EXPIRED);
                 accessRequestRepository.save(ar);
-                log.info("Updated access request ID: {} to EXPIRED status for developer: {}", 
+                log.info("Updated access request ID: {} to EXPIRED status for accessor: {}", 
                         ar.getId(), user.getEmail());
             });
             
             if (!expiredRequests.isEmpty()) {
-                log.info("Updated {} expired access requests to EXPIRED status for developer: {}", 
+                log.info("Updated {} expired access requests to EXPIRED status for accessor: {}", 
                         expiredRequests.size(), user.getEmail());
             }
         } catch (Exception e) {
-            log.error("Failed to update expired access requests for developer {}: {}", 
+            log.error("Failed to update expired access requests for accessor {}: {}", 
                     user != null ? user.getEmail() : "unknown", e.getMessage(), e);
         }
     }

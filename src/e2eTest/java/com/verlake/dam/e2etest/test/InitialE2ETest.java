@@ -3,6 +3,7 @@ package com.verlake.dam.e2etest.test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
