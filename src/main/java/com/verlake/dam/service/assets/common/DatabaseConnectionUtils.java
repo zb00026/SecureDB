@@ -284,6 +284,18 @@ public class DatabaseConnectionUtils {
      * @throws DatabaseAccessException if decryption fails or credential is invalid
      */
     public String decryptSSHPrivateKey(AssetCredential credential) {
+        return decryptSSHPrivateKey(credential, null);
+    }
+    
+    /**
+     * Decrypts SSH private key using the user's key from Keycloak or retrieves from AWS Secrets Manager
+     * 
+     * @param credential The credential containing encrypted SSH key or AWS Secrets Manager key
+     * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
+     * @return Decrypted SSH private key
+     * @throws DatabaseAccessException if decryption fails or credential is invalid
+     */
+    public String decryptSSHPrivateKey(AssetCredential credential, String userKey) {
         if (credential == null) {
             throw new DatabaseAccessException(Constants.getMessage("error.admin.credential.cannot.be.null"), null);
         }
@@ -292,7 +304,7 @@ public class DatabaseConnectionUtils {
             return retrieveSshKeyFromAwsSecretsManager(credential);
         }
         
-        return decryptTraditionalSshKey(credential);
+        return decryptTraditionalSshKey(credential, userKey);
     }
     
     /**
@@ -316,9 +328,29 @@ public class DatabaseConnectionUtils {
      * Decrypts traditional encrypted SSH key using user's key
      */
     private String decryptTraditionalSshKey(AssetCredential credential) {
+        return decryptTraditionalSshKey(credential, null);
+    }
+    
+    /**
+     * Decrypts traditional encrypted SSH key using user's key
+     * 
+     * @param credential The credential containing encrypted SSH key
+     * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
+     * @return Decrypted SSH private key
+     */
+    private String decryptTraditionalSshKey(AssetCredential credential, String userKey) {
         validateSshKeyExists(credential);
         
-        String userKey = keycloakService.getUserKey();
+        // Use provided userKey if available, otherwise get from KeycloakService
+        if (userKey == null || userKey.isEmpty()) {
+            userKey = keycloakService.getUserKey();
+        }
+        
+        if (userKey == null || userKey.isEmpty()) {
+            log.error("User encryption key not available for credential ID: {}", credential.getId());
+            throw new DatabaseAccessException(
+                Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET) + ": User encryption key not available", null);
+        }
         
         try {
             log.debug("Decrypting SSH private key for credential ID: {}", credential.getId());

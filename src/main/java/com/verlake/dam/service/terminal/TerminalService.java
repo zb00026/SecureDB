@@ -234,9 +234,9 @@ public class TerminalService {
                 throw new SecurityException("User encryption key not available in session");
             }
 
-            // Create SSH connection using the service
+            // Create SSH connection using the service with userKey from session
             SSHConnectionService.SSHConnection sshConnection = sshConnectionService.createSSHConnection(
-                    session.getHost(), session.getPort(), session.getSshCredential());
+                    session.getHost(), session.getPort(), session.getSshCredential(), userKey);
 
             // Set up output reader with recording
             sshConnection.startOutputReader(output -> {
