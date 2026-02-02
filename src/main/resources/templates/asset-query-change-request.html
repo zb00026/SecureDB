@@ -1,69 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asset Query Change Request</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 600px;
-            margin: 20px auto;
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
-        .header {
-            background-color: #FF6B35;
-            color: #ffffff;
-            padding: 10px 20px;
-            border-radius: 8px 8px 0 0;
-        }
-        .content {
-            padding: 20px;
-        }
-        .details {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 15px 0;
-        }
-        .query-section {
-            background-color: #f1f3f4;
-            padding: 15px;
-            border-left: 4px solid #FF6B35;
-            border-radius: 0 5px 5px 0;
-            margin: 15px 0;
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-        .warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
-            padding: 12px;
-            border-radius: 5px;
-            margin: 15px 0;
-        }
-        .footer {
-            text-align: center;
-            padding: 10px;
-            font-size: 0.9em;
-            color: #777;
-        }
-    </style>
+    <th:block th:replace="~{fragments/email-styles :: common-email-styles}"></th:block>
 </head>
 <body>
 <div class="container">
-    <div class="header">
+    <div class="header orange">
         <h2>🔄 Asset Query Change Request</h2>
     </div>
     <div class="content">
@@ -92,7 +37,7 @@
         </div>
 
         <h4>Executed Query:</h4>
-        <div class="query-section" th:text="${query}"></div>
+        <div class="query-section orange" th:text="${query}"></div>
         
         <p>Please review this change request and take any necessary actions. If you have any concerns about this query execution, please contact the requesting user or your database administrator immediately.</p>
         
