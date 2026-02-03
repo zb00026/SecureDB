@@ -4,6 +4,7 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.exception.DatabaseAccessException;
+import com.verlake.dam.repository.assets.AssetCredentialsRepository;
 import com.verlake.dam.service.auth.KeycloakService;
 import com.verlake.dam.service.aws.AWSSecretsManagerService;
 import com.verlake.dam.service.settings.SystemSettingsService;
@@ -27,14 +28,17 @@ public class DatabaseConnectionUtils {
     private final KeycloakService keycloakService;
     private final AWSSecretsManagerService awsSecretsManagerService;
     private final SystemSettingsService systemSettingsService;
+    private final AssetCredentialsRepository assetCredentialsRepository;
     
     public DatabaseConnectionUtils(
             KeycloakService keycloakService,
             AWSSecretsManagerService awsSecretsManagerService,
-            SystemSettingsService systemSettingsService) {
+            SystemSettingsService systemSettingsService,
+            AssetCredentialsRepository assetCredentialsRepository) {
         this.keycloakService = keycloakService;
         this.awsSecretsManagerService = awsSecretsManagerService;
         this.systemSettingsService = systemSettingsService;
+        this.assetCredentialsRepository = assetCredentialsRepository;
     }
     
     /**
@@ -326,6 +330,7 @@ public class DatabaseConnectionUtils {
     
     /**
      * Decrypts traditional encrypted SSH key using user's key
+     * If the SSH key is unencrypted (starts with "-----BEGIN"), it will be encrypted first
      * 
      * @param credential The credential containing encrypted SSH key
      * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
@@ -345,9 +350,39 @@ public class DatabaseConnectionUtils {
                 Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET) + ": User encryption key not available", null);
         }
         
+        String sshKeyFile = credential.getSshKeyFile();
+        
+        // Check if SSH key is unencrypted (starts with "-----BEGIN" and ends with "-----")
+        if (isUnencryptedSshKey(sshKeyFile)) {
+            log.info("SSH private key for credential ID: {} is unencrypted. Encrypting it now.", credential.getId());
+            try {
+                // Encrypt the unencrypted SSH key
+                String encryptedKey = CommonUtils.encrypt(userKey, sshKeyFile);
+                
+                // Save the encrypted key back to the credential
+                // Only save if credential has an ID (is a persisted entity)
+                if (credential.getId() != null) {
+                    credential.setSshKeyFile(encryptedKey);
+                    assetCredentialsRepository.save(credential);
+                    log.info("Successfully encrypted and saved SSH private key for credential ID: {}", credential.getId());
+                } else {
+                    // Credential doesn't have an ID, just update the local reference
+                    credential.setSshKeyFile(encryptedKey);
+                    log.info("Encrypted SSH private key for temporary credential (not persisted)");
+                }
+                
+                // Use the encrypted key for decryption
+                sshKeyFile = encryptedKey;
+            } catch (CommonUtils.CryptoException e) {
+                log.error("Failed to encrypt SSH private key for credential ID: {}", credential.getId(), e);
+                throw new DatabaseAccessException(
+                    Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET) + ": Failed to encrypt SSH key", e);
+            }
+        }
+        
         try {
             log.debug("Decrypting SSH private key for credential ID: {}", credential.getId());
-            return CommonUtils.decrypt(userKey, credential.getSshKeyFile());
+            return CommonUtils.decrypt(userKey, sshKeyFile);
         } catch (CommonUtils.CryptoException e) {
             log.warn("Failed to decrypt SSH private key for credential ID: {} - {}", 
                      credential.getId(), e.getClass().getSimpleName());
@@ -357,6 +392,25 @@ public class DatabaseConnectionUtils {
                       credential.getId(), e);
             throw new DatabaseAccessException(Constants.getMessage(Constants.ERROR_USER_NO_ACCESS_TO_ASSET), e);
         }
+    }
+    
+    /**
+     * Checks if an SSH key is unencrypted (plain text format)
+     * Unencrypted SSH keys start with "-----BEGIN" and end with "-----"
+     * 
+     * @param sshKey The SSH key to check
+     * @return true if the key appears to be unencrypted, false otherwise
+     */
+    private boolean isUnencryptedSshKey(String sshKey) {
+        if (sshKey == null || sshKey.trim().isEmpty()) {
+            return false;
+        }
+        
+        String trimmedKey = sshKey.trim();
+        
+        // Check if it starts with "-----BEGIN" (common SSH key format)
+        // Encrypted keys are Base64 encoded and won't start with "-----"
+        return trimmedKey.startsWith("-----BEGIN") && trimmedKey.contains("-----END");
     }
     
     /**

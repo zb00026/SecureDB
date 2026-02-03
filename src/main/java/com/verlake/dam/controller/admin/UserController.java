@@ -33,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -85,14 +86,38 @@ public class UserController {
     }
 
     @PostMapping("/createUserAndSendInvite")
+    @Transactional
     public ResponseEntity<Object> createUserAndSendInvite(@RequestBody UserDTO userDto) {
         User user = userDto.getUser();
         AuthProvider userAuthProvider = userDto.getAuthProvider();
         
-        // Validate email uniqueness
-        if (userRepository.existsByEmail(user.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.email.already.exists", user.getEmail()));
+        // Check if a deleted user exists with this email
+        Optional<User> existingDeletedUser = userRepository.findByEmailIncludingDeleted(user.getEmail());
+        
+        if (existingDeletedUser.isPresent()) {
+            User deletedUser = existingDeletedUser.get();
+            
+            // If user is deleted, restore and update it
+            if (Boolean.TRUE.equals(deletedUser.getDeleted())) {
+                log.info("Found deleted user with email: {}. Restoring and updating user data.", user.getEmail());
+                user = deletedUser; // Use the existing user entity
+                
+                // Update user fields with new data
+                user.setFirstName(userDto.getUser().getFirstName());
+                user.setLastName(userDto.getUser().getLastName());
+                user.setDeleted(false); // Restore the user
+                user.setInviteCode(null); // Clear old invite code if any
+            } else {
+                // User exists and is not deleted - conflict
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        Constants.getMessage("user.email.already.exists", user.getEmail()));
+            }
+        } else {
+            // No existing user found - validate email uniqueness for non-deleted users
+            if (userRepository.existsByEmail(user.getEmail())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        Constants.getMessage("user.email.already.exists", user.getEmail()));
+            }
         }
         
         // Note: Names can be duplicated, only email must be unique
@@ -129,7 +154,8 @@ public class UserController {
                 // Users will authenticate through identity providers
                 log.info("Keycloak SSO is enabled - skipping Keycloak user creation for: {}", user.getEmail());
             } else {
-                // Regular Keycloak users get created with password
+                // Regular Keycloak users - saveUser handles both create and update
+                // If user exists in Keycloak, it will update; otherwise, it will create
                 keycloakService.saveUser(user.getEmail(), user.getEmail(),
                         user.getFirstName(),
                         user.getLastName(),
