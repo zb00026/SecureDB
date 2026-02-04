@@ -64,7 +64,7 @@ public class ForgotPasswordService {
         log.info("JWT password reset token generated for user: {} (email: {})", user.getId(), email);
 
         // Generate reset link with JWT token
-        String resetLink = hostDomainUri + "/auth/reset-password?token=" + jwtToken;
+        String resetLink = hostDomainUri + "/hagrids_auth/reset-password?token=" + jwtToken;
 
         // Create notification task for email sending
         try {
