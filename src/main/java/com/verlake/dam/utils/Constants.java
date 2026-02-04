@@ -543,6 +543,7 @@ public class Constants {
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_LOCKING = "error.unsupported.db.type.user.locking";
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_UNLOCKING = "error.unsupported.db.type.user.unlocking";
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_PASSWORD_UPDATE = "error.unsupported.db.type.user.password.update";
+    public static final String ERROR_USER_EMAIL_ALREADY_EXISTS = "user.email.already.exists";
 
     // Additional constants
     public static final String SUCCESS_CSV_GENERATED = "Sample CSV generated successfully";

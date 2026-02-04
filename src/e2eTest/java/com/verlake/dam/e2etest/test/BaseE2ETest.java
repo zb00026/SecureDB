@@ -79,7 +79,7 @@ public abstract class BaseE2ETest extends BaseLoginTest implements TestWatcher {
         // Create Asset Owner Account
         ownerCreatePage = new UserManagementPage(browser, baseUrl);
         ownerCreatePage.navigateToUserManagement();
-        assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/admin/users");
+        assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/hagrids_admin/users");
 
         ownerCreatePage.createUser(assetOwnerUsername, "E2E Asset", "E2E Owner", assetOwnerPassword, "Asset Owner");
         Thread.sleep(2000);

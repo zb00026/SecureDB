@@ -91,38 +91,63 @@ public class UserController {
         User user = userDto.getUser();
         AuthProvider userAuthProvider = userDto.getAuthProvider();
         
-        // Check if a deleted user exists with this email
+        // Handle existing/deleted user check and restoration
+        user = handleExistingUserCheck(user, userDto);
+        
+        // Setup password based on auth provider
+        setupUserPassword(user);
+        
+        // Handle Keycloak user creation if needed
+        handleKeycloakUserCreation(user, userAuthProvider);
+        
+        userRepository.save(user);
+        
+        // Create notification task for invitation email (processed asynchronously by notification job)
+        createInvitationNotificationTask(user);
+        
+        return ResponseEntity.status(HttpStatus.OK).body(user);
+    }
+    
+    /**
+     * Handles checking for existing users and restoring deleted users if found
+     * @param user the user to check
+     * @param userDto the user DTO containing update data
+     * @return the user entity (either existing restored or new)
+     */
+    private User handleExistingUserCheck(User user, UserDTO userDto) {
         Optional<User> existingDeletedUser = userRepository.findByEmailIncludingDeleted(user.getEmail());
         
-        if (existingDeletedUser.isPresent()) {
-            User deletedUser = existingDeletedUser.get();
-            
-            // If user is deleted, restore and update it
-            if (Boolean.TRUE.equals(deletedUser.getDeleted())) {
-                log.info("Found deleted user with email: {}. Restoring and updating user data.", user.getEmail());
-                user = deletedUser; // Use the existing user entity
-                
-                // Update user fields with new data
-                user.setFirstName(userDto.getUser().getFirstName());
-                user.setLastName(userDto.getUser().getLastName());
-                user.setDeleted(false); // Restore the user
-                user.setInviteCode(null); // Clear old invite code if any
-            } else {
-                // User exists and is not deleted - conflict
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        Constants.getMessage("user.email.already.exists", user.getEmail()));
-            }
-        } else {
+        if (existingDeletedUser.isEmpty()) {
             // No existing user found - validate email uniqueness for non-deleted users
             if (userRepository.existsByEmail(user.getEmail())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        Constants.getMessage("user.email.already.exists", user.getEmail()));
+                        Constants.getMessage(Constants.ERROR_USER_EMAIL_ALREADY_EXISTS, user.getEmail()));
             }
+            return user;
         }
         
-        // Note: Names can be duplicated, only email must be unique
-
-        // Handle password generation based on global auth provider
+        User deletedUser = existingDeletedUser.get();
+        
+        // If user is deleted, restore and update it
+        if (Boolean.TRUE.equals(deletedUser.getDeleted())) {
+            log.info("Found deleted user with email: {}. Restoring and updating user data.", user.getEmail());
+            deletedUser.setFirstName(userDto.getUser().getFirstName());
+            deletedUser.setLastName(userDto.getUser().getLastName());
+            deletedUser.setDeleted(false); // Restore the user
+            deletedUser.setInviteCode(null); // Clear old invite code if any
+            return deletedUser;
+        }
+        
+        // User exists and is not deleted - conflict
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                Constants.getMessage(Constants.ERROR_USER_EMAIL_ALREADY_EXISTS, user.getEmail()));
+    }
+    
+    /**
+     * Sets up user password based on authentication provider
+     * @param user the user to setup password for
+     */
+    private void setupUserPassword(User user) {
         boolean shouldCreateWithoutPasswords = globalAuthProviderService.shouldCreateUsersWithoutPasswords();
         boolean isSSOProvider = globalAuthProviderService.isSSOProvider();
         
@@ -133,42 +158,45 @@ public class UserController {
             user.setPassword(null);
             user.setIsActive(true); // SSO users are active by default
             log.info("Creating user without password (SSO mode)");
-        } else {
-            // Generate temporary password for non-SSO users
-            if (user.getPassword() == null || user.getPassword().isEmpty()) {
-                user.setPassword(userService.generateSecureTemporaryPassword());
-            }
-            // Check password complexity for non-SSO users
-            userService.checkPasswordComplexity(user.getPassword());
-            user.setIsActive(false);
-            log.info("Creating user with temporary password (non-SSO mode)");
-        }
-
-        // Handle Keycloak user creation
-        if (userAuthProvider == AuthProvider.KEYCLOAK && keycloakService != null) {
-            // Check if SSO is enabled in Keycloak (has identity providers)
-            boolean isSSOEnabled = keycloakService.isSSOEnabled();
-            
-            if (isSSOEnabled) {
-                // For Keycloak SSO, don't create user in Keycloak or set password
-                // Users will authenticate through identity providers
-                log.info("Keycloak SSO is enabled - skipping Keycloak user creation for: {}", user.getEmail());
-            } else {
-                // Regular Keycloak users - saveUser handles both create and update
-                // If user exists in Keycloak, it will update; otherwise, it will create
-                keycloakService.saveUser(user.getEmail(), user.getEmail(),
-                        user.getFirstName(),
-                        user.getLastName(),
-                        user.getPassword(), false); // Set as temporary password
-            }
+            return;
         }
         
-        userRepository.save(user);
+        // Generate temporary password for non-SSO users
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
+            user.setPassword(userService.generateSecureTemporaryPassword());
+        }
+        // Check password complexity for non-SSO users
+        userService.checkPasswordComplexity(user.getPassword());
+        user.setIsActive(false);
+        log.info("Creating user with temporary password (non-SSO mode)");
+    }
+    
+    /**
+     * Handles Keycloak user creation if Keycloak is the auth provider
+     * @param user the user to create in Keycloak
+     * @param userAuthProvider the authentication provider
+     */
+    private void handleKeycloakUserCreation(User user, AuthProvider userAuthProvider) {
+        if (userAuthProvider != AuthProvider.KEYCLOAK || keycloakService == null) {
+            return;
+        }
         
-        // Create notification task for invitation email (processed asynchronously by notification job)
-        createInvitationNotificationTask(user);
+        // Check if SSO is enabled in Keycloak (has identity providers)
+        boolean isSSOEnabled = keycloakService.isSSOEnabled();
         
-        return ResponseEntity.status(HttpStatus.OK).body(user);
+        if (isSSOEnabled) {
+            // For Keycloak SSO, don't create user in Keycloak or set password
+            // Users will authenticate through identity providers
+            log.info("Keycloak SSO is enabled - skipping Keycloak user creation for: {}", user.getEmail());
+            return;
+        }
+        
+        // Regular Keycloak users - saveUser handles both create and update
+        // If user exists in Keycloak, it will update; otherwise, it will create
+        keycloakService.saveUser(user.getEmail(), user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getPassword(), false); // Set as temporary password
     }
 
     @PostMapping
@@ -176,7 +204,7 @@ public class UserController {
 
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    Constants.getMessage("user.email.already.exists", user.getEmail()));
+                    Constants.getMessage(Constants.ERROR_USER_EMAIL_ALREADY_EXISTS, user.getEmail()));
         }
         
         // Note: Names can be duplicated, only email must be unique

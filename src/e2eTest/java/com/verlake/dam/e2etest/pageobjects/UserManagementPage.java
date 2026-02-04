@@ -30,7 +30,7 @@ public class UserManagementPage extends BasePage {
     }
 
     public void navigateToUserManagement() {
-        browser.get(baseUrl + "/admin/users");
+        browser.get(baseUrl + "/hagrids_admin/users");
         wait.until(ExpectedConditions.invisibilityOf(chakraSpinner));
         wait.until(ExpectedConditions.visibilityOf(usersTitle));
     }

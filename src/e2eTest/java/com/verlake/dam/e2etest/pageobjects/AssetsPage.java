@@ -33,7 +33,7 @@ public class AssetsPage extends BasePage {
 
 
     public void navigateToAssetsPage() {
-        browser.get(baseUrl + "/admin/assets");
+        browser.get(baseUrl + "/hagrids_admin/assets");
     }
 
     public void waitForPageToLoad() {
