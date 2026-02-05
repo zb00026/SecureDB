@@ -663,6 +663,7 @@ public class AccessRequestService {
     private void checkUserAndSetCredentials(Long assetId, User requestor, AccessRequest accessRequest,
             String existUsername, Map<String, String> newCredMapper) {
         final String userKey = keycloakService.getUserKey();
+        final User currentUser = userService.getCurrentUser();
 
         // Asset Credential has user_access_type, get credentials which are only asset
         // owner's
@@ -675,10 +676,16 @@ public class AccessRequestService {
                     boolean hasValidCredentials = cred.getUsername() != null && !cred.getUsername().isEmpty()
                             && cred.getPassword() != null && !cred.getPassword().isEmpty();
 
+                    // Check if credential belongs to the current logged-in user
+                    // Credentials are encrypted with the owner's key, so we can only decrypt
+                    // credentials that belong to the current user
+                    boolean belongsToCurrentUser = cred.getUser() != null 
+                            && cred.getUser().getId().equals(currentUser.getId());
+
                     // Check if user is the owner of the asset associated with this credential
                     boolean isAssetOwner = cred.getUser() != null && userService.isAssetOwner(cred.getUser());
 
-                    return hasValidCredentials && isAssetOwner;
+                    return hasValidCredentials && belongsToCurrentUser && isAssetOwner;
                 })
                 .toList();
 
@@ -686,27 +693,46 @@ public class AccessRequestService {
             throw new ResourceNotFoundException(Constants.getMessage("error.no.valid.credentials"));
         }
 
-        AssetCredential cred = validCredentials.get(0);
-        try {
-            AssetCredential assetOwnerCred = new AssetCredential();
-            assetOwnerCred.setUsername(cred.getUsername());
-            if (!cred.getIsTemporaryPassword()) {
-                String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
-                assetOwnerCred.setPassword(decryptedPassword);
-            } else {
-                assetOwnerCred.setPassword(cred.getPassword());
-            }
-            assetOwnerCred.setAsset(cred.getAsset());
-            assetOwnerCred.setUser(cred.getUser());
+        // Try each credential until we find one that can be decrypted with the current user's key
+        Exception lastException = null;
+        for (AssetCredential cred : validCredentials) {
+            try {
+                AssetCredential assetOwnerCred = new AssetCredential();
+                assetOwnerCred.setUsername(cred.getUsername());
+                if (!cred.getIsTemporaryPassword()) {
+                    String decryptedPassword = CommonUtils.decrypt(userKey, cred.getPassword());
+                    assetOwnerCred.setPassword(decryptedPassword);
+                } else {
+                    assetOwnerCred.setPassword(cred.getPassword());
+                }
+                assetOwnerCred.setAsset(cred.getAsset());
+                assetOwnerCred.setUser(cred.getUser());
 
-            databaseAccessService.checkAccessRequestorInAsset(assetOwnerCred, requestor, accessRequest, existUsername,
-                    newCredMapper);
-        } catch (Exception e) {
-            throw new DatabaseAccessException(
-                    Constants.getMessage("error.credential.errors")
-                            + cred.getId(),
-                    e);
+                databaseAccessService.checkAccessRequestorInAsset(assetOwnerCred, requestor, accessRequest, existUsername,
+                        newCredMapper);
+                // Success - return early
+                return;
+            } catch (CommonUtils.CryptoException e) {
+                // Decryption failed - this credential was encrypted with a different user's key
+                // Try the next credential
+                lastException = e;
+                log.warn("Failed to decrypt credential ID {} with current user's key. Trying next credential if available.", 
+                        cred.getId());
+            } catch (Exception e) {
+                // Other exceptions should be propagated
+                throw new DatabaseAccessException(
+                        Constants.getMessage("error.credential.errors")
+                                + cred.getId(),
+                        e);
+            }
         }
+
+        // All credentials failed to decrypt
+        throw new DatabaseAccessException(
+                Constants.getMessage("error.credential.errors") + 
+                " - Unable to decrypt any asset owner credentials with current user's encryption key. " +
+                "Credentials may have been encrypted by a different user.",
+                lastException);
     }
 
     /**
