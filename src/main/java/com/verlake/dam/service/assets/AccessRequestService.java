@@ -474,14 +474,14 @@ public class AccessRequestService {
         // Collect all asset IDs and separate by type
         List<Long> unixAssetIds = assetCredentials.stream()
                 .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER &&
-                        cred.getIsTemporaryPassword() == false && cred.getIsDeleted() == false &&
+                        !cred.getIsTemporaryPassword() && !cred.getIsDeleted() &&
                         cred.getUsername() != null && cred.getPassword() != null)
                 .map(cred -> cred.getAsset().getId())
                 .toList();
 
         List<Asset> databaseAssets = assetCredentials.stream()
                 .filter(cred -> cred.getAsset().getType() != AssetType.UNIX_SERVER &&
-                        cred.getIsTemporaryPassword() == false && cred.getIsDeleted() == false &&
+                        !cred.getIsTemporaryPassword() && !cred.getIsDeleted() &&
                         cred.getUsername() != null && cred.getPassword() != null)
                 .map(AssetCredential::getAsset)
                 .toList();
@@ -526,20 +526,27 @@ public class AccessRequestService {
             request.setAssetApprovalsDTO(assetService.convertToApprovalsDTO(fullAsset));
 
             // Mask sensitive Unix data if this is a Unix access request
-            if (request.getRequestedUsername() != null) {
-                if (request.getPublicKey() != null) {
-                    request.setPublicKey(null);
-                }
-                if (request.getEncryptedPrivateKey() != null) {
-                    request.setEncryptedPrivateKey(null);
-                }
-            }
+            maskUnixSensitiveData(request);
         }
 
         // Sort by request time (descending)
         return allAccessRequests.stream()
                 .sorted((a1, a2) -> a2.getRequestTime().compareTo(a1.getRequestTime()))
                 .toList();
+    }
+
+    /**
+     * Mask sensitive Unix data (public key and encrypted private key) from access request
+     */
+    private void maskUnixSensitiveData(AccessRequest request) {
+        if (request.getRequestedUsername() != null) {
+            if (request.getPublicKey() != null) {
+                request.setPublicKey(null);
+            }
+            if (request.getEncryptedPrivateKey() != null) {
+                request.setEncryptedPrivateKey(null);
+            }
+        }
     }
 
     public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, AccessRequestDTO accessRequestDTO,
