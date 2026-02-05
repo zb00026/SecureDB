@@ -54,7 +54,8 @@ public class AccessRequestService {
             UserRepository userRepository,
             NotificationTaskRepository notificationTaskRepository,
             DatabaseAccessService databaseAccessService,
-            UserService userService, AssetCredentialsRepository assetCredentialsRepository, AssetRepository assetRepository, KeycloakService keycloakService) {
+            UserService userService, AssetCredentialsRepository assetCredentialsRepository,
+            AssetRepository assetRepository, KeycloakService keycloakService) {
         this.accessRequestRepository = accessRequestRepository;
         this.assetService = assetService;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
@@ -74,7 +75,7 @@ public class AccessRequestService {
         }
 
         StringBuilder sqlBuilder = new StringBuilder();
-        
+
         // Get database type from the first access level object
         DatabaseType databaseType = accessLevelObjects.get(0).getAccessLevel().getDatabaseType();
 
@@ -82,26 +83,28 @@ public class AccessRequestService {
             AccessLevel level = obj.getAccessLevel();
             String template = level.getAccessTemplate();
             String tableName = "";
-            
+
             if (!obj.getAccessLevel().getObject().equals(Constants.ASSET_ACCESS_OBJECT_DATABASE)) {
                 // For table objects like "schema.table" or "database.table"
                 String[] parts = obj.getObjectName().split(Constants.DB_SPLIT_PATTERN);
                 if (parts.length >= 2) {
                     tableName = parts[1];
-            } else {
+                } else {
                     tableName = obj.getObjectName();
                 }
             }
-            
+
             // Apply database-specific placeholder fixes
             String sql = applyDatabaseSpecificFixes(template, databaseType);
-            
+
             // Replace placeholders - convert old $DB to new $DATABASE for consistency
-            sql = sql.replace("$DB", "$DATABASE")  // Convert to standardized placeholder
+            sql = sql.replace("$DB", "$DATABASE") // Convert to standardized placeholder
                     .replace("$TABLE", tableName)
                     .replace("$OBJECT", obj.getObjectName());
 
-            sqlBuilder.append(sql).append(sql.endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_NEWLINE_SEPARATOR : Constants.SQL_SEMICOLON_NEWLINE);
+            sqlBuilder.append(sql)
+                    .append(sql.endsWith(Constants.SQL_STATEMENT_SEPARATOR) ? Constants.SQL_NEWLINE_SEPARATOR
+                            : Constants.SQL_SEMICOLON_NEWLINE);
         });
 
         return sqlBuilder.toString();
@@ -111,35 +114,40 @@ public class AccessRequestService {
         switch (databaseType) {
             case POSTGRESQL:
                 return template
-                    // Fix PostgreSQL-specific hardcoded values
-                    .replace(Constants.SQL_PLACEHOLDER_DATABASE_PUBLIC, "DATABASE $DATABASE")
-                    .replace(Constants.SQL_PLACEHOLDER_SCHEMA_PUBLIC, "SCHEMA $SCHEMA")
-                    .replace("ON public.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
-                    .replace(Constants.SQL_PLACEHOLDER_IN_SCHEMA_PUBLIC, "IN SCHEMA $SCHEMA");
-                    
+                        // Fix PostgreSQL-specific hardcoded values
+                        .replace(Constants.SQL_PLACEHOLDER_DATABASE_PUBLIC, "DATABASE $DATABASE")
+                        .replace(Constants.SQL_PLACEHOLDER_SCHEMA_PUBLIC, "SCHEMA $SCHEMA")
+                        .replace("ON public.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
+                        .replace(Constants.SQL_PLACEHOLDER_IN_SCHEMA_PUBLIC, "IN SCHEMA $SCHEMA");
+
             case SQLSERVER:
                 return template
-                    // Fix SQL Server-specific hardcoded values
-                    .replace(Constants.SQL_PLACEHOLDER_ON_DBO_BRACKET, "ON [$SCHEMA].")
-                    .replace("ON dbo.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
-                    .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
+                        // Fix SQL Server-specific hardcoded values
+                        .replace(Constants.SQL_PLACEHOLDER_ON_DBO_BRACKET, "ON [$SCHEMA].")
+                        .replace("ON dbo.", Constants.SQL_TEMPLATE_ON_SCHEMA + ".")
+                        .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
             case MONGODB:
-                // MongoDB doesn't use SQL, return template as-is or handle MongoDB-specific syntax
+                // MongoDB doesn't use SQL, return template as-is or handle MongoDB-specific
+                // syntax
                 return template
-                    .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
-                    
+                        .replace(Constants.SQL_PLACEHOLDER_DBO_BRACKET, Constants.SQL_PLACEHOLDER_SCHEMA_BRACKET);
+
             case MYSQL:
                 return template
-                    // MySQL typically uses database.table format
-                    // Most MySQL templates should already be correct, but handle common cases
-                    .replace("@'%'", "@'%'"); // Keep MySQL user@host format as-is
-                    
+                        // MySQL typically uses database.table format
+                        // Most MySQL templates should already be correct, but handle common cases
+                        .replace("@'%'", "@'%'"); // Keep MySQL user@host format as-is
+
             case ORACLE:
                 return template
-                    // Oracle typically uses schema.object format
-                    // Most Oracle templates should already be correct
-                    .replace(Constants.SQL_PLACEHOLDER_ON_USERS, Constants.SQL_TEMPLATE_ON_SCHEMA + "."); // Fix common Oracle default tablespace/schema
-                    
+                        // Oracle typically uses schema.object format
+                        // Most Oracle templates should already be correct
+                        .replace(Constants.SQL_PLACEHOLDER_ON_USERS, Constants.SQL_TEMPLATE_ON_SCHEMA + "."); // Fix
+                                                                                                              // common
+                                                                                                              // Oracle
+                                                                                                              // default
+                                                                                                              // tablespace/schema
+
             default:
                 // No database-specific fixes for unknown types
                 return template;
@@ -261,7 +269,8 @@ public class AccessRequestService {
             notificationMessage.setBody(String.format("%s %s has requested access to %s",
                     requestor.getFirstName(), requestor.getLastName(), asset.getName()));
         } else {
-            notificationMessage.setTitle(Constants.getMessage(Constants.NOTIFICATION_TITLE_RELINQUISHED_ACCESS_REQUEST));
+            notificationMessage
+                    .setTitle(Constants.getMessage(Constants.NOTIFICATION_TITLE_RELINQUISHED_ACCESS_REQUEST));
             notificationMessage.setBody(String.format("%s %s has relinquished access to %s",
                     requestor.getFirstName(), requestor.getLastName(), asset.getName()));
         }
@@ -290,6 +299,7 @@ public class AccessRequestService {
         request.setAssetApproverStatus(ApprovalStatus.REQUESTED);
         return accessRequestRepository.save(request);
     }
+
     public List<AccessRequest> getRequestsNeedingAccessorApproval() {
         return accessRequestRepository.findRequestsNeedingAccessorApproval();
     }
@@ -322,7 +332,8 @@ public class AccessRequestService {
 
     public AccessRequest findById(Long id) {
         return accessRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.access.request.not.found") + id));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        Constants.getMessage("error.access.request.not.found") + id));
     }
 
     public AccessRequest setCredentialPassword(Long accessRequestId, AssetCredentialDTO credentialInfo)
@@ -385,8 +396,8 @@ public class AccessRequestService {
     /**
      * Encrypt credential based on asset type
      */
-    private void encryptCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
-                                   Asset asset, String accessorKey) throws CryptoException {
+    private void encryptCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo,
+            Asset asset, String accessorKey) throws CryptoException {
         if (asset.getType() == AssetType.UNIX_SERVER) {
             encryptUnixCredential(devCredential, credentialInfo, accessorKey);
         } else {
@@ -397,8 +408,8 @@ public class AccessRequestService {
     /**
      * Encrypt Unix SSH key file
      */
-    private void encryptUnixCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
-                                      String accessorKey) throws CryptoException {
+    private void encryptUnixCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo,
+            String accessorKey) throws CryptoException {
         if (credentialInfo.getSshKeyFile() == null || credentialInfo.getSshKeyFile().isEmpty()) {
             throw new IllegalArgumentException("SSH key file is required for Unix assets");
         }
@@ -409,8 +420,8 @@ public class AccessRequestService {
     /**
      * Encrypt database password
      */
-    private void encryptDatabaseCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo, 
-                                          String accessorKey) throws CryptoException {
+    private void encryptDatabaseCredential(AssetCredential devCredential, AssetCredentialDTO credentialInfo,
+            String accessorKey) throws CryptoException {
         if (credentialInfo.getPassword() == null || credentialInfo.getPassword().isEmpty()) {
             throw new IllegalArgumentException("Password is required for database assets");
         }
@@ -436,7 +447,7 @@ public class AccessRequestService {
 
         // Determine if relinquished after approval or before approval
         boolean wasApproved = accessRequest.getAssetApproverStatus() == ApprovalStatus.APPROVED;
-        
+
         if (wasApproved) {
             accessRequest.setAssetApproverStatus(ApprovalStatus.RELINQUISHED_AFTER_APPROVED);
         } else {
@@ -450,38 +461,41 @@ public class AccessRequestService {
         sendNotifications(accessRequest, accessRequest.getRequestor(), accessRequest.getAsset(), false);
     }
 
-
-
     @Transactional(readOnly = true)
     public List<AccessRequest> getAssetRequestApprovals() {
         User currentUser = userService.getCurrentUser();
-        List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserAndUserAccessType(currentUser, Roles.ASSET_OWNER.getOriginalName());
-        
+        List<AssetCredential> assetCredentials = assetCredentialsRepository.findByUserAndUserAccessType(currentUser,
+                Roles.ASSET_OWNER.getOriginalName());
+
         if (assetCredentials.isEmpty()) {
             return List.of();
         }
-        
+
         // Collect all asset IDs and separate by type
         List<Long> unixAssetIds = assetCredentials.stream()
-                .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER)
+                .filter(cred -> cred.getAsset().getType() == AssetType.UNIX_SERVER &&
+                        cred.getIsTemporaryPassword() == false && cred.getIsDeleted() == false &&
+                        cred.getUsername() != null && cred.getPassword() != null)
                 .map(cred -> cred.getAsset().getId())
                 .toList();
-        
+
         List<Asset> databaseAssets = assetCredentials.stream()
-                .filter(cred -> cred.getAsset().getType() != AssetType.UNIX_SERVER)
+                .filter(cred -> cred.getAsset().getType() != AssetType.UNIX_SERVER &&
+                        cred.getIsTemporaryPassword() == false && cred.getIsDeleted() == false &&
+                        cred.getUsername() != null && cred.getPassword() != null)
                 .map(AssetCredential::getAsset)
                 .toList();
-        
+
         // Fetch all access requests upfront
         List<AccessRequest> allAccessRequests = new ArrayList<>();
-        
+
         if (!unixAssetIds.isEmpty()) {
             List<AccessRequest> unixRequests = accessRequestRepository.findPendingUnixRequestsForAssets(
-                    unixAssetIds, 
+                    unixAssetIds,
                     ApprovalStatus.REQUESTED);
             allAccessRequests.addAll(unixRequests);
         }
-        
+
         // Fetch database asset requests (batch query)
         if (!databaseAssets.isEmpty()) {
             List<Long> databaseAssetIds = databaseAssets.stream()
@@ -490,26 +504,27 @@ public class AccessRequestService {
             List<AccessRequest> dbRequests = accessRequestRepository.findPendingRequestsByAssetIds(databaseAssetIds);
             allAccessRequests.addAll(dbRequests);
         }
-        
+
         // Fetch all assets upfront to avoid N+1 queries
         List<Long> allAssetIds = assetCredentials.stream()
                 .map(cred -> cred.getAsset().getId())
                 .toList();
         Map<Long, Asset> assetMap = assetRepository.findAllById(allAssetIds).stream()
                 .collect(Collectors.toMap(Asset::getId, asset -> asset));
-        
+
         // Process all access requests
         for (AccessRequest request : allAccessRequests) {
             Asset fullAsset = assetMap.get(request.getAsset().getId());
             if (fullAsset == null) {
-                log.warn("Asset not found for access request ID: {}, asset ID: {}", request.getId(), request.getAsset().getId());
+                log.warn("Asset not found for access request ID: {}, asset ID: {}", request.getId(),
+                        request.getAsset().getId());
                 continue;
             }
-            
+
             AssetDTO assetDTO = assetService.convertToDTO(fullAsset);
             request.setAssetDTO(assetDTO);
             request.setAssetApprovalsDTO(assetService.convertToApprovalsDTO(fullAsset));
-            
+
             // Mask sensitive Unix data if this is a Unix access request
             if (request.getRequestedUsername() != null) {
                 if (request.getPublicKey() != null) {
@@ -520,25 +535,28 @@ public class AccessRequestService {
                 }
             }
         }
-        
+
         // Sort by request time (descending)
         return allAccessRequests.stream()
                 .sorted((a1, a2) -> a2.getRequestTime().compareTo(a1.getRequestTime()))
                 .toList();
     }
 
-    public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, AccessRequestDTO accessRequestDTO, ApprovalStatus approvalStatus)
+    public AccessRequest setApprovalStatusOfAccessRequest(Long accessRequestId, AccessRequestDTO accessRequestDTO,
+            ApprovalStatus approvalStatus)
             throws JsonParseException {
         AccessRequest accessRequest = accessRequestRepository.findById(accessRequestId)
-                .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.access.request.not.found.msg")));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        Constants.getMessage("error.access.request.not.found.msg")));
 
         Map<String, String> newCredMapper = new HashMap<>();
         if (approvalStatus == ApprovalStatus.APPROVED) {
             // Find existing credential or create new one
-            List<AccessRequest> lstAccessRequests = accessRequestRepository.findByUserAndAssetAndUserAccessTypeAndNotExpired(
-                    accessRequest.getRequestor(),
-                    accessRequest.getAsset(),
-                    Roles.ACCESSOR.getOriginalName());
+            List<AccessRequest> lstAccessRequests = accessRequestRepository
+                    .findByUserAndAssetAndUserAccessTypeAndNotExpired(
+                            accessRequest.getRequestor(),
+                            accessRequest.getAsset(),
+                            Roles.ACCESSOR.getOriginalName());
 
             String existUsername = "";
 
@@ -546,26 +564,31 @@ public class AccessRequestService {
                 // Generate new username and password
                 existUsername = lstAccessRequests.get(0).getAssetCredential().getUsername();
             } else {
-                // Set AccessRequest's temporary password flag to true if the username is not exist
+                // Set AccessRequest's temporary password flag to true if the username is not
+                // exist
                 accessRequest.setIsTempPassword(true);
             }
             checkUserAndSetCredentials(accessRequest.getAsset().getId(), accessRequest.getRequestor(), accessRequest,
                     existUsername, newCredMapper);
             if (newCredMapper.containsKey(Constants.CREDENTIAL_ID_KEY)) {
-                AssetCredential credential = assetCredentialsRepository.findById(Long.parseLong(newCredMapper.get(Constants.CREDENTIAL_ID_KEY)))
-                        .orElseThrow(() -> new ResourceNotFoundException(Constants.getMessage("error.new.credential.not.found")));
+                AssetCredential credential = assetCredentialsRepository
+                        .findById(Long.parseLong(newCredMapper.get(Constants.CREDENTIAL_ID_KEY)))
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                Constants.getMessage("error.new.credential.not.found")));
                 accessRequest.setAssetCredential(credential);
             }
         } else if (approvalStatus == ApprovalStatus.REJECTED) {
             accessRequest.setRejectReason(accessRequestDTO.getRejectReason());
         }
-        
+
         // Set asset approver status
         // If approving, check if both approvers need to approve
         accessRequest.setAssetApproverStatus(approvalStatus);
 
         // Set expiry hours (default to 3 months = 2160 hours if not provided)
-        accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours() : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));
+        accessRequest.setExpiryHours(accessRequestDTO != null && accessRequestDTO.getExpirationHours() != null
+                && accessRequestDTO.getExpirationHours() != 0 ? accessRequestDTO.getExpirationHours()
+                        : Constants.getTechnicalPropertyAsInt("access.request.default.expiry.hours"));
         // Calculate expiry date
         accessRequest.setExpiryDate(LocalDateTime.now().plusHours(accessRequest.getExpiryHours()));
 
@@ -581,10 +604,10 @@ public class AccessRequestService {
         notificationData.put(Constants.NOTIFICATION_KEY_APPROVER_NAME,
                 currentUser.getFirstName() + " " + currentUser.getLastName());
         notificationData.put(Constants.NOTIFICATION_KEY_APPROVAL_STATUS, approvalStatus.name());
-        notificationData.put(Constants.EMAIL_VAR_MESSAGE_TYPE, "1"); //1 : success, 0: fail
+        notificationData.put(Constants.EMAIL_VAR_MESSAGE_TYPE, "1"); // 1 : success, 0: fail
         if (!newCredMapper.isEmpty()) {
-                    notificationData.put(Constants.EMAIL_VAR_DB_USERNAME, newCredMapper.get(Constants.EMAIL_VAR_DB_USERNAME));
-        notificationData.put(Constants.EMAIL_VAR_DB_PASSWORD, newCredMapper.get(Constants.EMAIL_VAR_DB_PASSWORD));
+            notificationData.put(Constants.EMAIL_VAR_DB_USERNAME, newCredMapper.get(Constants.EMAIL_VAR_DB_USERNAME));
+            notificationData.put(Constants.EMAIL_VAR_DB_PASSWORD, newCredMapper.get(Constants.EMAIL_VAR_DB_PASSWORD));
         }
         sendApprovalNotificationAndEmail(currentUser, accessRequest.getRequestor(), accessRequest.getAsset(),
                 notificationData, approvalStatus);
@@ -634,8 +657,10 @@ public class AccessRequestService {
             String existUsername, Map<String, String> newCredMapper) {
         final String userKey = keycloakService.getUserKey();
 
-        //Asset Credential has user_access_type, get credentials which are only asset owner's
-        final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserAccessType(assetId, Roles.ASSET_OWNER.getOriginalName());
+        // Asset Credential has user_access_type, get credentials which are only asset
+        // owner's
+        final List<AssetCredential> credentials = assetCredentialsRepository.findByAssetIdAndUserAccessType(assetId,
+                Roles.ASSET_OWNER.getOriginalName());
 
         List<AssetCredential> validCredentials = credentials.stream()
                 .filter(cred -> {
@@ -678,26 +703,30 @@ public class AccessRequestService {
     }
 
     /**
-     * Encrypt temporary password or SSH key file and update both credential and access request flags
-     * This method handles the common logic for encrypting temporary credentials when first accessed
+     * Encrypt temporary password or SSH key file and update both credential and
+     * access request flags
+     * This method handles the common logic for encrypting temporary credentials
+     * when first accessed
      * 
-     * Uses REQUIRES_NEW propagation to ensure writes are persisted even when called from read-only transactions
+     * Uses REQUIRES_NEW propagation to ensure writes are persisted even when called
+     * from read-only transactions
      * 
-     * @param credential The asset credential with temporary password/SSH key
+     * @param credential    The asset credential with temporary password/SSH key
      * @param accessRequest The access request associated with this credential
      * @throws CryptoException if encryption fails
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void encryptTemporaryCredential(AssetCredential credential, AccessRequest accessRequest) throws CommonUtils.CryptoException {
+    public void encryptTemporaryCredential(AssetCredential credential, AccessRequest accessRequest)
+            throws CommonUtils.CryptoException {
         if (!Boolean.TRUE.equals(credential.getIsTemporaryPassword())) {
             return; // Not a temporary password, nothing to do
         }
-        
+
         String userKey = keycloakService.getUserKey();
         if (userKey == null || userKey.isEmpty()) {
             throw new CryptoException("User encryption key not available");
         }
-        
+
         // Encrypt password or SSH key file based on what's available
         if (credential.getPassword() != null && !credential.getPassword().isEmpty()) {
             // Database credential - encrypt password
@@ -708,27 +737,29 @@ public class AccessRequestService {
             String encryptedSshKey = CommonUtils.encrypt(userKey, credential.getSshKeyFile());
             credential.setSshKeyFile(encryptedSshKey);
         } else {
-            log.warn("Temporary credential found but neither password nor sshKeyFile is set for credential ID: {}", credential.getId());
+            log.warn("Temporary credential found but neither password nor sshKeyFile is set for credential ID: {}",
+                    credential.getId());
             return;
         }
-        
+
         // Update credential flags
         credential.setIsTemporaryPassword(false);
         assetCredentialsRepository.save(credential);
-        
+
         // Update access request flag
         if (accessRequest != null) {
             accessRequest.setIsTempPassword(false);
             accessRequestRepository.save(accessRequest);
         }
-        
-        log.info("Encrypted temporary credential for credential ID: {}, accessRequest ID: {}", 
+
+        log.info("Encrypted temporary credential for credential ID: {}, accessRequest ID: {}",
                 credential.getId(), accessRequest != null ? accessRequest.getId() : "N/A");
     }
 
     /**
      * Update expired access requests to EXPIRED status for accessors
-     * This is called when a accessor logs in to ensure their expired requests are marked
+     * This is called when a accessor logs in to ensure their expired requests are
+     * marked
      * 
      * @param user The accessor user whose expired access requests should be updated
      */
@@ -737,24 +768,24 @@ public class AccessRequestService {
         try {
             LocalDateTime now = LocalDateTime.now();
             String accessorAccessType = Roles.ACCESSOR.getOriginalName();
-            
+
             List<AccessRequest> expiredRequests = accessRequestRepository
                     .findExpiredByRequestorAndUserAccessType(user, now, accessorAccessType);
-            
+
             expiredRequests.forEach(ar -> {
                 ar.setAccessorApproverStatus(ApprovalStatus.EXPIRED);
                 ar.setAssetApproverStatus(ApprovalStatus.EXPIRED);
                 accessRequestRepository.save(ar);
-                log.info("Updated access request ID: {} to EXPIRED status for accessor: {}", 
+                log.info("Updated access request ID: {} to EXPIRED status for accessor: {}",
                         ar.getId(), user.getEmail());
             });
-            
+
             if (!expiredRequests.isEmpty()) {
-                log.info("Updated {} expired access requests to EXPIRED status for accessor: {}", 
+                log.info("Updated {} expired access requests to EXPIRED status for accessor: {}",
                         expiredRequests.size(), user.getEmail());
             }
         } catch (Exception e) {
-            log.error("Failed to update expired access requests for accessor {}: {}", 
+            log.error("Failed to update expired access requests for accessor {}: {}",
                     user != null ? user.getEmail() : "unknown", e.getMessage(), e);
         }
     }

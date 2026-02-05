@@ -528,4 +528,12 @@
         </addColumn>
     </changeSet>
 
+    <changeSet id="mysql-users-update-admin-initial-password" author="admin" dbms="mysql">
+        <!-- Update admin user with default values -->
+        <update tableName="users">
+            <column name="is_initial_password" value="1"/>
+            <where>id = 1</where>
+        </update>
+    </changeSet>
+
 </databaseChangeLog> 
