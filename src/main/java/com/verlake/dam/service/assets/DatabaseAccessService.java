@@ -1730,13 +1730,34 @@ public class DatabaseAccessService {
     }
 
     private String generateRandomPassword() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+        String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        String lower = "abcdefghijklmnopqrstuvwxyz";
+        String digits = "0123456789";
+        String special = "!@#$%^&*()";
+        String allChars = upper + lower + digits + special;
+
+        // Ensure at least one character from each category to satisfy MySQL validate_password policy
         StringBuilder password = new StringBuilder();
-        for (int i = 0; i < 12; i++) {
-            int index = secureRandom.nextInt(chars.length());
-            password.append(chars.charAt(index));
+        password.append(upper.charAt(secureRandom.nextInt(upper.length())));
+        password.append(lower.charAt(secureRandom.nextInt(lower.length())));
+        password.append(digits.charAt(secureRandom.nextInt(digits.length())));
+        password.append(special.charAt(secureRandom.nextInt(special.length())));
+
+        // Fill remaining characters randomly
+        for (int i = 4; i < 12; i++) {
+            password.append(allChars.charAt(secureRandom.nextInt(allChars.length())));
         }
-        return Constants.TEMP_PSD_PREFIX + password;
+
+        // Shuffle to avoid predictable positions of required characters
+        char[] passwordArray = password.toString().toCharArray();
+        for (int i = passwordArray.length - 1; i > 0; i--) {
+            int j = secureRandom.nextInt(i + 1);
+            char temp = passwordArray[i];
+            passwordArray[i] = passwordArray[j];
+            passwordArray[j] = temp;
+        }
+
+        return Constants.TEMP_PSD_PREFIX + new String(passwordArray);
     }
 
     private String getCredentialForAccess(
