@@ -338,6 +338,14 @@
         </sql>
     </changeSet>
 
+    <!-- MySQL-specific: Convert emails metadata column to utf8mb4 to support emojis -->
+    <changeSet id="mysql-emails-metadata-utf8mb4" author="admin" dbms="mysql">
+        <sql>
+            -- Convert metadata column to utf8mb4 charset to support 4-byte UTF-8 characters (emojis)
+            ALTER TABLE emails MODIFY COLUMN metadata TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        </sql>
+    </changeSet>
+
     <!-- MySQL-specific: Convert asset_objects.objects_json to LONGTEXT for large JSON data -->
     <changeSet id="mysql-asset-objects-json-type" author="admin" dbms="mysql">
         <sql>
