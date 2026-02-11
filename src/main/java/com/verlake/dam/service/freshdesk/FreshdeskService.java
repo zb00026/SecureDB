@@ -71,6 +71,9 @@ public class FreshdeskService {
     @Value("${keycloak.realm}")
     private String keycloakRealm;
 
+    @Value("${keycloak.realms-path:/realms/}")
+    private String keycloakRealmsPath;
+
     @Value("${spring.security.oauth2.client.registration.keycloak.client-id}")
     private String keycloakClientId;
 
@@ -562,7 +565,7 @@ public class FreshdeskService {
 
         // Construct redirect URI - use a callback URL that we can intercept
         // The redirect_uri should be a URL where Keycloak will redirect with the token
-        String redirectUri = keycloakAuthServerUrl + Constants.KEYCLOAK_REALMS_PATH + keycloakRealm + "/protocol/openid-connect/auth";
+        String redirectUri = keycloakAuthServerUrl + keycloakRealmsPath + keycloakRealm + "/protocol/openid-connect/auth";
 
         // Create request body with redirect_uri
         Map<String, String> requestBody = new HashMap<>();
@@ -838,7 +841,7 @@ public class FreshdeskService {
      */
     private String generateTokenViaTokenExchange(String keycloakUserId, String userEmail, String serviceAccountToken) {
         try {
-            String tokenExchangeEndpoint = keycloakAuthServerUrl + Constants.KEYCLOAK_REALMS_PATH + keycloakRealm
+            String tokenExchangeEndpoint = keycloakAuthServerUrl + keycloakRealmsPath + keycloakRealm
                     + "/protocol/openid-connect/token";
 
             RestTemplate restTemplate = new RestTemplate();
@@ -982,7 +985,7 @@ public class FreshdeskService {
     private String getAdminToken() {
         RestTemplate restTemplate = new RestTemplate();
 
-        String tokenEndpoint = keycloakAuthServerUrl + Constants.KEYCLOAK_REALMS_PATH + keycloakRealm + "/protocol/openid-connect/token";
+        String tokenEndpoint = keycloakAuthServerUrl + keycloakRealmsPath + keycloakRealm + "/protocol/openid-connect/token";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
