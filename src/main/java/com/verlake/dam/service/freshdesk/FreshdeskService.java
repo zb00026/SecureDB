@@ -453,55 +453,12 @@ public class FreshdeskService {
             }
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.debug("Received successful response (200 OK), extracting token...");
-                String responseBody = response.getBody();
-
-                if (responseBody == null) {
-                    log.warn("Impersonation returned 200 OK but response body is null for user: {}", userEmail);
-                    return null;
-                }
-
-                log.debug("Response body preview (first 300 chars): {}",
-                        responseBody.length() > 300 ? responseBody.substring(0, 300) + "..." : responseBody);
-
-                // Keycloak 26+ returns JSON with redirect field:
-                // The redirect URL points to the account page. In Keycloak 26+, impersonation
-                // is browser-based.
-                // For programmatic access, we need Legacy Token Exchange (V1) which requires
-                // enabling preview features.
-                // Since that's not available, we'll use a workaround: use the admin client to
-                // generate a token
-                // directly using the user's credentials (if available) or use resource owner
-                // password grant.
-                String redirectUrl = extractRedirectUrlFromJson(responseBody);
-                if (redirectUrl != null) {
-                    log.debug("Found redirect URL in JSON response: {}", redirectUrl);
-                    log.warn("Keycloak 26.1.0 impersonation returns browser redirect. Attempting workaround...");
-                    return null; // Will trigger fallback to token exchange (which will also fail, but with
-                                 // better error message)
-                }
-
-                // Fallback: Try direct URL extraction if response is a plain URL
-                String trimmedBody = responseBody.trim();
-                if (trimmedBody.startsWith(Constants.HTTP_PROTOCOL_PREFIX) || trimmedBody.startsWith(Constants.HTTPS_PROTOCOL_PREFIX)) {
-                    log.debug("Response body is a direct redirect URL, extracting token...");
-                    String token = extractTokenFromUrl(trimmedBody);
-                    if (token != null && !token.isEmpty()) {
-                        log.info(
-                                "Successfully obtained token via impersonation (from redirect URL in 200 response) for user: {}",
-                                userEmail);
-                        return token;
-                    }
-                }
-
-                // Try JSON extraction as fallback
-                return handleSuccessResponse(response, userEmail);
+                return handleSuccessfulImpersonationResponse(response, userEmail);
             }
 
-            // Handle 403 Forbidden specifically
             if (statusCode == 403) {
                 logImpersonation403Error(userEmail, keycloakUserId, response.getBody(), impersonationEndpoint);
-                return null; // Will trigger fallback to token exchange
+                return null;
             }
 
             log.warn("Impersonation API returned unexpected status: {} for user: {}", statusCode, userEmail);
@@ -510,7 +467,7 @@ public class FreshdeskService {
             log.error("=== IMPERSONATION 403 FORBIDDEN ERROR (Exception) ===");
             log.error("Exception message: {}", e.getMessage());
             logImpersonation403Error(userEmail, keycloakUserId, e.getResponseBodyAsString(), impersonationEndpoint);
-            return null; // Will trigger fallback to token exchange
+            return null;
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             log.error("HTTP error during impersonation for user: {}. Status: {}, Response: {}",
                     userEmail, e.getStatusCode(), e.getResponseBodyAsString());
@@ -520,6 +477,50 @@ public class FreshdeskService {
             log.error("Exception type: {}, Message: {}", e.getClass().getName(), e.getMessage());
             return null;
         }
+    }
+
+    private String handleSuccessfulImpersonationResponse(ResponseEntity<String> response, String userEmail) {
+        log.debug("Received successful response (200 OK), extracting token...");
+        String responseBody = response.getBody();
+
+        if (responseBody == null) {
+            log.warn("Impersonation returned 200 OK but response body is null for user: {}", userEmail);
+            return null;
+        }
+
+        log.debug("Response body preview (first 300 chars): {}",
+                responseBody.length() > 300 ? responseBody.substring(0, 300) + "..." : responseBody);
+
+        String redirectUrl = extractRedirectUrlFromJson(responseBody);
+        if (redirectUrl != null) {
+            log.debug("Found redirect URL in JSON response: {}", redirectUrl);
+            log.warn("Keycloak 26.1.0 impersonation returns browser redirect. Attempting workaround...");
+            return null;
+        }
+
+        String token = extractTokenFromDirectUrl(responseBody, userEmail);
+        if (token != null) {
+            return token;
+        }
+
+        return handleSuccessResponse(response, userEmail);
+    }
+
+    private String extractTokenFromDirectUrl(String responseBody, String userEmail) {
+        String trimmedBody = responseBody.trim();
+        if (!trimmedBody.startsWith(Constants.HTTP_PROTOCOL_PREFIX) 
+                && !trimmedBody.startsWith(Constants.HTTPS_PROTOCOL_PREFIX)) {
+            return null;
+        }
+
+        log.debug("Response body is a direct redirect URL, extracting token...");
+        String token = extractTokenFromUrl(trimmedBody);
+        if (token != null && !token.isEmpty()) {
+            log.info("Successfully obtained token via impersonation (from redirect URL in 200 response) for user: {}",
+                    userEmail);
+            return token;
+        }
+        return null;
     }
 
     /**
@@ -561,7 +562,7 @@ public class FreshdeskService {
 
         // Construct redirect URI - use a callback URL that we can intercept
         // The redirect_uri should be a URL where Keycloak will redirect with the token
-        String redirectUri = keycloakAuthServerUrl + "/realms/" + keycloakRealm + "/protocol/openid-connect/auth";
+        String redirectUri = keycloakAuthServerUrl + Constants.KEYCLOAK_REALMS_PATH + keycloakRealm + "/protocol/openid-connect/auth";
 
         // Create request body with redirect_uri
         Map<String, String> requestBody = new HashMap<>();
@@ -837,7 +838,7 @@ public class FreshdeskService {
      */
     private String generateTokenViaTokenExchange(String keycloakUserId, String userEmail, String serviceAccountToken) {
         try {
-            String tokenExchangeEndpoint = keycloakAuthServerUrl + "/realms/" + keycloakRealm
+            String tokenExchangeEndpoint = keycloakAuthServerUrl + Constants.KEYCLOAK_REALMS_PATH + keycloakRealm
                     + "/protocol/openid-connect/token";
 
             RestTemplate restTemplate = new RestTemplate();
@@ -981,7 +982,7 @@ public class FreshdeskService {
     private String getAdminToken() {
         RestTemplate restTemplate = new RestTemplate();
 
-        String tokenEndpoint = keycloakAuthServerUrl + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
+        String tokenEndpoint = keycloakAuthServerUrl + Constants.KEYCLOAK_REALMS_PATH + keycloakRealm + "/protocol/openid-connect/token";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);

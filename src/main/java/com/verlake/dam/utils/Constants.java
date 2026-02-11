@@ -1134,4 +1134,7 @@ public class Constants {
     public static final String HTTPS_PROTOCOL_PREFIX = "https://";
     public static final String HTTP_HEADER_LOCATION = "Location";
     public static final String URL_ACCESS_TOKEN_PARAM = "access_token=";
+    
+    // Keycloak path constants
+    public static final String KEYCLOAK_REALMS_PATH = "/realms/";
 }
