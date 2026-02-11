@@ -32,6 +32,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -448,7 +449,7 @@ public class FreshdeskService {
 
             if (response.getStatusCode().is3xxRedirection()) {
                 log.debug("Received redirect response, handling redirect...");
-                return handleRedirectResponse(response, restTemplate, userEmail, adminToken);
+                return handleRedirectResponse(response, userEmail, adminToken);
             }
 
             if (response.getStatusCode().is2xxSuccessful()) {
@@ -464,7 +465,6 @@ public class FreshdeskService {
                         responseBody.length() > 300 ? responseBody.substring(0, 300) + "..." : responseBody);
 
                 // Keycloak 26+ returns JSON with redirect field:
-                // {"redirect":"http://...","sameRealm":false}
                 // The redirect URL points to the account page. In Keycloak 26+, impersonation
                 // is browser-based.
                 // For programmatic access, we need Legacy Token Exchange (V1) which requires
@@ -477,39 +477,13 @@ public class FreshdeskService {
                 if (redirectUrl != null) {
                     log.debug("Found redirect URL in JSON response: {}", redirectUrl);
                     log.warn("Keycloak 26.1.0 impersonation returns browser redirect. Attempting workaround...");
-
-                    // Workaround: Use admin client to generate token directly for the user
-                    // This requires the user's password, but we can use a temporary password
-                    // approach
-                    // OR use the account console API if available
-                    // For now, log the limitation and suggest enabling Legacy Token Exchange
-                    log.error("=== KEYCLOAK IMPERSONATION LIMITATION ===");
-                    log.error("Keycloak 26.1.0 impersonation endpoint returns a browser redirect URL: {}", redirectUrl);
-                    log.error("This redirect is designed for browser-based flows, not programmatic API access.");
-                    log.error("");
-                    log.error("RECOMMENDED SOLUTION: Enable Legacy Token Exchange (V1) in Keycloak:");
-                    log.error("1. Start Keycloak with preview features enabled:");
-                    log.error("   Add to Keycloak startup: --features=preview,token-exchange");
-                    log.error("   OR set environment variable: KC_FEATURES=preview,token-exchange");
-                    log.error("");
-                    log.error("2. Enable Legacy Token Exchange (V1) in realm settings:");
-                    log.error("   Keycloak Admin Console → Realm Settings → Token Exchange");
-                    log.error("   Enable 'Legacy Token Exchange (V1)'");
-                    log.error("");
-                    log.error(
-                            "3. After enabling, token exchange will work and impersonation will be supported programmatically.");
-                    log.error("==========================================");
-
-                    // Try to use resource owner password credentials grant as a workaround
-                    // This requires knowing the user's password, which we don't have
-                    // So we'll return null and let the fallback handle it
                     return null; // Will trigger fallback to token exchange (which will also fail, but with
                                  // better error message)
                 }
 
                 // Fallback: Try direct URL extraction if response is a plain URL
                 String trimmedBody = responseBody.trim();
-                if (trimmedBody.startsWith("http://") || trimmedBody.startsWith("https://")) {
+                if (trimmedBody.startsWith(Constants.HTTP_PROTOCOL_PREFIX) || trimmedBody.startsWith(Constants.HTTPS_PROTOCOL_PREFIX)) {
                     log.debug("Response body is a direct redirect URL, extracting token...");
                     String token = extractTokenFromUrl(trimmedBody);
                     if (token != null && !token.isEmpty()) {
@@ -526,62 +500,16 @@ public class FreshdeskService {
 
             // Handle 403 Forbidden specifically
             if (statusCode == 403) {
-                String responseBody = response.getBody();
-                log.error("=== IMPERSONATION 403 FORBIDDEN ERROR ===");
-                log.error("User: {}", userEmail);
-                log.error("User ID: {}", keycloakUserId);
-                log.error("Response status: {}", statusCode);
-                log.error("Response body: {}", responseBody);
-                log.error("Endpoint: {}", impersonationEndpoint);
-                log.error("");
-                log.error("TROUBLESHOOTING STEPS:");
-                log.error("1. Verify role assignment in Keycloak Admin Console:");
-                log.error("   - Go to: Clients → backend-client → Service Account Roles tab");
-                log.error("   - Under 'Client Roles', select 'realm-management'");
-                log.error("   - Check 'impersonation' is in 'Assigned Roles' (NOT just Available)");
-                log.error("   - If missing, add it and click 'Save'");
-                log.error("");
-                log.error("2. After assigning role, wait 10-30 seconds for Keycloak to update");
-                log.error("   OR restart Keycloak service: sudo systemctl restart keycloak");
-                log.error("");
-                log.error("3. Verify the role is actually assigned:");
-                log.error("   - The 'impersonation' role should appear under 'Assigned Roles'");
-                log.error("   - NOT just in 'Available Roles'");
-                log.error("");
-                log.error("4. Alternative: Assign 'realm-admin' role instead (includes impersonation)");
-                log.error("5. Verify service account token includes the role - may need to regenerate token");
-                log.error("==========================================");
+                logImpersonation403Error(userEmail, keycloakUserId, response.getBody(), impersonationEndpoint);
                 return null; // Will trigger fallback to token exchange
             }
 
             log.warn("Impersonation API returned unexpected status: {} for user: {}", statusCode, userEmail);
             return null;
         } catch (org.springframework.web.client.HttpClientErrorException.Forbidden e) {
-            String errorBody = e.getResponseBodyAsString();
             log.error("=== IMPERSONATION 403 FORBIDDEN ERROR (Exception) ===");
-            log.error("User: {}", userEmail);
-            log.error("User ID: {}", keycloakUserId);
-            log.error("Error response: {}", errorBody);
-            log.error("Endpoint: {}", impersonationEndpoint);
             log.error("Exception message: {}", e.getMessage());
-            log.error("");
-            log.error("TROUBLESHOOTING STEPS:");
-            log.error("1. Verify role assignment in Keycloak Admin Console:");
-            log.error("   - Go to: Clients → backend-client → Service Account Roles tab");
-            log.error("   - Under 'Client Roles', select 'realm-management'");
-            log.error("   - Check 'impersonation' is in 'Assigned Roles' (NOT just Available)");
-            log.error("   - If missing, add it and click 'Save'");
-            log.error("");
-            log.error("2. After assigning role, wait 10-30 seconds for Keycloak to update");
-            log.error("   OR restart Keycloak service: sudo systemctl restart keycloak");
-            log.error("");
-            log.error("3. Verify the role is actually assigned:");
-            log.error("   - The 'impersonation' role should appear under 'Assigned Roles'");
-            log.error("   - NOT just in 'Available Roles'");
-            log.error("");
-            log.error("4. Alternative: Assign 'realm-admin' role instead (includes impersonation)");
-            log.error("5. Verify service account token includes the role - may need to regenerate token");
-            log.error("==========================================");
+            logImpersonation403Error(userEmail, keycloakUserId, e.getResponseBodyAsString(), impersonationEndpoint);
             return null; // Will trigger fallback to token exchange
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             log.error("HTTP error during impersonation for user: {}. Status: {}, Response: {}",
@@ -652,17 +580,12 @@ public class FreshdeskService {
     /**
      * Handle redirect response from impersonation endpoint
      */
-    private String handleRedirectResponse(ResponseEntity<String> response, RestTemplate restTemplate, String userEmail,
-            String adminToken) {
-        String redirectUrl = response.getHeaders().getFirst("Location");
+    private String handleRedirectResponse(ResponseEntity<String> response, String userEmail, String adminToken) {
+        String redirectUrl = response.getHeaders().getFirst(Constants.HTTP_HEADER_LOCATION);
         if (redirectUrl == null) {
-            log.warn("Redirect response but no Location header found for user: {}", userEmail);
-            // Sometimes the redirect URL is in the response body instead
-            String responseBody = response.getBody();
-            if (responseBody != null && (responseBody.startsWith("http://") || responseBody.startsWith("https://"))) {
-                redirectUrl = responseBody.trim();
-                log.debug("Found redirect URL in response body: {}", redirectUrl);
-            } else {
+            redirectUrl = extractRedirectUrlFromResponseBody(response.getBody());
+            if (redirectUrl == null) {
+                log.warn("Redirect response but no Location header found for user: {}", userEmail);
                 return null;
             }
         }
@@ -675,8 +598,17 @@ public class FreshdeskService {
             return token;
         }
 
-        // Use followImpersonationRedirect which handles admin token authentication
-        return followImpersonationRedirect(redirectUrl, restTemplate, userEmail, adminToken);
+        return followImpersonationRedirect(redirectUrl, userEmail, adminToken);
+    }
+
+    private String extractRedirectUrlFromResponseBody(String responseBody) {
+        if (responseBody != null && (responseBody.startsWith(Constants.HTTP_PROTOCOL_PREFIX) 
+                || responseBody.startsWith(Constants.HTTPS_PROTOCOL_PREFIX))) {
+            String redirectUrl = responseBody.trim();
+            log.debug("Found redirect URL in response body: {}", redirectUrl);
+            return redirectUrl;
+        }
+        return null;
     }
 
     /**
@@ -703,91 +635,28 @@ public class FreshdeskService {
      * token
      * We need to use the admin token to authenticate the redirect request
      */
-    private String followImpersonationRedirect(String redirectUrl, RestTemplate restTemplate, String userEmail,
-            String adminToken) {
-        if (redirectUrl == null || !redirectUrl.startsWith("http")) {
-            log.warn("Invalid redirect URL: {}", redirectUrl);
+    private String followImpersonationRedirect(String redirectUrl, String userEmail, String adminToken) {
+        if (!isValidRedirectUrl(redirectUrl)) {
             return null;
         }
 
         log.debug("Following impersonation redirect URL: {} (with admin token)", redirectUrl);
 
         try {
-            // Create RestTemplate that doesn't automatically follow redirects
-            // so we can capture the Location header
-            RestTemplate noRedirectTemplate = new RestTemplate();
-            noRedirectTemplate.setRequestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory() {
-                @Override
-                protected void prepareConnection(java.net.HttpURLConnection connection, String httpMethod)
-                        throws java.io.IOException {
-                    super.prepareConnection(connection, httpMethod);
-                    connection.setInstanceFollowRedirects(false); // Don't follow redirects automatically
-                }
-            });
-
-            // Add admin token to request headers for authentication
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(adminToken);
-            HttpEntity<String> request = new HttpEntity<>(headers);
-
-            // Make request to the redirect URL with admin token
+            RestTemplate noRedirectTemplate = createNoRedirectRestTemplate();
+            HttpEntity<String> request = createAuthenticatedRequest(adminToken);
             ResponseEntity<String> redirectResponse = noRedirectTemplate.exchange(
-                    redirectUrl,
-                    HttpMethod.GET,
-                    request,
-                    String.class);
+                    redirectUrl, HttpMethod.GET, request, String.class);
 
-            // Check for redirect status and Location header
-            if (redirectResponse.getStatusCode().is3xxRedirection()) {
-                String location = redirectResponse.getHeaders().getFirst("Location");
-                if (location != null) {
-                    log.debug("Found redirect Location header: {}",
-                            location.length() > 200 ? location.substring(0, 200) + "..." : location);
-                    String token = extractTokenFromUrl(location);
-                    if (token != null && !token.isEmpty()) {
-                        log.info("Successfully extracted token from Location header for user: {}", userEmail);
-                        return token;
-                    }
-                    // If Location doesn't have token, follow it recursively with admin token
-                    return followImpersonationRedirect(location, noRedirectTemplate, userEmail, adminToken);
-                }
-            }
-
-            // If 200 OK, check response body for token URL or JavaScript redirects
-            if (redirectResponse.getStatusCode().is2xxSuccessful()) {
-                String responseBody = redirectResponse.getBody();
-                if (responseBody != null) {
-                    log.debug("Response body from redirect (first 500 chars): {}",
-                            responseBody.length() > 500 ? responseBody.substring(0, 500) + "..." : responseBody);
-
-                    // Look for token in response body (might be in a script tag or meta refresh)
-                    if (responseBody.contains("access_token=")) {
-                        String token = extractTokenFromUrl(responseBody);
-                        if (token != null && !token.isEmpty()) {
-                            log.info("Successfully extracted token from response body for user: {}", userEmail);
-                            return token;
-                        }
-                    }
-
-                    // Try JSON extraction
-                    String token = extractTokenFromResponse(responseBody);
-                    if (token != null && !token.isEmpty()) {
-                        return token;
-                    }
-                }
+            String token = extractTokenFromRedirectResponse(redirectResponse, userEmail, adminToken);
+            if (token != null) {
+                return token;
             }
 
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            // Check redirect location in error response headers
-            if (e.getResponseHeaders() != null) {
-                String location = e.getResponseHeaders().getFirst("Location");
-                if (location != null) {
-                    log.debug("Found Location in error response: {}", location);
-                    String token = extractTokenFromUrl(location);
-                    if (token != null && !token.isEmpty()) {
-                        return token;
-                    }
-                }
+            String token = extractTokenFromErrorResponse(e);
+            if (token != null) {
+                return token;
             }
             log.debug("HTTP error following redirect: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
         } catch (Exception e) {
@@ -797,116 +666,113 @@ public class FreshdeskService {
         return null;
     }
 
-    /**
-     * Get token from authorization endpoint using impersonation session
-     * This method uses the authorization endpoint with the redirect URL from
-     * impersonation
-     * to extract the token from the redirect response
-     */
-    private String getTokenFromAuthorizationEndpoint(String authUrl, String impersonationRedirectUrl,
-            RestTemplate restTemplate, String userEmail, String adminToken) {
-        try {
-            // Create RestTemplate that doesn't automatically follow redirects
-            RestTemplate noRedirectTemplate = new RestTemplate();
-            noRedirectTemplate.setRequestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory() {
-                @Override
-                protected void prepareConnection(java.net.HttpURLConnection connection, String httpMethod)
-                        throws java.io.IOException {
-                    super.prepareConnection(connection, httpMethod);
-                    connection.setInstanceFollowRedirects(false);
-                }
-            });
+    private boolean isValidRedirectUrl(String redirectUrl) {
+        if (redirectUrl == null || (!redirectUrl.startsWith(Constants.HTTP_PROTOCOL_PREFIX) 
+                && !redirectUrl.startsWith(Constants.HTTPS_PROTOCOL_PREFIX))) {
+            log.warn("Invalid redirect URL: {}", redirectUrl);
+            return false;
+        }
+        return true;
+    }
 
-            // Add admin token and impersonation session cookie if available
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(adminToken);
-            // Try to extract session from redirect URL if it contains one
-            if (impersonationRedirectUrl.contains("?")) {
-                String query = impersonationRedirectUrl.substring(impersonationRedirectUrl.indexOf("?") + 1);
-                // Look for session-related parameters
-                if (query.contains("session_state") || query.contains("code")) {
-                    log.debug("Found session parameters in redirect URL");
-                }
+    private RestTemplate createNoRedirectRestTemplate() {
+        RestTemplate restTemplate = new RestTemplate();
+        restTemplate.setRequestFactory(new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(java.net.HttpURLConnection connection, String httpMethod)
+                    throws java.io.IOException {
+                super.prepareConnection(connection, httpMethod);
+                connection.setInstanceFollowRedirects(false);
             }
+        });
+        return restTemplate;
+    }
 
-            HttpEntity<String> request = new HttpEntity<>(headers);
+    private HttpEntity<String> createAuthenticatedRequest(String adminToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        return new HttpEntity<>(headers);
+    }
 
-            // Make request to authorization endpoint
-            ResponseEntity<String> response = noRedirectTemplate.exchange(
-                    authUrl,
-                    HttpMethod.GET,
-                    request,
-                    String.class);
+    private String extractTokenFromRedirectResponse(ResponseEntity<String> redirectResponse, String userEmail, String adminToken) {
+        if (redirectResponse.getStatusCode().is3xxRedirection()) {
+            return handleRedirectResponse(redirectResponse, userEmail, adminToken);
+        }
 
-            // Check for redirect with token in Location header
-            if (response.getStatusCode().is3xxRedirection()) {
-                String location = response.getHeaders().getFirst("Location");
-                if (location != null) {
-                    log.debug("Found redirect Location: {}",
-                            location.length() > 200 ? location.substring(0, 200) + "..." : location);
-                    String token = extractTokenFromUrl(location);
-                    if (token != null && !token.isEmpty()) {
-                        log.info("Successfully extracted token from authorization redirect for user: {}", userEmail);
-                        return token;
-                    }
-                }
-            }
-
-            // If 200 OK, check response body
-            if (response.getStatusCode().is2xxSuccessful()) {
-                String responseBody = response.getBody();
-                if (responseBody != null) {
-                    String token = extractTokenFromUrl(responseBody);
-                    if (token != null && !token.isEmpty()) {
-                        return token;
-                    }
-                }
-            }
-
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            // Check for redirect in error response
-            if (e.getResponseHeaders() != null) {
-                String location = e.getResponseHeaders().getFirst("Location");
-                if (location != null) {
-                    String token = extractTokenFromUrl(location);
-                    if (token != null && !token.isEmpty()) {
-                        return token;
-                    }
-                }
-            }
-            log.debug("HTTP error getting token from authorization endpoint: {}", e.getStatusCode());
-        } catch (Exception e) {
-            log.warn("Failed to get token from authorization endpoint", e);
+        if (redirectResponse.getStatusCode().is2xxSuccessful()) {
+            return extractTokenFromSuccessResponse(redirectResponse.getBody(), userEmail);
         }
 
         return null;
     }
 
-    /**
-     * Follow redirect URL to extract token from response body (legacy method)
-     */
-    private String followRedirectUrl(String redirectUrl, RestTemplate restTemplate, String userEmail) {
-        if (!redirectUrl.startsWith("http")) {
+
+    private String extractTokenFromSuccessResponse(String responseBody, String userEmail) {
+        if (responseBody == null) {
             return null;
         }
 
-        try {
-            ResponseEntity<String> redirectResponse = restTemplate.getForEntity(redirectUrl, String.class);
-            String redirectBody = redirectResponse.getBody();
-            if (redirectBody == null) {
-                return null;
-            }
+        log.debug("Response body from redirect (first 500 chars): {}",
+                responseBody.length() > 500 ? responseBody.substring(0, 500) + "..." : responseBody);
 
-            String token = extractTokenFromResponse(redirectBody);
+        if (responseBody.contains(Constants.URL_ACCESS_TOKEN_PARAM)) {
+            String token = extractTokenFromUrl(responseBody);
             if (token != null && !token.isEmpty()) {
-                log.debug("Successfully obtained token via impersonation redirect for user: {}", userEmail);
+                log.info("Successfully extracted token from response body for user: {}", userEmail);
                 return token;
             }
-        } catch (Exception e) {
-            log.debug("Failed to follow redirect URL: {}", redirectUrl, e);
         }
 
+        return extractTokenFromResponse(responseBody);
+    }
+
+    private String extractTokenFromErrorResponse(org.springframework.web.client.HttpClientErrorException e) {
+        if (e.getResponseHeaders() != null) {
+            String location = e.getResponseHeaders().getFirst(Constants.HTTP_HEADER_LOCATION);
+            if (location != null) {
+                log.debug("Found Location in error response: {}", location);
+                return extractTokenFromUrl(location);
+            }
+        }
         return null;
+    }
+
+    private void logImpersonation403Error(String userEmail, String keycloakUserId, String responseBody, String endpoint) {
+        log.error("=== IMPERSONATION 403 FORBIDDEN ERROR ===");
+        log.error("User: {}", userEmail);
+        log.error("User ID: {}", keycloakUserId);
+        log.error("Response status: 403");
+        log.error("Response body: {}", responseBody);
+        log.error("Endpoint: {}", endpoint);
+        log.error("");
+        log.error("TROUBLESHOOTING STEPS:");
+        log.error("1. Verify role assignment in Keycloak Admin Console:");
+        log.error("   - Go to: Clients → backend-client → Service Account Roles tab");
+        log.error("   - Under 'Client Roles', select 'realm-management'");
+        log.error("   - Check 'impersonation' is in 'Assigned Roles' (NOT just Available)");
+        log.error("   - If missing, add it and click 'Save'");
+        log.error("");
+        log.error("2. After assigning role, wait 10-30 seconds for Keycloak to update");
+        log.error("   OR restart Keycloak service: sudo systemctl restart keycloak");
+        log.error("");
+        log.error("3. Verify the role is actually assigned:");
+        log.error("   - The 'impersonation' role should appear under 'Assigned Roles'");
+        log.error("   - NOT just in 'Available Roles'");
+        log.error("");
+        log.error("4. Alternative: Assign 'realm-admin' role instead (includes impersonation)");
+        log.error("5. Verify service account token includes the role - may need to regenerate token");
+        log.error("==========================================");
+    }
+
+    private void logTokenExchangeFailure(String userEmail) {
+        log.error("All token generation methods failed for user: {}. " +
+                "Impersonation returned 403 (verify role assignment) and token exchange is not supported in Keycloak 26.1.0.",
+                userEmail);
+        log.error("TROUBLESHOOTING: Verify impersonation role assignment:");
+        log.error("1. Keycloak Admin Console → Clients → backend-client");
+        log.error("2. Service Account Roles tab → Select 'realm-management' client");
+        log.error("3. Ensure 'impersonation' role is in 'Assigned Roles' (not just Available)");
+        log.error("4. If role is assigned, try restarting Keycloak or regenerating service account token");
     }
 
     /**
@@ -923,7 +789,7 @@ public class FreshdeskService {
                 responseBody.length() > 500 ? responseBody.substring(0, 500) + "..." : responseBody);
 
         // Check if response is a redirect URL
-        if (responseBody.startsWith("http://") || responseBody.startsWith("https://")) {
+        if (responseBody.startsWith(Constants.HTTP_PROTOCOL_PREFIX) || responseBody.startsWith(Constants.HTTPS_PROTOCOL_PREFIX)) {
             log.debug("Response appears to be a redirect URL, extracting token...");
             String token = extractTokenFromUrl(responseBody);
             if (token != null && !token.isEmpty()) {
@@ -955,19 +821,13 @@ public class FreshdeskService {
                 return token;
             }
             // Both impersonation and token exchange failed
-            log.error("All token generation methods failed for user: {}. " +
-                    "Impersonation returned 403 (verify role assignment) and token exchange is not supported in Keycloak 26.1.0.",
-                    userEmail);
-            log.error("TROUBLESHOOTING: Verify impersonation role assignment:");
-            log.error("1. Keycloak Admin Console → Clients → backend-client");
-            log.error("2. Service Account Roles tab → Select 'realm-management' client");
-            log.error("3. Ensure 'impersonation' role is in 'Assigned Roles' (not just Available)");
-            log.error("4. If role is assigned, try restarting Keycloak or regenerating service account token");
+            logTokenExchangeFailure(userEmail);
             throw new JwtTokenException(IMPERSONATION_CONFIGURATION_ERROR_MESSAGE);
         } catch (JwtTokenException e) {
             throw e;
         } catch (Exception ex) {
             log.error("All token generation methods failed for user: {}", userEmail, ex);
+            logTokenExchangeFailure(userEmail);
             throw new JwtTokenException(IMPERSONATION_CONFIGURATION_ERROR_MESSAGE);
         }
     }
@@ -1047,35 +907,18 @@ public class FreshdeskService {
             log.debug("Extracting token from URL (first 200 chars): {}",
                     url.length() > 200 ? url.substring(0, 200) + "..." : url);
 
-            // URL format: ...?access_token=TOKEN&session_state=...&... or
-            // ...#access_token=TOKEN&...
-            // Try query parameter first
-            int tokenStart = url.indexOf("access_token=");
-            if (tokenStart == -1) {
-                // Try fragment (hash)
-                tokenStart = url.indexOf("#access_token=");
-                if (tokenStart != -1) {
-                    tokenStart += "#access_token=".length();
-                }
-            } else {
-                tokenStart += "access_token=".length();
+            int tokenStart = findTokenStartPosition(url);
+            if (tokenStart == -1 || tokenStart >= url.length()) {
+                log.warn("Could not find access_token in URL");
+                return null;
             }
 
-            if (tokenStart != -1 && tokenStart < url.length()) {
-                // Find the end of the token (either & or end of string)
-                int tokenEnd = url.indexOf("&", tokenStart);
-                if (tokenEnd == -1) {
-                    tokenEnd = url.indexOf("#", tokenStart);
-                    if (tokenEnd == -1) {
-                        tokenEnd = url.length();
-                    }
-                }
-
-                String token = url.substring(tokenStart, tokenEnd);
-                if (token != null && !token.isEmpty()) {
-                    log.debug("Successfully extracted token from URL (length: {})", token.length());
-                    return token;
-                }
+            int tokenEnd = findTokenEndPosition(url, tokenStart);
+            String token = url.substring(tokenStart, tokenEnd);
+            
+            if (token != null && !token.isEmpty()) {
+                log.debug("Successfully extracted token from URL (length: {})", token.length());
+                return token;
             }
 
             log.warn("Could not find access_token in URL");
@@ -1084,6 +927,33 @@ public class FreshdeskService {
             log.warn("Error extracting token from URL: {}", e.getMessage(), e);
             return null;
         }
+    }
+
+    private int findTokenStartPosition(String url) {
+        int tokenStart = url.indexOf(Constants.URL_ACCESS_TOKEN_PARAM);
+        if (tokenStart != -1) {
+            return tokenStart + Constants.URL_ACCESS_TOKEN_PARAM.length();
+        }
+        
+        // Try fragment (hash)
+        String fragmentParam = "#" + Constants.URL_ACCESS_TOKEN_PARAM;
+        tokenStart = url.indexOf(fragmentParam);
+        if (tokenStart != -1) {
+            return tokenStart + fragmentParam.length();
+        }
+        
+        return -1;
+    }
+
+    private int findTokenEndPosition(String url, int tokenStart) {
+        int tokenEnd = url.indexOf("&", tokenStart);
+        if (tokenEnd == -1) {
+            tokenEnd = url.indexOf("#", tokenStart);
+            if (tokenEnd == -1) {
+                tokenEnd = url.length();
+            }
+        }
+        return tokenEnd;
     }
 
     /**
