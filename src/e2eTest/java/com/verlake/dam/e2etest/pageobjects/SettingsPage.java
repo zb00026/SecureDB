@@ -28,7 +28,7 @@ public class SettingsPage extends BasePage {
 
 
     public void navigateToSettingsPage() {
-        browser.get(baseUrl + "/admin/settings");
+        browser.get(baseUrl + "/hagrids_admin/settings");
     }
 
     public void waitForPageToLoad() {

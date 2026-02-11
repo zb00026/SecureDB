@@ -16,6 +16,10 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Query("SELECT u FROM User u WHERE u.email = :email AND (u.deleted IS NULL OR u.deleted = false)")
     Optional<User> findByEmail(@Param("email") String email);
     
+    // Find user by email including deleted users (for restoring deleted users)
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    Optional<User> findByEmailIncludingDeleted(@Param("email") String email);
+    
     @Query("SELECT u FROM User u WHERE u.approverId = :approverId AND (u.deleted IS NULL OR u.deleted = false)")
     List<User> findByApprover(@Param("approverId") Long approverId);
     

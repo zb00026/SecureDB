@@ -7,6 +7,7 @@ import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.assets.AssetCredential;
 import com.verlake.dam.entity.assets.AssetQueryChangeRequest;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
+import com.verlake.dam.entity.assets.dto.AssetQueryChangeRequestDTO;
 import com.verlake.dam.entity.firebase.NotificationMessage;
 import com.verlake.dam.entity.firebase.NotificationTask;
 import com.verlake.dam.entity.user.User;
@@ -138,10 +139,14 @@ public class AssetQueryChangeRequestService {
         return assetQueryChangeRequestRepository.searchByFields(ticketReference, description, query);
     }
 
-    public List<AssetQueryChangeRequest> getAssetChangeRequests() {
+    @Transactional(readOnly = true)
+    public List<AssetQueryChangeRequestDTO> getAssetChangeRequests() {
         log.debug("Getting asset query change requests for current user");
         List<Asset> assets = assetService.getAssetsOwnedByCurrentUser();
-        return assetQueryChangeRequestRepository.findByAssetIn(assets);
+        List<AssetQueryChangeRequest> requests = assetQueryChangeRequestRepository.findByAssetIn(assets);
+        return requests.stream()
+                .map(AssetQueryChangeRequestDTO::fromEntity)
+                .toList();
     }
 
     public AssetQueryChangeRequest getAssetChangeRequest(Long changeRequestId) {

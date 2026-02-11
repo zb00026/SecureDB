@@ -413,7 +413,8 @@
           "manage-users",
           "manage-clients",
           "manage-identity-providers",
-          "view-clients"
+          "view-clients",
+          "impersonation"
         ]
       },
       "notBefore": 0,

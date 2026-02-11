@@ -83,15 +83,18 @@ public class QueryExecutionService {
         QueryExecutionContext context = QueryExecutionContext.forAccessor(accessRequest, credential);
 
         try {
-            Map<String, Object> result = executeQueryWithContext(accessQueryDTO, context);
             
+            Map<String, Object> result = null;
             if (accessQueryDTO.isChangeRequest()) {
                 assetQueryChangeRequestService.createChangeRequestForAccessor(accessQueryDTO, accessRequest);
+                createQueryAuditLog(accessQueryDTO, context, true, null, null, startTime);
+                result = new HashMap<>();
+                result.put("result", "success");
+            } else {
+                result = executeQueryWithContext(accessQueryDTO, context);
+                createQueryAuditLog(accessQueryDTO, context, true, null, result, startTime);
             }
-
-            createQueryAuditLog(accessQueryDTO, context, true, null, result, startTime);
             return result;
-            
         } catch (Exception e) {
             String errorMessage = e.getMessage();
             log.error("Error executing query for accessor: {}", accessQueryDTO.getRequestId(), e);

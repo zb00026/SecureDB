@@ -411,7 +411,8 @@
           "query-users",
           "manage-users",
           "manage-clients",
-          "view-clients"
+          "view-clients",
+          "impersonation"
         ]
       },
       "notBefore": 0,

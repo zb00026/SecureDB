@@ -218,6 +218,22 @@ public class SSHConnectionService {
      */
     public SSHConnection createSSHConnection(String host, int port, AssetCredential sshCredential)
             throws JSchException, IOException {
+        return createSSHConnection(host, port, sshCredential, null);
+    }
+    
+    /**
+     * Create SSH connection to remote server with optional user encryption key
+     * 
+     * @param host The hostname or IP address
+     * @param port The SSH port
+     * @param sshCredential The SSH credential
+     * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
+     * @return SSHConnection object
+     * @throws JSchException if SSH connection fails
+     * @throws IOException if I/O error occurs
+     */
+    public SSHConnection createSSHConnection(String host, int port, AssetCredential sshCredential, String userKey)
+            throws JSchException, IOException {
         log.info("Creating SSH connection to {}@{}:{}", sshCredential.getUsername(), host, port);
 
         JSch jsch = new JSch();
@@ -249,7 +265,7 @@ public class SSHConnectionService {
             session.setConfig("PreferredAuthentications", "publickey,password");
 
             // Set up authentication
-            setupAuthentication(jsch, session, sshCredential);
+            setupAuthentication(jsch, session, sshCredential, userKey);
 
             // Connect with timeout
             log.debug("Connecting SSH session with 5 minute timeout");
@@ -294,10 +310,24 @@ public class SSHConnectionService {
      */
     private void setupAuthentication(JSch jsch, Session session, AssetCredential sshCredential)
             throws JSchException {
+        setupAuthentication(jsch, session, sshCredential, null);
+    }
+    
+    /**
+     * Set up SSH authentication (password or key-based) with optional user encryption key
+     * 
+     * @param jsch The JSch instance
+     * @param session The SSH session
+     * @param sshCredential The SSH credential
+     * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
+     * @throws JSchException if authentication setup fails
+     */
+    private void setupAuthentication(JSch jsch, Session session, AssetCredential sshCredential, String userKey)
+            throws JSchException {
         if (sshCredential.getSshKeyFile() != null && !sshCredential.getSshKeyFile().isEmpty()) {
             // Use SSH key authentication
             log.info("Setting up SSH key authentication");
-            setupSSHKeyAuthentication(jsch, sshCredential);
+            setupSSHKeyAuthentication(jsch, sshCredential, userKey);
         } else if (sshCredential.getPassword() != null && !sshCredential.getPassword().isEmpty()) {
             // Use password authentication
             log.info("Setting up password authentication");
@@ -311,9 +341,21 @@ public class SSHConnectionService {
      * Set up SSH key authentication with decryption
      */
     private void setupSSHKeyAuthentication(JSch jsch, AssetCredential sshCredential) throws JSchException {
+        setupSSHKeyAuthentication(jsch, sshCredential, null);
+    }
+    
+    /**
+     * Set up SSH key authentication with decryption
+     * 
+     * @param jsch The JSch instance
+     * @param sshCredential The SSH credential
+     * @param userKey Optional user encryption key (if null, will be retrieved from KeycloakService)
+     * @throws JSchException if SSH key authentication setup fails
+     */
+    private void setupSSHKeyAuthentication(JSch jsch, AssetCredential sshCredential, String userKey) throws JSchException {
         try {
             // Decrypt the SSH private key (supports AWS Secrets Manager)
-            String decryptedSSHKey = databaseConnectionUtils.decryptSSHPrivateKey(sshCredential);
+            String decryptedSSHKey = databaseConnectionUtils.decryptSSHPrivateKey(sshCredential, userKey);
             log.debug("SSH private key decrypted successfully, length: {} chars", decryptedSSHKey.length());
 
             // Debug: Log first and last 50 characters to verify format

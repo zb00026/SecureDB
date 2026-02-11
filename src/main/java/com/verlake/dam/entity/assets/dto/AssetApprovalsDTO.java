@@ -1,12 +1,14 @@
 package com.verlake.dam.entity.assets.dto;
 
 import com.verlake.dam.entity.assets.Asset;
-import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Data
-@Builder
+@SuperBuilder
+@NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class AssetApprovalsDTO extends BaseAssetDTO {
     

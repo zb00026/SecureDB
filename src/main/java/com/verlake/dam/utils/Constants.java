@@ -543,6 +543,7 @@ public class Constants {
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_LOCKING = "error.unsupported.db.type.user.locking";
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_UNLOCKING = "error.unsupported.db.type.user.unlocking";
     public static final String ERROR_UNSUPPORTED_DB_TYPE_USER_PASSWORD_UPDATE = "error.unsupported.db.type.user.password.update";
+    public static final String ERROR_USER_EMAIL_ALREADY_EXISTS = "user.email.already.exists";
 
     // Additional constants
     public static final String SUCCESS_CSV_GENERATED = "Sample CSV generated successfully";
@@ -1127,4 +1128,10 @@ public class Constants {
     public static final String TIMEZONE_COUNTRY_AUSTRALIA = "Australia";
     public static final String TIMEZONE_COUNTRY_UNITED_STATES = "United States";
     public static final String TIMEZONE_COUNTRY_CANADA = "Canada";
+    
+    // HTTP/URL constants for Keycloak impersonation
+    public static final String HTTP_PROTOCOL_PREFIX = "http://";
+    public static final String HTTPS_PROTOCOL_PREFIX = "https://";
+    public static final String HTTP_HEADER_LOCATION = "Location";
+    public static final String URL_ACCESS_TOKEN_PARAM = "access_token=";
 }

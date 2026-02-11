@@ -85,7 +85,7 @@ public class AuditTrailE2ETest extends BaseE2ETest {
         // Manage users
         userPage = new UserManagementPage(browser, baseUrl);
         userPage.navigateToUserManagement();
-        assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/admin/users");
+        assertThat(browser.getCurrentUrl()).startsWith(baseUrl + "/hagrids_admin/users");
 
         // Add delays between operations
         userPage.createUser(auditorUsername, "Test", "User1", auditorPassword, "Auditor");

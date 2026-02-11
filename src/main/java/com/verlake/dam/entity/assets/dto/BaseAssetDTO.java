@@ -7,10 +7,14 @@ import com.verlake.dam.enums.DatabaseType;
 import com.verlake.dam.enums.LockType;
 import com.verlake.dam.enums.UnixServerType;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
 @Data
+@SuperBuilder
+@NoArgsConstructor
 public abstract class BaseAssetDTO {
     private Long id;
     private String name;

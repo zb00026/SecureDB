@@ -87,7 +87,7 @@ public class AuditTrailController {
      * @return CSV file with audit trail data
      */
     @GetMapping(value = "/download", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    @PreAuthorize("hasAuthority('ROLE_AUDITOR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<byte[]> downloadAuditTrailsCsv(AuditTrailFilter filter) {
         try {
             byte[] csvContent = csvExportService.exportAllAuditTrailsToCsv(filter);

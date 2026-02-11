@@ -342,7 +342,7 @@ public class OwnerAssetController extends BaseAssetAccessController {
     }
 
     @GetMapping("/change_requests")
-    public ResponseEntity<List<AssetQueryChangeRequest>> getMyAssetChangeRequests() {
+    public ResponseEntity<List<AssetQueryChangeRequestDTO>> getMyAssetChangeRequests() {
         return ResponseEntity.ok(assetQueryChangeRequestService.getAssetChangeRequests());
     }
 
