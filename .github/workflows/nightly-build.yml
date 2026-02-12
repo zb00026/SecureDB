@@ -62,6 +62,11 @@ jobs:
           echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
           echo "GOOGLE_SIGN_IN_CLIENT_SECRET=${{ secrets.GOOGLE_SIGN_IN_CLIENT_SECRET }}" >> $GITHUB_ENV
           echo "MICROSOFT_CLIENT_SECRET=${{ secrets.MICROSOFT_CLIENT_SECRET }}" >> $GITHUB_ENV
+      - name: Set branch name variable
+        run: |
+          BRANCH_NAME="${GITHUB_REF_NAME:-unknown}"
+          BRANCH_NAME="${BRANCH_NAME//\//-}"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Set timestamp variable
         id: timestamp
@@ -203,7 +208,7 @@ jobs:
           envsubst < src/main/resources/logstash/logstash_temp.conf > build/libs/logstash.conf
           cd build/libs/
           ls -la
-          zip -r "../../${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" ./* .env
+          zip -r "../../dam-backend-${{ env.branch_name }}-${{ env.timestamp }}.zip" ./* .env
           cd ../..
 
 
@@ -215,7 +220,7 @@ jobs:
       # Upload to AWS S3 using AWS Access and Secret keys
       - name: Upload backend artifact to S3
         run: |
-          aws s3 cp "${{ env.BACKEND_ARTIFACT_PREFIX }}-${{ env.timestamp }}.zip" s3://${{ env.S3_BUCKET_NAME }}/ \
+          aws s3 cp "dam-backend-${{ env.branch_name }}-${{ env.timestamp }}.zip" s3://${{ env.S3_BUCKET_NAME }}/ \
             --region ${{ env.HOST_REGION }}
 
   notify_on_failure:
