@@ -456,7 +456,7 @@ public class FreshdeskService {
             }
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                return handleSuccessfulImpersonationResponse(response, userEmail);
+                return handleSuccessfulImpersonationResponse(response, userEmail, adminToken);
             }
 
             if (statusCode == 403) {
@@ -482,7 +482,7 @@ public class FreshdeskService {
         }
     }
 
-    private String handleSuccessfulImpersonationResponse(ResponseEntity<String> response, String userEmail) {
+    private String handleSuccessfulImpersonationResponse(ResponseEntity<String> response, String userEmail, String adminToken) {
         log.debug("Received successful response (200 OK), extracting token...");
         String responseBody = response.getBody();
 
@@ -497,8 +497,8 @@ public class FreshdeskService {
         String redirectUrl = extractRedirectUrlFromJson(responseBody);
         if (redirectUrl != null) {
             log.debug("Found redirect URL in JSON response: {}", redirectUrl);
-            log.warn("Keycloak 26.1.0 impersonation returns browser redirect. Attempting workaround...");
-            return null;
+            log.info("Following redirect URL to extract token...");
+            return followImpersonationRedirect(redirectUrl, userEmail, adminToken);
         }
 
         String token = extractTokenFromDirectUrl(responseBody, userEmail);
