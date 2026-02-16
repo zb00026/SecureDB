@@ -55,7 +55,7 @@
         Environment=KEYCLOAK_ADMIN_PASSWORD={{ lookup('env', 'KEYCLOAK_ADMIN_USER_PASSWORD') }}
         Environment=KC_HEALTH_ENABLED=true
         Environment=KC_METRICS_ENABLED=true
-        Environment=KC_FEATURES=scripts
+        Environment=KC_FEATURES=scripts,preview,token-exchange,admin-fine-grained-authz
         ExecStart=/opt/keycloak-26.1.0/bin/kc.sh start --hostname=https://{{ lookup('env', 'HOST_DOMAIN') }} --http-enabled=true --hostname-strict=false --http-port=8081 --spi-script-upload-enabled=true
         Restart=on-failure
         LimitNOFILE=10240
