@@ -32,13 +32,15 @@ public class FreshdeskController {
     /**
      * Authenticate Freshdesk user as Hagrids accessor
      * POST /api/freshdesk/auth
-     * 
-     * @param authRequest Contains Freshdesk user email and optional token
-     * @return UserDTO with Hagrids authentication token
      */
     @PostMapping("/auth")
-    public ResponseEntity<Map<String, Object>> authenticate(@RequestBody FreshdeskAuthRequest authRequest) {
+    public ResponseEntity<Map<String, Object>> authenticate(
+            @RequestBody FreshdeskAuthRequest authRequest,
+            @RequestHeader(value = "X-Freshdesk-App-Secret-Key", required = true) String appSecretKey) {
         log.info("Freshdesk authentication request for email: {}", authRequest.getEmail());
+        
+        // Verify app secret key
+        freshdeskService.verifyAppSecretKey(appSecretKey);
         
         try {
             Map<String, Object> authResponse = freshdeskService.authenticateFreshdeskUser(
@@ -59,13 +61,15 @@ public class FreshdeskController {
     /**
      * Get all assets available to the authenticated accessor
      * GET /api/freshdesk/assets
-     * 
-     * @param authorization Bearer token from Freshdesk authentication
-     * @return List of assets
      */
     @GetMapping("/assets")
-    public ResponseEntity<List<AssetDTO>> getAssets(@RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ResponseEntity<List<AssetDTO>> getAssets(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-Freshdesk-App-Secret-Key", required = true) String appSecretKey) {
         log.info("Fetching assets for Freshdesk user");
+        
+        // Verify app secret key
+        freshdeskService.verifyAppSecretKey(appSecretKey);
         
         if (authorization == null || authorization.isEmpty()) {
             log.error("Authorization header is missing");
@@ -95,15 +99,16 @@ public class FreshdeskController {
     /**
      * Get access requests for the authenticated accessor
      * GET /api/freshdesk/access-requests
-     * 
-     * @param authorization Bearer token from Freshdesk authentication
-     * @return List of access requests
      */
     @GetMapping("/access-requests")
     public ResponseEntity<List<Map<String, Object>>> getAccessRequests(
             @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "X-Freshdesk-App-Secret-Key", required = true) String appSecretKey,
             @RequestParam(required = false) Long assetId) {
         log.debug("Fetching access requests for Freshdesk user, assetId: {}", assetId);
+        
+        // Verify app secret key
+        freshdeskService.verifyAppSecretKey(appSecretKey);
         
         try {
             String token = extractBearerToken(authorization);
@@ -121,16 +126,16 @@ public class FreshdeskController {
     /**
      * Get database schema for a specific access request
      * GET /api/freshdesk/schema
-     * 
-     * @param authorization Bearer token
-     * @param requestId Access request ID
-     * @return Database schema
      */
     @GetMapping("/schema")
     public ResponseEntity<DatabaseSchemaDTO> getSchema(
             @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "X-Freshdesk-App-Secret-Key", required = true) String appSecretKey,
             @RequestParam Long requestId) {
         log.debug("Fetching schema for requestId: {}", requestId);
+        
+        // Verify app secret key
+        freshdeskService.verifyAppSecretKey(appSecretKey);
         
         try {
             String token = extractBearerToken(authorization);
@@ -148,17 +153,17 @@ public class FreshdeskController {
     /**
      * Execute a database query
      * POST /api/freshdesk/run-query
-     * 
-     * @param authorization Bearer token
-     * @param queryDto Query details
-     * @return Query results
      */
     @PostMapping("/run-query")
     public ResponseEntity<Map<String, Object>> runQuery(
             @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "X-Freshdesk-App-Secret-Key", required = true) String appSecretKey,
             @RequestBody AccessQueryDTO queryDto) {
         log.info("Executing query for Freshdesk user, assetId: {}, requestId: {}", 
                 queryDto.getAssetId(), queryDto.getRequestId());
+        
+        // Verify app secret key
+        freshdeskService.verifyAppSecretKey(appSecretKey);
         
         try {
             String token = extractBearerToken(authorization);
@@ -176,16 +181,16 @@ public class FreshdeskController {
     /**
      * Convert natural language to SQL
      * POST /api/freshdesk/convert-nl-to-sql
-     * 
-     * @param authorization Bearer token
-     * @param request Natural language query request
-     * @return SQL query
      */
     @PostMapping("/convert-nl-to-sql")
     public ResponseEntity<Map<String, Object>> convertNaturalLanguageToSql(
             @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "X-Freshdesk-App-Secret-Key", required = true) String appSecretKey,
             @RequestBody Map<String, Object> request) {
         log.info("Converting natural language to SQL for Freshdesk user");
+        
+        // Verify app secret key
+        freshdeskService.verifyAppSecretKey(appSecretKey);
         
         try {
             String token = extractBearerToken(authorization);
@@ -243,4 +248,3 @@ public class FreshdeskController {
         }
     }
 }
-

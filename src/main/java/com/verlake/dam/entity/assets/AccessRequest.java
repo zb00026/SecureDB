@@ -95,6 +95,12 @@ public class AccessRequest {
     
     @OneToMany(mappedBy = "accessRequest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<UnixGroupMembership> groupMemberships;
-
+    
+    // Jira integration fields
+    @Column(name = "jira_issue_key", length = 50)
+    private String jiraIssueKey;
+    
+    @Column(name = "jira_issue_id", length = 50)
+    private String jiraIssueId;
 
 } 

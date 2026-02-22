@@ -41,6 +41,8 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -79,6 +81,9 @@ public class FreshdeskService {
 
     @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
     private String keycloakClientSecret;
+    
+    @Value("${freshdesk.app.secret.key:}")
+    private String freshdeskAppSecretKey;
 
     private static final String IMPERSONATION_CONFIGURATION_ERROR_MESSAGE = """
             Failed to generate token without changing password.
@@ -144,6 +149,35 @@ public class FreshdeskService {
         this.naturalLanguageToSqlService = naturalLanguageToSqlService;
     }
 
+    /**
+     * Verify Freshdesk app secret key from frontend requests
+     * This secret key is configured in Freshdesk app settings when installing the app
+     * Frontend sends this key in X-Freshdesk-App-Secret-Key header
+     * 
+     * @param secretKey Secret key from request header
+     * @throws SecurityException if secret key is invalid or missing
+     */
+    public void verifyAppSecretKey(String secretKey) {
+        if (!org.springframework.util.StringUtils.hasText(freshdeskAppSecretKey)) {
+            log.warn("Freshdesk app secret key not configured. Skipping secret key verification.");
+            return; // Allow in development, require in production
+        }
+        
+        if (!org.springframework.util.StringUtils.hasText(secretKey)) {
+            throw new SecurityException("Missing Freshdesk app secret key in request header");
+        }
+        
+        // Use constant-time comparison to prevent timing attacks
+        if (!MessageDigest.isEqual(
+                secretKey.getBytes(StandardCharsets.UTF_8),
+                freshdeskAppSecretKey.getBytes(StandardCharsets.UTF_8))) {
+            log.error("Invalid Freshdesk app secret key provided");
+            throw new SecurityException("Invalid Freshdesk app secret key");
+        }
+        
+        log.debug("Freshdesk app secret key verified successfully");
+    }
+    
     /**
      * Authenticate Freshdesk user as Hagrids accessor
      * 

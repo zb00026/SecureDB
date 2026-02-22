@@ -118,7 +118,7 @@ Body:
 **Error Response:**
 ```json
 {
-  "timestamp": "2025-01-15T14:45:00",
+  "timestamp": "2026-01-15T14:45:00",
   "status": 401,
   "error": "Unauthorized",
   "message": "User does not have ACCESSOR role. Access denied."
@@ -195,7 +195,7 @@ Authorization: Bearer <hagrids-token>
     "assetId": 123,
     "assetName": "Production Database",
     "status": "APPROVED",
-    "expiryDate": "2025-12-31T23:59:59",
+    "expiryDate": "2026-12-31T23:59:59",
     "requestedUsername": "dev_user"
   }
 ]
@@ -403,7 +403,7 @@ All endpoints (except `/health` and `/auth`) require:
 **401 Unauthorized:**
 ```json
 {
-  "timestamp": "2025-01-15T14:45:00",
+  "timestamp": "2026-01-15T14:45:00",
   "status": 401,
   "error": "Unauthorized",
   "message": "Authentication failed: User not found"
@@ -413,7 +413,7 @@ All endpoints (except `/health` and `/auth`) require:
 **403 Forbidden:**
 ```json
 {
-  "timestamp": "2025-01-15T14:45:00",
+  "timestamp": "2026-01-15T14:45:00",
   "status": 403,
   "error": "Forbidden",
   "message": "Access denied: ACCESSOR role required"
@@ -423,7 +423,7 @@ All endpoints (except `/health` and `/auth`) require:
 **400 Bad Request:**
 ```json
 {
-  "timestamp": "2025-01-15T14:45:00",
+  "timestamp": "2026-01-15T14:45:00",
   "status": 400,
   "error": "Bad Request",
   "message": "requestId is required for accessor queries"
@@ -482,7 +482,7 @@ All request-specific endpoints verify:
 
 ---
 
-**Last Updated:** 2025-01-15
+**Last Updated:** 2026-01-15
 **Version:** 1.0
 
 

@@ -795,6 +795,14 @@ public class AssetService {
     }
 
     /**
+     * Check if user is owner of the asset
+     * Public method for use by other services
+     */
+    public boolean isUserAssetOwner(User user, Asset asset) {
+        return hasOwnerAccess(user, asset);
+    }
+
+    /**
      * Finds admin credential for the asset (owner credential with admin privileges)
      * This is used for critical database operations
      */
