@@ -1,5 +1,6 @@
 package com.verlake.dam.controller.freshdesk;
 
+import com.verlake.dam.configuration.ConditionalOnAuthProviderParam;
 import com.verlake.dam.entity.assets.dto.AccessQueryDTO;
 import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.assets.dto.DatabaseSchemaDTO;
@@ -21,6 +22,7 @@ import java.util.Map;
 @RequestMapping("/api/freshdesk")
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 @Slf4j
+@ConditionalOnAuthProviderParam(field = "auth.provider", containProvider = "keycloak")
 public class FreshdeskController {
 
     private final FreshdeskService freshdeskService;

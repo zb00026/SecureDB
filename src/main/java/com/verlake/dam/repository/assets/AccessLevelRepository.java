@@ -39,6 +39,13 @@ public interface AccessLevelRepository extends JpaRepository<AccessLevel, Long> 
         String templates
     );
 
+    AccessLevel findByAssetTypeAndDatabaseTypeAndObjectAndTemplates(
+        AssetType assetType,
+        DatabaseType databaseType,
+        String object,
+        String templates
+    );
+
     @Query("SELECT a FROM AccessLevel a WHERE a.assetType = :assetType AND a.databaseType = :databaseType AND a.templates = 'FETCH ACCESS'")
     AccessLevel findFetchAccessTemplate(
         @Param("assetType") AssetType assetType, 

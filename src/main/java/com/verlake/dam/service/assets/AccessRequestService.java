@@ -69,6 +69,13 @@ public class AccessRequestService {
         this.keycloakService = keycloakService;
     }
 
+    /**
+     * Generate SQL from access level objects. Public for use by Jira/Freshdesk integrations.
+     */
+    public String generateAccessSql(List<AccessLevelObject> accessLevelObjects) {
+        return generateSql(accessLevelObjects);
+    }
+
     private String generateSql(List<AccessLevelObject> accessLevelObjects) {
         if (accessLevelObjects == null || accessLevelObjects.isEmpty()) {
             throw new ResourceNotFoundException(Constants.getMessage("error.no.access.level.objects"));

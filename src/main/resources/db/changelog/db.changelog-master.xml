@@ -45,6 +45,7 @@
     <include file="db/changelog/common/db.043-changelog-add-audit-descriptions.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.045-changelog-add-aws-secrets-manager-key.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.046-changelog-add-jira-fields.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.047-changelog-add-jira-access-level.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

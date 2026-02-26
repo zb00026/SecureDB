@@ -82,6 +82,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/public/**", "/api/auth/**", "/api/firebase/notifications/**",
                         "/api/license/status", "/api/auth/validateResetToken").permitAll()
                 .requestMatchers("/api/freshdesk/health", "/api/freshdesk/auth").permitAll() // Allow Freshdesk health check and auth endpoint
+                .requestMatchers("/api/jira/**").permitAll() // Jira: OAuth callback (no token yet), webhooks (X-Jira-Signature), config/provision/revoke; controller validates auth
                 .requestMatchers("/ws/terminal/connect").permitAll() // Allow WebSocket connections
                 .requestMatchers("/ws/unix-groups").permitAll() // Allow Unix group WebSocket connections
                 .requestMatchers("/api/settings/timezone/**").permitAll() // Allow timezone APIs for all users
@@ -106,6 +107,7 @@ public class SecurityConfiguration {
         log.info("  - Permitting OPTIONS requests (CORS preflight)");
         log.info("  - Permitting all: /public/**, /api/auth/**, /api/firebase/notifications/**, /api/license/status, /api/auth/validateResetToken");
         log.info("  - Freshdesk public endpoints: /api/freshdesk/health, /api/freshdesk/auth");
+        log.info("  - Jira endpoints: /api/jira/** (permitAll; controller validates webhook signature and OAuth token)");
         log.info("  - Admin paths: /api{}", Roles.ADMIN.getAvailablePath());
         log.info("  - AI Chat paths: /api/ai/chat/** (Admin only)");
         log.info("  - Asset Owner paths: /api/asset_owner/assets/**");

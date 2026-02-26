@@ -7,6 +7,7 @@ import com.verlake.dam.entity.assets.dto.AssetDTO;
 import com.verlake.dam.entity.unix.UnixGroupMembership;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.ApprovalStatus;
+import com.verlake.dam.enums.JiraAccessLevel;
 import com.verlake.dam.listener.AuditEntityListener;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -102,5 +103,9 @@ public class AccessRequest {
     
     @Column(name = "jira_issue_id", length = 50)
     private String jiraIssueId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "jira_access_level", length = 20)
+    private JiraAccessLevel jiraAccessLevel;
 
 } 

@@ -1,5 +1,6 @@
 package com.verlake.dam.controller.jira;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.jira.dto.JiraAccessConfigRequest;
@@ -10,7 +11,6 @@ import com.verlake.dam.enums.Roles;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
 import com.verlake.dam.service.jira.JiraIntegrationService;
-import com.verlake.dam.service.jira.JiraOAuthService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.entity.user.User;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -35,42 +34,74 @@ public class JiraIntegrationController {
     private final UserService userService;
     private final AccessRequestService accessRequestService;
     private final AssetService assetService;
-    private final JiraOAuthService jiraOAuthService;
+    private final ObjectMapper objectMapper;
 
     public JiraIntegrationController(
             JiraIntegrationService jiraIntegrationService,
             UserService userService,
             AccessRequestService accessRequestService,
             AssetService assetService,
-            JiraOAuthService jiraOAuthService) {
+            ObjectMapper objectMapper) {
         this.jiraIntegrationService = jiraIntegrationService;
         this.userService = userService;
         this.accessRequestService = accessRequestService;
         this.assetService = assetService;
-        this.jiraOAuthService = jiraOAuthService;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * Authenticate Forge user and get session token (like Freshdesk auth).
+     * When user has no valid Keycloak session, generates a token via impersonation
+     * so the frontend can use it for subsequent API calls.
+     * Uses Forge signature auth: X-User-Id, X-Timestamp, X-User-Email, X-Signature
+     *
+     * POST /api/jira/auth
+     */
+    @PostMapping("/auth")
+    public ResponseEntity<Map<String, Object>> authenticateForgeUser(
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
+        jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+
+        try {
+            Map<String, Object> response = jiraIntegrationService.authenticateForgeUser(accountId, userEmail);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to authenticate Forge user", e);
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authentication failed: " + e.getMessage()
+            );
+        }
     }
 
     /**
      * Save access configuration from Jira app panel
      * Called when user configures access in Jira issue panel
-     * 
+     * Uses Forge signature auth: X-User-Id, X-Timestamp, X-Signature
+     * Signature = HMAC-SHA256(secret, accountId + timestamp + requestBody)
+     *
      * POST /api/jira/config
      */
     @PostMapping("/config")
     public ResponseEntity<Map<String, Object>> saveAccessConfig(
-            @RequestBody JiraAccessConfigRequest request,
-            @RequestHeader(value = "X-Jira-Signature", required = false) String signature) {
-        
-        log.info("Received access configuration from Jira for issue: {}", request.getIssueKey());
-        
-        // Verify webhook signature (HMAC)
-        jiraIntegrationService.verifyWebhookSignature(request, signature);
-        
+            @RequestBody String rawBody,
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
         try {
+            jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+            JiraAccessConfigRequest request = objectMapper.readValue(rawBody, JiraAccessConfigRequest.class);
+            log.info("Received access configuration from Jira for issue: {}", request.getIssueKey());
+
             Map<String, Object> response = jiraIntegrationService.saveAccessConfiguration(request);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Failed to save access configuration for Jira issue: {}", request.getIssueKey(), e);
+            log.error("Failed to save access configuration", e);
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Failed to save access configuration: " + e.getMessage()
@@ -135,16 +166,38 @@ public class JiraIntegrationController {
     /**
      * Get access configuration for a Jira issue
      * Called by Forge app to display current configuration
-     * 
+     * Uses Forge signature: X-User-Id, X-Timestamp, X-User-Email, X-Signature
+     *
+     * Role-based behavior:
+     * - User with only ASSET_OWNER role: returns null (no configuration to show)
+     * - User with ACCESSOR role (with or without ASSET_OWNER): returns config if exists; 404 if not (frontend shows "no access configuration")
+     * - When user has ASSET_OWNER and access request was created by another user (accessor): includes showApproveReject=true
+     *
      * GET /api/jira/config/{issueKey}
      */
     @GetMapping("/config/{issueKey}")
-    public ResponseEntity<Map<String, Object>> getAccessConfig(@PathVariable String issueKey) {
-        log.debug("Getting access configuration for Jira issue: {}", issueKey);
-        
+    public ResponseEntity<?> getAccessConfig(
+            @PathVariable String issueKey,
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
+        jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+        User user = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+
         try {
-            Map<String, Object> config = jiraIntegrationService.getAccessConfiguration(issueKey);
+            Map<String, Object> config = jiraIntegrationService.getAccessConfiguration(issueKey, user);
+            if (config == null) {
+                return ResponseEntity.noContent().build();
+            }
             return ResponseEntity.ok(config);
+        } catch (IllegalArgumentException e) {
+            log.debug("Access configuration not found for Jira issue: {}", issueKey);
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Access configuration not found for issue: " + issueKey
+            );
         } catch (Exception e) {
             log.error("Failed to get access configuration for Jira issue: {}", issueKey, e);
             throw new ResponseStatusException(
@@ -155,105 +208,34 @@ public class JiraIntegrationController {
     }
 
     /**
-     * OAuth 2.0 callback endpoint
-     * Exchanges authorization code for access token and creates user mapping
-     * 
-     * GET /api/jira/oauth/callback
-     */
-    @GetMapping("/oauth/callback")
-    public ResponseEntity<Map<String, Object>> oauthCallback(
-            @RequestParam(value = "code", required = false) String code,
-            @RequestParam(value = "state", required = false) String state,
-            @RequestParam(value = "error", required = false) String error) {
-        
-        log.info("OAuth callback received - Code: {}, State: {}, Error: {}", code, state, error);
-        
-        if (error != null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "OAuth authorization failed: " + error
-            );
-        }
-        
-        if (code == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Authorization code is required"
-            );
-        }
-        
-        try {
-            // Exchange code for access token and get user info
-            Map<String, Object> tokenResult = jiraOAuthService.exchangeCodeForToken(code);
-            String accessToken = (String) tokenResult.get("accessToken");
-            
-            // Authenticate user and get DAM Keycloak token (follows Freshdesk pattern)
-            Map<String, Object> authResult = jiraOAuthService.authenticateJiraUser(accessToken);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("token", authResult.get("token")); // DAM Keycloak token
-            response.put("user", authResult.get("user"));
-            response.put("jiraAccountId", authResult.get("jiraAccountId"));
-            response.put("message", "Authentication successful");
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("OAuth callback failed", e);
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "OAuth authentication failed: " + e.getMessage()
-            );
-        }
-    }
-
-    /**
      * Get available assets for Jira app
-     * Requires: OAuth 2.0 authentication via Bearer token
-     * 
+     * Uses Forge signature auth: X-User-Id, X-Timestamp, X-User-Email, X-Signature
+     * Signature = HMAC-SHA256(secret, accountId + timestamp + email)
+     *
      * GET /api/jira/assets
      */
     @GetMapping("/assets")
     public ResponseEntity<?> getAvailableAssets(
-            @RequestHeader(value = "Authorization", required = true) String authorization) {
-        
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
         log.info("Getting available assets for authenticated Jira user");
-        
+
         try {
-            // Extract Bearer token
-            if (!authorization.startsWith("Bearer ")) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Invalid authorization header. Must be: Bearer <token>"
-                );
-            }
-            
-            String accessToken = authorization.substring(7);
-            
-            // Authenticate user using OAuth token (returns DAM Keycloak token and user info)
-            Map<String, Object> authResult = jiraOAuthService.authenticateJiraUser(accessToken);
-            Map<String, Object> userMap = (Map<String, Object>) authResult.get("user");
-            Long userId = Long.valueOf(userMap.get("id").toString());
-            User user = userService.findById(userId);
-            
-            // Check if user has ACCESSOR role
+            jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+            User user = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+
             if (!userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
-                        "User does not have ACCESSOR role. Current roles: " + 
-                        user.getRoles().stream().map(r -> r.getName()).toList()
+                        "User does not have ACCESSOR role. Current roles: " +
+                                user.getRoles().stream().map(r -> r.getName()).toList()
                 );
             }
-            
-            // Check if user is active
-            if (!user.getIsActive()) {
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "User account is not active"
-                );
-            }
-            
-            log.info("User {} authenticated successfully via OAuth, fetching assets", user.getEmail());
+
+            log.info("User {} authenticated successfully via Forge signature, fetching assets", user.getEmail());
             return ResponseEntity.ok(jiraIntegrationService.getAvailableAssets());
         } catch (ResponseStatusException e) {
             throw e;
@@ -268,34 +250,26 @@ public class JiraIntegrationController {
 
     /**
      * Approve access request
-     * Requires: OAuth 2.0 authentication via Bearer token and ASSET_OWNER role
-     * 
+     * Uses Forge signature auth: X-User-Id, X-Timestamp, X-User-Email, X-Signature
+     * Signature = HMAC-SHA256(secret, accountId + timestamp + requestBody)
+     *
      * POST /api/jira/request/{accessRequestId}/approve
      */
     @PostMapping("/request/{accessRequestId}/approve")
     public ResponseEntity<Map<String, Object>> approveAccessRequest(
             @PathVariable Long accessRequestId,
-            @RequestBody AccessRequestDTO accessRequestDTO,
-            @RequestHeader(value = "Authorization", required = true) String authorization) {
-        
+            @RequestBody String rawBody,
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
         log.info("Asset owner approving access request {}", accessRequestId);
-        
+
         try {
-            // Extract Bearer token
-            if (!authorization.startsWith("Bearer ")) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Invalid authorization header. Must be: Bearer <token>"
-                );
-            }
-            
-            String accessToken = authorization.substring(7);
-            
-            // Authenticate user using OAuth token (maps Account ID → Email → DAM User ID)
-            Map<String, Object> authResult = jiraOAuthService.authenticateJiraUser(accessToken);
-            Map<String, Object> userMap = (Map<String, Object>) authResult.get("user");
-            Long userId = Long.valueOf(userMap.get("id").toString());
-            User approver = userService.findById(userId);
+            jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+            AccessRequestDTO accessRequestDTO = objectMapper.readValue(rawBody, AccessRequestDTO.class);
+            User approver = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
             
             // Check if user has ASSET_OWNER role
             if (!userService.hasRole(approver, Roles.ASSET_OWNER.getOriginalName())) {
@@ -354,55 +328,35 @@ public class JiraIntegrationController {
 
     /**
      * Reject access request
-     * Requires: OAuth 2.0 authentication via Bearer token and ASSET_OWNER role
-     * 
+     * Uses Forge signature auth: X-User-Id, X-Timestamp, X-User-Email, X-Signature
+     * Signature = HMAC-SHA256(secret, accountId + timestamp + requestBody)
+     *
      * POST /api/jira/request/{accessRequestId}/reject
      */
     @PostMapping("/request/{accessRequestId}/reject")
     public ResponseEntity<Map<String, Object>> rejectAccessRequest(
             @PathVariable Long accessRequestId,
-            @RequestBody AccessRequestDTO accessRequestDTO,
-            @RequestHeader(value = "Authorization", required = true) String authorization) {
-        
+            @RequestBody String rawBody,
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
         log.info("Asset owner rejecting access request {}", accessRequestId);
-        
+
         try {
-            // Extract Bearer token
-            if (!authorization.startsWith("Bearer ")) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Invalid authorization header. Must be: Bearer <token>"
-                );
-            }
-            
-            String accessToken = authorization.substring(7);
-            
-            // Authenticate user using OAuth token (maps Account ID → Email → DAM User ID)
-            Map<String, Object> authResult = jiraOAuthService.authenticateJiraUser(accessToken);
-            Map<String, Object> userMap = (Map<String, Object>) authResult.get("user");
-            Long userId = Long.valueOf(userMap.get("id").toString());
-            User approver = userService.findById(userId);
-            
-            // Check if user has ASSET_OWNER role
+            jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+            AccessRequestDTO accessRequestDTO = objectMapper.readValue(rawBody, AccessRequestDTO.class);
+            User approver = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+
             if (!userService.hasRole(approver, Roles.ASSET_OWNER.getOriginalName())) {
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "User does not have ASSET_OWNER role. Only asset owners can reject requests."
                 );
             }
-            
-            // Check if user is active
-            if (!approver.getIsActive()) {
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "User account is not active"
-                );
-            }
-            
-            // Verify user is asset owner of the asset in the request
+
             AccessRequest accessRequest = accessRequestService.findById(accessRequestId);
-            
-            // Check if approver is owner of the asset
             boolean isAssetOwner = assetService.isUserAssetOwner(approver, accessRequest.getAsset());
             if (!isAssetOwner) {
                 throw new ResponseStatusException(
@@ -410,23 +364,20 @@ public class JiraIntegrationController {
                         "User is not the owner of asset: " + accessRequest.getAsset().getName()
                 );
             }
-            
-            // Reject the request
+
             accessRequestDTO.setRequestId(accessRequestId);
             accessRequestService.setApprovalStatusOfAccessRequest(
                     accessRequestId,
                     accessRequestDTO,
                     ApprovalStatus.REJECTED
             );
-            
-            Map<String, Object> response = Map.of(
+
+            return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Access request rejected successfully",
                     "accessRequestId", accessRequestId,
                     "status", "REJECTED"
-            );
-            
-            return ResponseEntity.ok(response);
+            ));
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
