@@ -73,6 +73,7 @@
           User={{ lookup('env', 'HOST_USER') }}
           Group={{ lookup('env', 'HOST_USER') }}
           WorkingDirectory=/var/spring_backend/backend
+          EnvironmentFile=/var/spring_backend/backend/.env
           ExecStart=/usr/bin/java -jar /var/spring_backend/backend/DAM-0.0.1-SNAPSHOT.jar --spring.profiles.active=qa
           SuccessExitStatus=143
           TimeoutStopSec=10
