@@ -42,6 +42,12 @@ import java.util.Base64;
 import java.util.regex.Pattern;
 
 import com.verlake.dam.utils.Constants;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -60,6 +66,7 @@ public class JiraIntegrationService {
     private final UserService userService;
     private final ObjectMapper objectMapper;
     private final KeycloakSessionTokenService keycloakSessionTokenService; // null when Keycloak is not auth provider
+    private final JwtDecoder jwtDecoder;
 
     @Value("${jira.webhook.secret:}")
     private String jiraWebhookSecret;
@@ -79,7 +86,8 @@ public class JiraIntegrationService {
             AssetService assetService,
             UserService userService,
             ObjectMapper objectMapper,
-            java.util.Optional<KeycloakSessionTokenService> keycloakSessionTokenService) {
+            java.util.Optional<KeycloakSessionTokenService> keycloakSessionTokenService,
+            @Lazy JwtDecoder jwtDecoder) {
         this.accessRequestService = accessRequestService;
         this.accessRequestRepository = accessRequestRepository;
         this.accessLevelObjectRepository = accessLevelObjectRepository;
@@ -89,6 +97,29 @@ public class JiraIntegrationService {
         this.userService = userService;
         this.objectMapper = objectMapper;
         this.keycloakSessionTokenService = keycloakSessionTokenService.orElse(null);
+        this.jwtDecoder = jwtDecoder;
+    }
+
+    /**
+     * Run an action with the Forge user's token set in SecurityContext.
+     * This allows getCurrentUser() and getUserKey() to work when the request comes
+     * via Forge signature auth (no JWT) instead of JWT auth.
+     */
+    public void runWithForgeUserContext(User user, Runnable action) {
+        if (keycloakSessionTokenService == null) {
+            throw new IllegalStateException(
+                    "Keycloak session token service not available. Jira approve/reject requires Keycloak auth provider.");
+        }
+        String token = keycloakSessionTokenService.generateTokenForUser(user);
+        Jwt jwt = jwtDecoder.decode(token);
+        var auth = new JwtAuthenticationToken(jwt, java.util.Collections.emptyList());
+        var previous = SecurityContextHolder.getContext().getAuthentication();
+        try {
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            action.run();
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(previous);
+        }
     }
 
     /**
@@ -437,7 +468,7 @@ public class JiraIntegrationService {
     /**
      * Get access configuration for a Jira issue.
      * Role-based behavior:
-     * - User with only ASSET_OWNER role: returns null (no configuration to show)
+     * - User with only ASSET_OWNER role and no asset credential for this asset: returns null (no configuration to show)
      * - User with ACCESSOR role (with or without ASSET_OWNER): returns config if exists; throws if not (frontend shows "no access configuration")
      * - When user has ASSET_OWNER and access request was created by another user (accessor): includes showApproveReject=true
      */
@@ -446,15 +477,14 @@ public class JiraIntegrationService {
         boolean hasAssetOwner = userService.hasRole(user, Roles.ASSET_OWNER.getOriginalName());
         boolean hasOnlyAssetOwner = hasAssetOwner && !hasAccessor;
 
-        if (hasOnlyAssetOwner) {
-            return null;
-        }
-
         AccessRequest accessRequest = accessRequestRepository
                 .findByJiraIssueKey(issueKey)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Access configuration not found for issue: " + issueKey));
 
+        if (hasOnlyAssetOwner && !assetService.isUserAssetOwner(user, accessRequest.getAsset())) {
+            return null;
+        }
         List<String> tables = accessLevelObjectRepository.findByAccessRequestId(accessRequest.getId())
                 .stream()
                 .map(AccessLevelObject::getObjectName)

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+    MongoDB collection-level (per-table) permissions.
+    Uses object="TABLE" so these templates appear in the TABLE category alongside the collection list
+    (MongoDB schema stores collections under TABLE.data as "database.collection").
+    When user selects a collection (e.g. "mydb.users"), $TABLE is replaced with "users".
+    Creates custom role with resource: {db, collection} for specific-collection-only access.
+    -->
+    <changeSet id="seed-mongodb-collection-level-access" author="admin">
+        <!-- Read (find) on specific collection only -->
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="TABLE"/>
+            <column name="templates" value="SELECT"/>
+            <column name="access_template" value="db.createRole({role:&quot;read_$TABLE&quot;,privileges:[{resource:{db:&quot;$DATABASE&quot;,collection:&quot;$TABLE&quot;},actions:[&quot;find&quot;]}],roles:[]}); db.grantRolesToUser(&quot;$USER&quot;,[{role:&quot;read_$TABLE&quot;,db:&quot;$DATABASE&quot;}])"/>
+        </insert>
+        <!-- Read+Write on specific collection only -->
+        <insert tableName="access_levels">
+            <column name="asset_type" value="DATABASE"/>
+            <column name="database_type" value="MONGODB"/>
+            <column name="object" value="TABLE"/>
+            <column name="templates" value="READWRITE_COLLECTION"/>
+            <column name="access_template" value="db.createRole({role:&quot;rw_$TABLE&quot;,privileges:[{resource:{db:&quot;$DATABASE&quot;,collection:&quot;$TABLE&quot;},actions:[&quot;find&quot;,&quot;insert&quot;,&quot;update&quot;,&quot;remove&quot;]}],roles:[]}); db.grantRolesToUser(&quot;$USER&quot;,[{role:&quot;rw_$TABLE&quot;,db:&quot;$DATABASE&quot;}])"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

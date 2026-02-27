@@ -1,5 +1,6 @@
 package com.verlake.dam.controller.jira;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
@@ -19,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -189,7 +191,8 @@ public class JiraIntegrationController {
         try {
             Map<String, Object> config = jiraIntegrationService.getAccessConfiguration(issueKey, user);
             if (config == null) {
-                return ResponseEntity.noContent().build();
+                config = new HashMap<>();
+                config.put("notFound", true);
             }
             return ResponseEntity.ok(config);
         } catch (IllegalArgumentException e) {
@@ -299,14 +302,20 @@ public class JiraIntegrationController {
                 );
             }
             
-            // Approve the request
+            // Approve the request (run with Forge user context so getCurrentUser/getUserKey work)
             accessRequestDTO.setRequestId(accessRequestId);
-            accessRequestService.setApprovalStatusOfAccessRequest(
-                    accessRequestId,
-                    accessRequestDTO,
-                    ApprovalStatus.APPROVED
-            );
-            
+            jiraIntegrationService.runWithForgeUserContext(approver, () -> {
+                try {
+                    accessRequestService.setApprovalStatusOfAccessRequest(
+                            accessRequestId,
+                            accessRequestDTO,
+                            ApprovalStatus.APPROVED
+                    );
+                } catch (JsonParseException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
             Map<String, Object> response = Map.of(
                     "success", true,
                     "message", "Access request approved successfully",
@@ -366,11 +375,17 @@ public class JiraIntegrationController {
             }
 
             accessRequestDTO.setRequestId(accessRequestId);
-            accessRequestService.setApprovalStatusOfAccessRequest(
-                    accessRequestId,
-                    accessRequestDTO,
-                    ApprovalStatus.REJECTED
-            );
+            jiraIntegrationService.runWithForgeUserContext(approver, () -> {
+                try {
+                    accessRequestService.setApprovalStatusOfAccessRequest(
+                            accessRequestId,
+                            accessRequestDTO,
+                            ApprovalStatus.REJECTED
+                    );
+                } catch (JsonParseException e) {
+                    throw new RuntimeException(e);
+                }
+            });
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
