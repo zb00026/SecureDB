@@ -1,5 +1,6 @@
 package com.verlake.dam.entity.assets.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.verlake.dam.entity.assets.Asset;
 import com.verlake.dam.entity.user.User;
 import com.verlake.dam.enums.AssetType;
@@ -15,6 +16,7 @@ import java.util.List;
 @Data
 @SuperBuilder
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class BaseAssetDTO {
     private Long id;
     private String name;
