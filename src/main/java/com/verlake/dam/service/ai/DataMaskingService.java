@@ -58,18 +58,17 @@ public class DataMaskingService {
                 policies.size(), userEmail, userRoles, asset.getId());
         
         // Build masking rules map: table.field -> policy
+        // When both full and partial masking exist for the same field, full masking takes precedence
         Map<String, AIMaskingPolicy> maskingRules = new HashMap<>();
         for (AIMaskingPolicy policy : policies) {
             String key = (policy.getTableName() + "." + policy.getFieldName()).toLowerCase();
-            maskingRules.put(key, policy);
-            
+            putPolicyIfPreferred(maskingRules, key, policy);
+
             // Also add field-only mapping for better matching
             String fieldKey = policy.getFieldName().toLowerCase();
-            if (!maskingRules.containsKey(fieldKey)) {
-                maskingRules.put(fieldKey, policy);
-            }
-            
-            log.debug("Added masking rule: {} -> {} (strategy: {})", 
+            putPolicyIfPreferred(maskingRules, fieldKey, policy);
+
+            log.debug("Added masking rule: {} -> {} (strategy: {})",
                     key, policy.getFieldName(), policy.getMaskingStrategy());
         }
         
@@ -106,6 +105,24 @@ public class DataMaskingService {
         return maskedResults;
     }
     
+    /**
+     * Put policy into map if it should take precedence.
+     * Full masking takes precedence over partial when both exist for the same field.
+     */
+    private void putPolicyIfPreferred(Map<String, AIMaskingPolicy> maskingRules, String key, AIMaskingPolicy policy) {
+        AIMaskingPolicy existing = maskingRules.get(key);
+        if (existing == null) {
+            maskingRules.put(key, policy);
+            return;
+        }
+        String existingStrategy = existing.getMaskingStrategy() != null ? existing.getMaskingStrategy().toLowerCase() : "partial";
+        String newStrategy = policy.getMaskingStrategy() != null ? policy.getMaskingStrategy().toLowerCase() : "partial";
+        // Full masking takes precedence over partial
+        if ("full".equals(newStrategy) && "partial".equals(existingStrategy)) {
+            maskingRules.put(key, policy);
+        }
+    }
+
     /**
      * Get applicable masking policies for multiple user roles
      */

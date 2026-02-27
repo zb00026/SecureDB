@@ -44,34 +44,22 @@ public class AIMaskingPolicyService {
             for (FieldSuggestion suggestion : suggestions) {
                 String strategy = resolveStrategy(intent, suggestion);
                 
-                // Check if policy already exists for this table+field+strategy+creator
-                List<AIMaskingPolicy> existing = policyRepository.findByAssetAndTableNameAndFieldNameAndMaskingStrategyAndCreatedBy(
-                        asset,
-                        suggestion.getTableName(),
-                        suggestion.getFieldName(),
-                        strategy,
-                        user
-                );
-                
+                // Replace existing policies for same table+field: delete then create new
+                List<AIMaskingPolicy> existing = policyRepository.findByAssetAndTableNameAndFieldNameAndCreatedBy(
+                        asset, suggestion.getTableName(), suggestion.getFieldName(), user);
                 if (existing != null && !existing.isEmpty()) {
-                    // Update existing policy by adding new roles
-                    AIMaskingPolicy existingPolicy = existing.get(0);
-                    String currentRoles = existingPolicy.getTargetRole() != null ? existingPolicy.getTargetRole() : "";
-                    String updatedRoles = mergeRoles(currentRoles, targetRoles);
-                    existingPolicy.setTargetRole(updatedRoles);
-                    AIMaskingPolicy savedPolicy = policyRepository.save(existingPolicy);
-                    appliedPolicies.add(savedPolicy);
-                    log.info("Updated masking policy for {}.{} with roles: {}", 
-                            suggestion.getTableName(), suggestion.getFieldName(), updatedRoles);
-                } else {
-                    // Create new policy with all target roles
-                    String allRoles = String.join(",", targetRoles);
-                    AIMaskingPolicy policy = createPolicyFromSuggestion(asset, intent, suggestion, user, allRoles);
-                    AIMaskingPolicy savedPolicy = policyRepository.save(policy);
-                    appliedPolicies.add(savedPolicy);
-                    log.info("Created masking policy for {}.{} with strategy: {} roles: {}", 
-                            suggestion.getTableName(), suggestion.getFieldName(), strategy, allRoles);
+                    policyRepository.deleteAll(existing);
+                    log.info("Replaced {} existing masking policy/policies for {}.{}",
+                            existing.size(), suggestion.getTableName(), suggestion.getFieldName());
                 }
+                
+                // Create new policy with all target roles
+                String allRoles = String.join(",", targetRoles);
+                AIMaskingPolicy policy = createPolicyFromSuggestion(asset, intent, suggestion, user, allRoles);
+                AIMaskingPolicy savedPolicy = policyRepository.save(policy);
+                appliedPolicies.add(savedPolicy);
+                log.info("Created masking policy for {}.{} with strategy: {} roles: {}",
+                        suggestion.getTableName(), suggestion.getFieldName(), strategy, allRoles);
             }
             
             log.info("Successfully applied {} masking policies for asset {}", appliedPolicies.size(), asset.getId());
@@ -276,29 +264,6 @@ public class AIMaskingPolicyService {
         policyRepository.save(policy);
         
         log.info("Deactivated masking policy {}", policyId);
-    }
-    
-    /**
-     * Merge new roles with existing roles, avoiding duplicates
-     */
-    private String mergeRoles(String currentRoles, List<String> newRoles) {
-        List<String> existing = new ArrayList<>();
-        if (currentRoles != null && !currentRoles.trim().isEmpty()) {
-            for (String role : currentRoles.split(",")) {
-                String trimmed = role.trim();
-                if (!trimmed.isEmpty() && !existing.contains(trimmed)) {
-                    existing.add(trimmed);
-                }
-            }
-        }
-        
-        for (String newRole : newRoles) {
-            if (!existing.contains(newRole)) {
-                existing.add(newRole);
-            }
-        }
-        
-        return String.join(",", existing);
     }
     
     /**

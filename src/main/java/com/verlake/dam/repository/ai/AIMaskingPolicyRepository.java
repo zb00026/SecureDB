@@ -44,6 +44,12 @@ public interface AIMaskingPolicyRepository extends JpaRepository<AIMaskingPolicy
     List<AIMaskingPolicy> findByTableNameAndFieldNameAndIsActiveTrue(String tableName, String fieldName);
 
     /**
+     * Find existing policies for asset + table + field by creator (for replace-on-create)
+     */
+    List<AIMaskingPolicy> findByAssetAndTableNameAndFieldNameAndCreatedBy(
+            Asset asset, String tableName, String fieldName, User createdBy);
+
+    /**
      * Find existing policy for exact asset + table + field + strategy (active or not)
      */
     List<AIMaskingPolicy> findByAssetAndTableNameAndFieldNameAndMaskingStrategy(
