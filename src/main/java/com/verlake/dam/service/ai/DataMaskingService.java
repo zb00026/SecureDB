@@ -115,10 +115,10 @@ public class DataMaskingService {
             maskingRules.put(key, policy);
             return;
         }
-        String existingStrategy = existing.getMaskingStrategy() != null ? existing.getMaskingStrategy().toLowerCase() : "partial";
-        String newStrategy = policy.getMaskingStrategy() != null ? policy.getMaskingStrategy().toLowerCase() : "partial";
+        String existingStrategy = existing.getMaskingStrategy() != null ? existing.getMaskingStrategy().toLowerCase() : Constants.MASKING_STRATEGY_PARTIAL;
+        String newStrategy = policy.getMaskingStrategy() != null ? policy.getMaskingStrategy().toLowerCase() : Constants.MASKING_STRATEGY_PARTIAL;
         // Full masking takes precedence over partial
-        if ("full".equals(newStrategy) && "partial".equals(existingStrategy)) {
+        if (Constants.MASKING_STRATEGY_FULL.equals(newStrategy) && Constants.MASKING_STRATEGY_PARTIAL.equals(existingStrategy)) {
             maskingRules.put(key, policy);
         }
     }
@@ -204,12 +204,12 @@ public class DataMaskingService {
         
         String strategy = policy.getMaskingStrategy();
         if (strategy == null) {
-            strategy = "partial";
+            strategy = Constants.MASKING_STRATEGY_PARTIAL;
         }
         
         return switch (strategy.toLowerCase()) {
-            case "full" -> maskFull(value, policy);
-            case "partial" -> maskPartial(value, policy);
+            case Constants.MASKING_STRATEGY_FULL -> maskFull(value, policy);
+            case Constants.MASKING_STRATEGY_PARTIAL -> maskPartial(value, policy);
             case "hash" -> "HASH_********";
             case "custom" -> maskCustom(value, policy);
             default -> maskPartial(value, policy);
