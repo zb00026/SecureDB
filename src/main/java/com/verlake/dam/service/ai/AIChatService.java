@@ -208,7 +208,7 @@ public class AIChatService {
         String lower = userMessage.toLowerCase();
         boolean hasRemoveKeyword = lower.contains("remove") || lower.contains("exclude") || lower.contains("drop")
                 || lower.contains("don't mask") || lower.contains("do not mask") || lower.contains("unmask");
-        boolean hasTableFieldPattern = Pattern.compile("\\w+\\.\\w+").matcher(userMessage).find();
+        boolean hasTableFieldPattern = Pattern.compile("\\w++\\.\\w++").matcher(userMessage).find();
         return hasRemoveKeyword && hasTableFieldPattern;
     }
 
@@ -217,7 +217,7 @@ public class AIChatService {
      */
     private List<String[]> parseTableFieldToRemove(String userMessage) {
         List<String[]> result = new ArrayList<>();
-        Matcher m = Pattern.compile("\\b(\\w+)\\.(\\w+)\\b").matcher(userMessage);
+        Matcher m = Pattern.compile("\\b(\\w++)\\.(\\w++)\\b").matcher(userMessage);
         while (m.find()) {
             result.add(new String[]{m.group(1), m.group(2)});
         }
