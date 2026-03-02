@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -208,20 +206,56 @@ public class AIChatService {
         String lower = userMessage.toLowerCase();
         boolean hasRemoveKeyword = lower.contains("remove") || lower.contains("exclude") || lower.contains("drop")
                 || lower.contains("don't mask") || lower.contains("do not mask") || lower.contains("unmask");
-        boolean hasTableFieldPattern = Pattern.compile("\\w++\\.\\w++").matcher(userMessage).find();
+        boolean hasTableFieldPattern = containsTableFieldPattern(userMessage);
         return hasRemoveKeyword && hasTableFieldPattern;
     }
 
     /**
-     * Parse table.field patterns from user message (e.g. lab_results.test_name)
+     * Check if string contains table.field pattern (e.g. lab_results.test_name) using linear scan. No regex to avoid ReDoS.
+     */
+    private static boolean containsTableFieldPattern(String s) {
+        if (s == null || s.length() < 3) return false;
+        for (int i = 1; i < s.length() - 1; i++) {
+            if (s.charAt(i) == '.' && isWordChar(s.charAt(i - 1)) && isWordChar(s.charAt(i + 1))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Parse table.field patterns from user message (e.g. lab_results.test_name) using linear scan. No regex to avoid ReDoS.
      */
     private List<String[]> parseTableFieldToRemove(String userMessage) {
         List<String[]> result = new ArrayList<>();
-        Matcher m = Pattern.compile("\\b(\\w++)\\.(\\w++)\\b").matcher(userMessage);
-        while (m.find()) {
-            result.add(new String[]{m.group(1), m.group(2)});
+        if (userMessage == null || userMessage.length() < 3) return result;
+        for (int i = 1; i < userMessage.length() - 1; i++) {
+            if (userMessage.charAt(i) != '.') continue;
+            if (!isWordChar(userMessage.charAt(i - 1)) || !isWordChar(userMessage.charAt(i + 1))) continue;
+            // Must be at word boundary (non-word before table, non-word after field)
+            int tableStart = scanWordBackward(userMessage, i - 1);
+            int fieldEnd = scanWordForward(userMessage, i + 1);
+            if (tableStart >= 0 && fieldEnd < userMessage.length()) {
+                String table = userMessage.substring(tableStart, i);
+                String field = userMessage.substring(i + 1, fieldEnd + 1);
+                result.add(new String[]{table, field});
+            }
         }
         return result;
+    }
+
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    private static int scanWordBackward(String s, int from) {
+        while (from >= 0 && isWordChar(s.charAt(from))) from--;
+        return from + 1;
+    }
+
+    private static int scanWordForward(String s, int from) {
+        while (from < s.length() && isWordChar(s.charAt(from))) from++;
+        return from - 1;
     }
 
     /**
