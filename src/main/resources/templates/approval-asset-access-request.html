@@ -24,12 +24,6 @@
             <p><strong>Asset Name:</strong> <span th:text="${assetName}"></span></p>
             <p><strong>Description:</strong> <span th:text="${assetDescription}"></span></p>
             <br>
-            <p th:if="${dbUsername != null && dbUsername != ''}">
-                <strong>Database Username:</strong> <span th:text="${dbUsername}"></span>
-            </p>
-            <p th:if="${dbPassword != null && dbPassword != ''}">
-                <strong>Database Password:</strong> <span th:text="${dbPassword}"></span>
-            </p>
         </div>
         
         <p th:if="${approvalStatus == 'Approved'}">
