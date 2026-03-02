@@ -874,7 +874,12 @@ public class GeminiAIService {
      * Analyze intent type from keywords
      */
     private void analyzeIntentType(String lowerRequest, IntentAnalysis analysis) {
-        if (lowerRequest.contains("mask") || lowerRequest.contains("hide") || lowerRequest.contains("protect")) {
+        if (lowerRequest.contains("remove") || lowerRequest.contains("exclude") || lowerRequest.contains("drop")
+                || lowerRequest.contains("don't mask") || lowerRequest.contains("do not mask")) {
+            analysis.intentType = Constants.AI_INTENT_TYPE_REMOVE_FIELD;
+            analysis.confidence += 0.3;
+            // Do not populate targetFields/targetTables - remove uses last suggestions, not schema filtering
+        } else if (lowerRequest.contains("mask") || lowerRequest.contains("hide") || lowerRequest.contains("protect")) {
             analysis.intentType = "mask_data";
             analysis.confidence += 0.2;
         } else if (lowerRequest.contains("email")) {

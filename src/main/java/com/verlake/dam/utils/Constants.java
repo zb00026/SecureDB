@@ -874,6 +874,7 @@ public class Constants {
     
     // AI intent types
     public static final String AI_INTENT_TYPE_CUSTOM = "custom";
+    public static final String AI_INTENT_TYPE_REMOVE_FIELD = "remove_field";
     
     // Session metadata field names
     public static final String SESSION_METADATA_CLIENT_IP = "clientIp";

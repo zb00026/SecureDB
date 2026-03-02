@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -164,6 +166,22 @@ public class AIChatService {
      * Process suggestions based on user intent and confidence
      */
     private List<FieldSuggestion> processSuggestions(ChatContext context, String userMessage, MaskingIntent intent) {
+        // Handle "remove X from the list" - take last suggestions and exclude specified table.field
+        if (isRemoveFromListRequest(userMessage)) {
+            List<String[]> toRemove = parseTableFieldToRemove(userMessage);
+            if (!toRemove.isEmpty()) {
+                if (context.getLastSuggestions() != null && !context.getLastSuggestions().isEmpty()) {
+                    List<FieldSuggestion> filtered = filterOutFromSuggestions(context.getLastSuggestions(), toRemove);
+                    log.info("Removed {} field(s) from list for session {}, {} remaining",
+                            toRemove.size(), context.getAssetId(), filtered.size());
+                    return filtered;
+                }
+                // No previous list - return empty to avoid misinterpretation (AI would show only the removed field)
+                log.info("Remove requested but no previous suggestions for session {}", context.getAssetId());
+                return new ArrayList<>();
+            }
+        }
+
         List<FieldSuggestion> suggestions = new ArrayList<>();
 
         // Get schema suggestions if high confidence
@@ -180,6 +198,51 @@ public class AIChatService {
 
         // Apply category focus filtering
         return applyCategoryFocusFilter(intent, suggestions);
+    }
+
+    /**
+     * Detect if user wants to remove a column from the current masking list
+     */
+    private boolean isRemoveFromListRequest(String userMessage) {
+        if (userMessage == null || userMessage.isBlank()) return false;
+        String lower = userMessage.toLowerCase();
+        boolean hasRemoveKeyword = lower.contains("remove") || lower.contains("exclude") || lower.contains("drop")
+                || lower.contains("don't mask") || lower.contains("do not mask") || lower.contains("unmask");
+        boolean hasTableFieldPattern = Pattern.compile("\\w+\\.\\w+").matcher(userMessage).find();
+        return hasRemoveKeyword && hasTableFieldPattern;
+    }
+
+    /**
+     * Parse table.field patterns from user message (e.g. lab_results.test_name)
+     */
+    private List<String[]> parseTableFieldToRemove(String userMessage) {
+        List<String[]> result = new ArrayList<>();
+        Matcher m = Pattern.compile("\\b(\\w+)\\.(\\w+)\\b").matcher(userMessage);
+        while (m.find()) {
+            result.add(new String[]{m.group(1), m.group(2)});
+        }
+        return result;
+    }
+
+    /**
+     * Filter out suggestions matching the specified table.field pairs
+     */
+    private List<FieldSuggestion> filterOutFromSuggestions(List<FieldSuggestion> suggestions, List<String[]> toRemove) {
+        return suggestions.stream()
+                .filter(s -> {
+                    String tn = s.getTableName() != null ? s.getTableName().toLowerCase() : "";
+                    String fn = s.getFieldName() != null ? s.getFieldName().toLowerCase() : "";
+                    for (String[] pair : toRemove) {
+                        String targetTable = pair[0].toLowerCase();
+                        String targetField = pair[1].toLowerCase();
+                        if ((tn.equals(targetTable) || tn.contains(targetTable) || targetTable.contains(tn))
+                                && (fn.equals(targetField) || fn.contains(targetField) || targetField.contains(fn))) {
+                            return false; // exclude this suggestion
+                        }
+                    }
+                    return true;
+                })
+                .toList();
     }
 
     /**
@@ -613,12 +676,23 @@ public class AIChatService {
         }
 
         if (suggestions.isEmpty()) {
+            // Remove-from-list with no prior context - explain that a previous list is needed
+            if (Constants.AI_INTENT_TYPE_REMOVE_FIELD.equals(intent.getIntentType())
+                    || isRemoveFromListRequest(userMessage)) {
+                String removeNoContextContent = "I don't have a previous list to remove from. "
+                        + "Please first ask me to show or suggest fields to mask (e.g. \"Mask PII\" or \"Show sensitive fields\"), "
+                        + "then you can remove specific columns from that list.";
+                ChatMessage removeMsg = createMessage(sessionId, removeNoContextContent, Constants.AI_SENDER,
+                        ChatMessage.MessageType.CLARIFICATION);
+                removeMsg.setParsedIntent(intent);
+                return removeMsg;
+            }
             // No fields found - explain and suggest using database prompt
             Map<String, Object> promptParams = Map.of(
                     "originalRequest", intent.getOriginalRequest(),
-                    "intentType", intent.getIntentType().replace("_", " "),
-                    Constants.PROMPT_PARAM_STRATEGY, intent.getMaskingStrategy(),
-                    "userRole", intent.getUserRole());
+                    "intentType", intent.getIntentType() != null ? intent.getIntentType().replace("_", " ") : "unknown",
+                    Constants.PROMPT_PARAM_STRATEGY, intent.getMaskingStrategy() != null ? intent.getMaskingStrategy() : "",
+                    "userRole", intent.getUserRole() != null ? intent.getUserRole() : "");
             String noFieldsContent = promptService.getPrompt("NO_FIELDS_FOUND", promptParams);
 
             ChatMessage noFields = createMessage(sessionId, noFieldsContent, Constants.AI_SENDER,
