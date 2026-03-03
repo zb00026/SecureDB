@@ -15,6 +15,7 @@ import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -109,18 +110,23 @@ public class AIChatService {
      * Process user message and generate AI response
      */
     public ChatMessage processUserMessage(String sessionId, String userMessage) {
+        ChatContext context = null;
         try {
             // Validate session
-            ChatContext context = sessionContexts.get(sessionId);
+            context = sessionContexts.get(sessionId);
             if (context == null) {
-                return createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                ChatMessage errorMsg = createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                auditChatInteraction(null, sessionId, userMessage, errorMsg);
+                return errorMsg;
             }
 
             // Check session timeout
             if (isSessionExpired(context)) {
                 sessionContexts.remove(sessionId);
                 chatSessions.remove(sessionId);
-                return createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                ChatMessage errorMsg = createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                auditChatInteraction(null, sessionId, userMessage, errorMsg);
+                return errorMsg;
             }
 
             // Store user message
@@ -135,7 +141,9 @@ public class AIChatService {
 
             // Check if this is a location restriction error
             if (isLocationRestrictionError(intent)) {
-                return createLocationRestrictionMessage(sessionId);
+                ChatMessage locationMsg = createLocationRestrictionMessage(sessionId);
+                auditChatInteraction(context, sessionId, userMessage, locationMsg);
+                return locationMsg;
             }
 
             // Process suggestions based on intent
@@ -150,13 +158,18 @@ public class AIChatService {
 
             // If user already confirmed in this message, apply immediately
             if (isAffirmative(userMessage) && intent.getConfidence() >= confidenceThreshold && !suggestions.isEmpty()) {
-                return applyMaskingPolicy(sessionId, intent, suggestions);
+                ChatMessage applyResult = applyMaskingPolicy(sessionId, intent, suggestions);
+                auditChatInteraction(context, sessionId, userMessage, applyResult);
+                return applyResult;
             }
+            auditChatInteraction(context, sessionId, userMessage, aiResponse);
             return aiResponse;
 
         } catch (Exception e) {
             log.error("Error processing user message in session {}: {}", sessionId, e.getMessage());
-            return createErrorMessage(sessionId, "I encountered an error processing your request. Please try again.");
+            ChatMessage errorMsg = createErrorMessage(sessionId, "I encountered an error processing your request. Please try again.");
+            auditChatInteraction(context, sessionId, userMessage, errorMsg);
+            return errorMsg;
         }
     }
 
@@ -343,6 +356,29 @@ public class AIChatService {
             auditTrailService.save(audit);
         } catch (Exception ex) {
             log.warn("Failed to audit masking apply: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Audit every AI chat command and its output
+     */
+    private void auditChatInteraction(ChatContext context, String sessionId, String userCommand, ChatMessage response) {
+        try {
+            String outputContent = response != null && response.getContent() != null ? response.getContent() : "";
+            AuditTrail audit = AuditTrail.builder()
+                    .timestamp(LocalDateTime.now())
+                    .user(getCurrentUserEmail())
+                    .action(Constants.AUDIT_ACTION_AI_CHAT)
+                    .instanceId(sessionId != null ? "SESSION(" + sessionId + ")" : null)
+                    .previousValue(userCommand)
+                    .newValue(outputContent)
+                    .asset(context != null ? context.getAsset() : null)
+                    .ipAddress(IpAddressUtils.getCurrentIpAddress())
+                    .description(AuditDescriptionUtils.generateDescription(Constants.AUDIT_ACTION_AI_CHAT, Constants.ENTITY_TYPE_ASSET, null))
+                    .build();
+            auditTrailService.save(audit);
+        } catch (Exception ex) {
+            log.warn("Failed to audit AI chat interaction: {}", ex.getMessage());
         }
     }
 

@@ -106,6 +106,7 @@ public class Constants {
     public static final String AUDIT_ACTION_APPROVE = "APPROVE";
     public static final String AUDIT_ACTION_REJECT = "REJECT";
     public static final String AUDIT_ACTION_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
+    public static final String AUDIT_ACTION_AI_CHAT = "AI_CHAT";
     public static final String AUDIT_ACTION_ACCESSOR_QUERY_EXECUTION = "ACCESSOR_QUERY_EXECUTION";
     public static final String AUDIT_ACTION_ASSET_OWNER_QUERY_EXECUTION = "ASSET_OWNER_QUERY_EXECUTION";
 
