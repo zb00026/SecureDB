@@ -170,5 +170,8 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
            "ORDER BY ar.requestTime DESC")
     List<AccessRequest> findUnixRequestsByRequestorOrderByRequestTimeDesc(
             @Param("requestor") User requestor);
+    
+    // Jira integration queries
+    Optional<AccessRequest> findByJiraIssueKey(String jiraIssueKey);
 
 } 

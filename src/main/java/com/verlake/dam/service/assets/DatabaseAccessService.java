@@ -1186,6 +1186,8 @@ public class DatabaseAccessService {
                 executeRevokeRolesCommand(mongoDb, command, username, databaseName);
             } else if (command.contains(Constants.MONGODB_COMMAND_CREATE_USER) || command.startsWith("db.createUser")) {
                 executeCreateUserCommand(mongoDb, command, databaseName);
+            } else if (command.contains(Constants.MONGODB_COMMAND_CREATE_ROLE) || command.startsWith("db.createRole")) {
+                executeCreateRoleCommand(mongoDb, command, databaseName);
             } else {
                 throw new DatabaseAccessException("Unsupported MongoDB command: " + command, null);
             }
@@ -1281,6 +1283,38 @@ public class DatabaseAccessService {
         log.info("Successfully created MongoDB user: {} in database: {}", createUsername, databaseName);
     }
     
+    /**
+     * Executes createRole for collection-level permissions.
+     * Template uses {role:"...",privileges:[...],roles:[]}; runCommand expects createRole key.
+     */
+    private void executeCreateRoleCommand(MongoDatabase mongoDb, String command, String databaseName) {
+        int paramsStart = command.indexOf('(');
+        int paramsEnd = command.lastIndexOf(')');
+        if (paramsStart <= 0 || paramsEnd <= paramsStart) {
+            throw new DatabaseAccessException("Invalid createRole command format: " + command, null);
+        }
+        String paramsStr = command.substring(paramsStart + 1, paramsEnd).trim();
+        if (!paramsStr.startsWith("{")) {
+            throw new DatabaseAccessException("createRole requires JSON format: {role: \"...\", privileges: [...], roles: []}", null);
+        }
+        try {
+            Document doc = Document.parse(paramsStr);
+            String roleName = doc.getString("role");
+            if (roleName != null) {
+                doc.remove("role");
+                doc.put(Constants.MONGODB_COMMAND_CREATE_ROLE, roleName);
+            }
+            mongoDb.runCommand(doc);
+            log.info("Created MongoDB role: {} in database: {}", roleName, databaseName);
+        } catch (com.mongodb.MongoCommandException e) {
+            if (e.getErrorCode() == 51048 || (e.getMessage() != null && e.getMessage().contains("already exists"))) {
+                log.debug("MongoDB role already exists, continuing: {}", e.getMessage());
+            } else {
+                throw new DatabaseAccessException("Failed to create MongoDB role: " + e.getMessage(), e);
+            }
+        }
+    }
+
     /**
      * Parses createUser parameters and builds command document
      */

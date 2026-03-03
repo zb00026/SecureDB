@@ -294,6 +294,7 @@ public class Constants {
     public static final String MONGODB_COMMAND_USERS_INFO = "usersInfo";
     public static final String MONGODB_COMMAND_CREATE_USER = "createUser";
     public static final String MONGODB_COMMAND_UPDATE_USER = "updateUser";
+    public static final String MONGODB_COMMAND_CREATE_ROLE = "createRole";
     public static final String MONGODB_COMMAND_GRANT_ROLES_TO_USER = "grantRolesToUser";
     public static final String MONGODB_COMMAND_REVOKE_ROLES_FROM_USER = "revokeRolesFromUser";
     public static final String MONGODB_COMMAND_DROP_USER = "dropUser";
