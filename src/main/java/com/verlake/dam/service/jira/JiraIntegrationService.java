@@ -241,10 +241,10 @@ public class JiraIntegrationService {
     }
 
     /**
-     * Resolve Forge-authenticated user by account ID and email.
+     * Resolve Forge-authenticated user by email.
      * Email is required from X-User-Email header (sent from frontend).
      */
-    public User resolveForgeUser(String accountId, String email) {
+    public User resolveForgeUser(String email) {
         if (!StringUtils.hasText(email)) {
             throw new SecurityException("X-User-Email header is required for Forge authentication.");
         }
@@ -271,7 +271,7 @@ public class JiraIntegrationService {
      * @return Map with success, user, and token (token may be null if Keycloak session service unavailable)
      */
     public Map<String, Object> authenticateForgeUser(String accountId, String email) {
-        User user = resolveForgeUser(accountId, email);
+        User user = resolveForgeUser(email);
 
         Map<String, Object> response = new HashMap<>();
         response.put(Constants.RESPONSE_SUCCESS, true);

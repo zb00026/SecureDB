@@ -188,7 +188,7 @@ public class JiraIntegrationController {
             @RequestHeader(value = "X-Signature", required = false) String signature) {
 
         jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
-        User user = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+        User user = jiraIntegrationService.resolveForgeUser(userEmail);
 
         try {
             Map<String, Object> config = jiraIntegrationService.getAccessConfiguration(issueKey, user);
@@ -230,7 +230,7 @@ public class JiraIntegrationController {
 
         try {
             jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
-            User user = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+            User user = jiraIntegrationService.resolveForgeUser(userEmail);
 
             if (!userService.hasRole(user, Roles.ACCESSOR.getOriginalName())) {
                 throw new ResponseStatusException(
@@ -274,7 +274,7 @@ public class JiraIntegrationController {
         try {
             jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
             AccessRequestDTO accessRequestDTO = objectMapper.readValue(rawBody, AccessRequestDTO.class);
-            User approver = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+            User approver = jiraIntegrationService.resolveForgeUser(userEmail);
             
             // Check if user has ASSET_OWNER role
             if (!userService.hasRole(approver, Roles.ASSET_OWNER.getOriginalName())) {
@@ -358,7 +358,7 @@ public class JiraIntegrationController {
         try {
             jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
             AccessRequestDTO accessRequestDTO = objectMapper.readValue(rawBody, AccessRequestDTO.class);
-            User approver = jiraIntegrationService.resolveForgeUser(accountId, userEmail);
+            User approver = jiraIntegrationService.resolveForgeUser(userEmail);
 
             if (!userService.hasRole(approver, Roles.ASSET_OWNER.getOriginalName())) {
                 throw new ResponseStatusException(
