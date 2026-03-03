@@ -243,15 +243,14 @@ public class AIChatService {
         List<String[]> result = new ArrayList<>();
         if (userMessage == null || userMessage.length() < 3) return result;
         for (int i = 1; i < userMessage.length() - 1; i++) {
-            if (userMessage.charAt(i) != '.') continue;
-            if (!isWordChar(userMessage.charAt(i - 1)) || !isWordChar(userMessage.charAt(i + 1))) continue;
-            // Must be at word boundary (non-word before table, non-word after field)
-            int tableStart = scanWordBackward(userMessage, i - 1);
-            int fieldEnd = scanWordForward(userMessage, i + 1);
-            if (tableStart >= 0 && fieldEnd < userMessage.length()) {
-                String table = userMessage.substring(tableStart, i);
-                String field = userMessage.substring(i + 1, fieldEnd + 1);
-                result.add(new String[]{table, field});
+            if (userMessage.charAt(i) == '.' && isWordChar(userMessage.charAt(i - 1)) && isWordChar(userMessage.charAt(i + 1))) {
+                int tableStart = scanWordBackward(userMessage, i - 1);
+                int fieldEnd = scanWordForward(userMessage, i + 1);
+                if (tableStart >= 0 && fieldEnd < userMessage.length()) {
+                    String table = userMessage.substring(tableStart, i);
+                    String field = userMessage.substring(i + 1, fieldEnd + 1);
+                    result.add(new String[]{table, field});
+                }
             }
         }
         return result;

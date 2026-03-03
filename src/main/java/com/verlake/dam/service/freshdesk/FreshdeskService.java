@@ -142,10 +142,10 @@ public class FreshdeskService {
         String hagridsToken = keycloakSessionTokenService.generateTokenForUser(user);
 
         Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
+        response.put(Constants.RESPONSE_SUCCESS, true);
         response.put("token", hagridsToken);
         response.put("user", createUserResponse(user));
-        response.put("message", "Authentication successful");
+        response.put(Constants.RESPONSE_MESSAGE, "Authentication successful");
 
         log.info("Successfully authenticated Freshdesk user: {}", email);
         return response;

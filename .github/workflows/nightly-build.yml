@@ -62,6 +62,8 @@ jobs:
           echo "KEYCLOAK_CLIENT_SECRET=${{ secrets.KEYCLOAK_CLIENT_SECRET }}" >> $GITHUB_ENV
           echo "GOOGLE_SIGN_IN_CLIENT_SECRET=${{ secrets.GOOGLE_SIGN_IN_CLIENT_SECRET }}" >> $GITHUB_ENV
           echo "MICROSOFT_CLIENT_SECRET=${{ secrets.MICROSOFT_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "JIRA_FORGE_SECRET=${{ secrets.JIRA_FORGE_SECRET }}" >> $GITHUB_ENV
+          echo "FRESHDESK_APP_SECRET_KEY=${{ secrets.FRESHDESK_APP_SECRET_KEY }}" >> $GITHUB_ENV
       - name: Set branch name variable
         run: |
           BRANCH_NAME="${GITHUB_REF_NAME:-unknown}"
@@ -187,6 +189,8 @@ jobs:
           echo "FIREBASE_PRIVATE_KEY=\"$FIREBASE_PRIVATE_KEY\"" >> .env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "JIRA_FORGE_SECRET=${{ secrets.JIRA_FORGE_SECRET }}" >> .env
+          echo "FRESHDESK_APP_SECRET_KEY=${{ secrets.FRESHDESK_APP_SECRET_KEY }}" >> .env
           
           cp .env build/libs/
           # Copy ansible folder to build/libs/ so it's included in the ZIP at root level

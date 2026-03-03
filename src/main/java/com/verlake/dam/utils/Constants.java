@@ -1037,7 +1037,11 @@ public class Constants {
     public static final String SQL_KEYWORD_INSERT = "INSERT";
     public static final String SQL_KEYWORD_UPDATE = "UPDATE";
     public static final String SQL_KEYWORD_DELETE = "DELETE";
+    public static final String SQL_KEYWORD_REFERENCES = "REFERENCES";
     public static final String SQL_KEYWORD_LIMIT = "LIMIT";
+
+    // Crypto algorithm names
+    public static final String HMAC_SHA256 = "HmacSHA256";
     
     // Query result structure fields
     public static final String QUERY_RESULT_FIELD_RESULTS = "results";

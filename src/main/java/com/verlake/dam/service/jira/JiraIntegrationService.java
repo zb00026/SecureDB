@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.verlake.dam.exception.JiraIntegrationException;
 import com.verlake.dam.entity.jira.dto.JiraAccessConfigRequest;
 import com.verlake.dam.entity.jira.dto.JiraProvisionRequest;
 import com.verlake.dam.entity.jira.dto.JiraRevokeRequest;
@@ -51,7 +52,6 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -139,10 +139,10 @@ public class JiraIntegrationService {
             // Serialize request to JSON string
             String payload = objectMapper.writeValueAsString(request);
             
-            Mac mac = Mac.getInstance("HmacSHA256");
+            Mac mac = Mac.getInstance(Constants.HMAC_SHA256);
             SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    jiraWebhookSecret.getBytes(StandardCharsets.UTF_8), 
-                    "HmacSHA256"
+                    jiraWebhookSecret.getBytes(StandardCharsets.UTF_8),
+                    Constants.HMAC_SHA256
             );
             mac.init(secretKeySpec);
             
@@ -214,8 +214,8 @@ public class JiraIntegrationService {
     private String hmacSha256Hex(String secret, String data) {
         try {
             byte[] keyBytes = prepareSecretBytes(secret);
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec spec = new SecretKeySpec(keyBytes, "HmacSHA256");
+            Mac mac = Mac.getInstance(Constants.HMAC_SHA256);
+            SecretKeySpec spec = new SecretKeySpec(keyBytes, Constants.HMAC_SHA256);
             mac.init(spec);
             byte[] hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return bytesToHex(hash);
@@ -274,9 +274,9 @@ public class JiraIntegrationService {
         User user = resolveForgeUser(accountId, email);
 
         Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
+        response.put(Constants.RESPONSE_SUCCESS, true);
         response.put("user", createForgeUserResponse(user));
-        response.put("message", "Authentication successful");
+        response.put(Constants.RESPONSE_MESSAGE, "Authentication successful");
 
         if (keycloakSessionTokenService != null) {
             try {
@@ -360,15 +360,15 @@ public class JiraIntegrationService {
             }
             
             // Update existing request
-            updateAccessRequest(accessRequest, request, asset, requestor);
+            updateAccessRequest(accessRequest, request, asset);
         } else {
             // Create new access request
             accessRequest = createAccessRequest(request, asset, requestor);
         }
         
         Map<String, Object> response = new HashMap<>(getAccessConfiguration(request.getIssueKey(), requestor));
-        response.put("success", true);
-        response.put("message", "Access configuration saved successfully");
+        response.put(Constants.RESPONSE_SUCCESS, true);
+        response.put(Constants.RESPONSE_MESSAGE, "Access configuration saved successfully");
         
         return response;
     }
@@ -415,13 +415,13 @@ public class JiraIntegrationService {
             );
         } catch (JsonParseException e) {
             log.error("Failed to parse JSON during approval", e);
-            throw new RuntimeException("Failed to approve access request", e);
+            throw new JiraIntegrationException("Failed to approve access request", e);
         }
         
         Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
+        response.put(Constants.RESPONSE_SUCCESS, true);
         response.put("damRequestId", accessRequest.getId());
-        response.put("message", "Access provisioned successfully");
+        response.put(Constants.RESPONSE_MESSAGE, "Access provisioned successfully");
         
         return response;
     }
@@ -459,8 +459,8 @@ public class JiraIntegrationService {
         }
         
         Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "Access revoked successfully");
+        response.put(Constants.RESPONSE_SUCCESS, true);
+        response.put(Constants.RESPONSE_MESSAGE, "Access revoked successfully");
         
         return response;
     }
@@ -535,7 +535,7 @@ public class JiraIntegrationService {
                     assetInfo.put("tables", getTableNamesFromAsset(asset));
                     return assetInfo;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -623,7 +623,7 @@ public class JiraIntegrationService {
     private void updateAccessRequest(
             AccessRequest accessRequest,
             JiraAccessConfigRequest request,
-            Asset asset, User requestor) {
+            Asset asset) {
         
         accessRequest.setAsset(asset);
         accessRequest.setJiraAccessLevel(JiraAccessLevel.fromString(request.getAccessLevel()));
@@ -724,8 +724,8 @@ public class JiraIntegrationService {
         }
         
         return switch (accessLevel.toUpperCase()) {
-            case "READ_ONLY" -> List.of("SELECT");
-            case "READ_WRITE" -> List.of("SELECT", "INSERT", "UPDATE", "DELETE");
+            case "READ_ONLY" -> List.of(Constants.SQL_KEYWORD_SELECT);
+            case "READ_WRITE" -> List.of(Constants.SQL_KEYWORD_SELECT, Constants.SQL_KEYWORD_INSERT, Constants.SQL_KEYWORD_UPDATE, Constants.SQL_KEYWORD_DELETE);
             case "FULL_ACCESS" -> getFullAccessTemplateNames(databaseType);
             default -> getFullAccessTemplateNames(databaseType);
         };
@@ -736,11 +736,11 @@ public class JiraIntegrationService {
      */
     private List<String> getFullAccessTemplateNames(DatabaseType databaseType) {
         return switch (databaseType) {
-            case MYSQL -> List.of("SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "INDEX",
-                    "CREATE VIEW", "SHOW VIEW", "TRIGGER", "REFERENCES");
-            case POSTGRESQL -> List.of("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER");
-            case SQLSERVER -> List.of("SELECT", "INSERT", "UPDATE", "DELETE", "REFERENCES");
-            default -> List.of("SELECT", "INSERT", "UPDATE", "DELETE");
+            case MYSQL -> List.of(Constants.SQL_KEYWORD_SELECT, Constants.SQL_KEYWORD_INSERT, Constants.SQL_KEYWORD_UPDATE, Constants.SQL_KEYWORD_DELETE, "DROP", "ALTER", "INDEX",
+                    "CREATE VIEW", "SHOW VIEW", "TRIGGER", Constants.SQL_KEYWORD_REFERENCES);
+            case POSTGRESQL -> List.of(Constants.SQL_KEYWORD_SELECT, Constants.SQL_KEYWORD_INSERT, Constants.SQL_KEYWORD_UPDATE, Constants.SQL_KEYWORD_DELETE, "TRUNCATE", Constants.SQL_KEYWORD_REFERENCES, "TRIGGER");
+            case SQLSERVER -> List.of(Constants.SQL_KEYWORD_SELECT, Constants.SQL_KEYWORD_INSERT, Constants.SQL_KEYWORD_UPDATE, Constants.SQL_KEYWORD_DELETE, Constants.SQL_KEYWORD_REFERENCES);
+            default -> List.of(Constants.SQL_KEYWORD_SELECT, Constants.SQL_KEYWORD_INSERT, Constants.SQL_KEYWORD_UPDATE, Constants.SQL_KEYWORD_DELETE);
         };
     }
 

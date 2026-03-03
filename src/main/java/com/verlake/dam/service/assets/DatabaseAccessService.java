@@ -4518,7 +4518,7 @@ public class DatabaseAccessService {
         }
 
         // Check for critical missing permissions
-        List<String> criticalPermissions = Arrays.asList("SELECT", "INSERT", "UPDATE", "DELETE");
+        List<String> criticalPermissions = Arrays.asList(Constants.SQL_KEYWORD_SELECT, Constants.SQL_KEYWORD_INSERT, Constants.SQL_KEYWORD_UPDATE, Constants.SQL_KEYWORD_DELETE);
         List<String> missingCritical = criticalPermissions.stream()
                 .filter(perm -> !existingPermissions.contains(perm))
                 .toList();

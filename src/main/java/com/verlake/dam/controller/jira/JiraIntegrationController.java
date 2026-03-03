@@ -11,6 +11,7 @@ import com.verlake.dam.enums.ApprovalStatus;
 import com.verlake.dam.enums.Roles;
 import com.verlake.dam.service.assets.AccessRequestService;
 import com.verlake.dam.service.assets.AssetService;
+import com.verlake.dam.exception.JiraIntegrationException;
 import com.verlake.dam.service.jira.JiraIntegrationService;
 import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.entity.user.User;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.verlake.dam.utils.Constants;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -312,13 +314,13 @@ public class JiraIntegrationController {
                             ApprovalStatus.APPROVED
                     );
                 } catch (JsonParseException e) {
-                    throw new RuntimeException(e);
+                    throw new JiraIntegrationException("Failed to process approval request", e);
                 }
             });
 
             Map<String, Object> response = Map.of(
-                    "success", true,
-                    "message", "Access request approved successfully",
+                    Constants.RESPONSE_SUCCESS, true,
+                    Constants.RESPONSE_MESSAGE, "Access request approved successfully",
                     "accessRequestId", accessRequestId,
                     "status", "APPROVED"
             );
@@ -383,13 +385,13 @@ public class JiraIntegrationController {
                             ApprovalStatus.REJECTED
                     );
                 } catch (JsonParseException e) {
-                    throw new RuntimeException(e);
+                    throw new JiraIntegrationException("Failed to process approval request", e);
                 }
             });
 
             return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Access request rejected successfully",
+                    Constants.RESPONSE_SUCCESS, true,
+                    Constants.RESPONSE_MESSAGE, "Access request rejected successfully",
                     "accessRequestId", accessRequestId,
                     "status", "REJECTED"
             ));

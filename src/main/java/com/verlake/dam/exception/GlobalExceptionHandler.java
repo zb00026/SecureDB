@@ -67,6 +67,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.LOCKED).body(errorResponse); // 423 Locked
     }
 
+    // Handle Jira integration exceptions (e.g. JSON parse errors during approval)
+    @ExceptionHandler(JiraIntegrationException.class)
+    public ResponseEntity<Map<String, String>> handleJiraIntegrationException(JiraIntegrationException ex, WebRequest request) {
+        Map<String, String> errorResponse = new HashMap<>();
+        log.warn("Jira integration error: {}", ex.getMessage());
+        errorResponse.put(Constants.ERROR_FIELD_ERROR, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
     // Handle IllegalArgumentException (for access request not approved, etc.)
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
