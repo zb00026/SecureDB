@@ -594,8 +594,8 @@ public class JiraIntegrationService {
         accessRequest.setAccessorApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for Jira requests
         
         // Set expiry
-        if (request.getDurationDays() != null && request.getDurationDays() > 0) {
-            accessRequest.setExpiryHours(request.getDurationDays() * 24);
+        if (request.getDurationHours() != null && request.getDurationHours() > 0) {
+            accessRequest.setExpiryHours(request.getDurationHours());
             accessRequest.setExpiryDate(
                     accessRequest.getRequestTime().plusHours(accessRequest.getExpiryHours()));
         } else {
@@ -629,8 +629,8 @@ public class JiraIntegrationService {
         accessRequest.setJiraAccessLevel(JiraAccessLevel.fromString(request.getAccessLevel()));
         accessRequest.setRequestReason(request.getBusinessJustification());
         
-        if (request.getDurationDays() != null && request.getDurationDays() > 0) {
-            accessRequest.setExpiryHours(request.getDurationDays() * 24);
+        if (request.getDurationHours() != null && request.getDurationHours() > 0) {
+            accessRequest.setExpiryHours(request.getDurationHours());
             accessRequest.setExpiryDate(
                     accessRequest.getRequestTime().plusHours(accessRequest.getExpiryHours()));
         }

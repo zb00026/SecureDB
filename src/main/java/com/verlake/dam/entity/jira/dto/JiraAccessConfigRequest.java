@@ -14,6 +14,6 @@ public class JiraAccessConfigRequest {
     private Long assetId;
     private String tables; // JSON array or comma-separated
     private String accessLevel;
-    private Integer durationDays;
+    private Integer durationHours;
     private String businessJustification;
 }
