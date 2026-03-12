@@ -515,6 +515,10 @@ public class JiraIntegrationService {
                 && accessRequest.getAssetApproverStatus() != null);
         config.put("tables", tables);
         config.put("showApproveReject", showApproveReject);
+        List<String> assetOwnerEmails = assetService.getAssetOwners(accessRequest.getAsset()).stream()
+                .map(User::getEmail)
+                .toList();
+        config.put("assetOwnerEmails", assetOwnerEmails);
 
         return config;
     }
@@ -522,17 +526,62 @@ public class JiraIntegrationService {
     /**
      * Get available assets for Jira app.
      * Only returns assets that have synced AssetObjects (schema has been fetched).
-     * Includes tables list from asset object's objectsJson (TABLE.data).
+     * Includes userHasAccess (true if user has approved access or is asset owner)
+     * and existingTables (tables user can access) for approved assets.
      */
-    public List<Map<String, Object>> getAvailableAssets() {
-        return assetService.getAllAssetListWithSyncedObjects().stream()
+    public List<Map<String, Object>> getAvailableAssets(User user) {
+        List<Asset> allAssets = assetService.getAllAssetListWithSyncedObjects();
+        if (allAssets.isEmpty()) {
+            return List.of();
+        }
+
+        // Build map: assetId -> approved AccessRequest(s) for this user (not expired)
+        Map<Long, List<AccessRequest>> assetToApprovedRequests = new HashMap<>();
+        accessRequestRepository.findByRequestor(user).stream()
+                .filter(ar -> ar.getAssetApproverStatus() == ApprovalStatus.APPROVED
+                        && ar.getExpiryDate() != null
+                        && ar.getExpiryDate().isAfter(LocalDateTime.now()))
+                .forEach(ar -> assetToApprovedRequests
+                        .computeIfAbsent(ar.getAsset().getId(), k -> new ArrayList<>())
+                        .add(ar));
+
+        // Build map: assetId -> existing table names from AccessLevelObject
+        Map<Long, List<String>> assetToExistingTables = new HashMap<>();
+        for (List<AccessRequest> requests : assetToApprovedRequests.values()) {
+            for (AccessRequest ar : requests) {
+                List<String> tables = accessLevelObjectRepository.findByAccessRequestId(ar.getId()).stream()
+                        .map(AccessLevelObject::getObjectName)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+                assetToExistingTables.merge(ar.getAsset().getId(), tables, (a, b) -> {
+                    Set<String> combined = new LinkedHashSet<>(a);
+                    combined.addAll(b);
+                    return new ArrayList<>(combined);
+                });
+            }
+        }
+
+        return allAssets.stream()
                 .map(asset -> {
+                    boolean isOwner = assetService.isUserAssetOwner(user, asset);
+                    boolean hasApprovedAccess = assetToApprovedRequests.containsKey(asset.getId());
+                    boolean userHasAccess = isOwner || hasApprovedAccess;
+
                     Map<String, Object> assetInfo = new HashMap<>();
                     assetInfo.put("id", asset.getId());
                     assetInfo.put("name", asset.getName());
-                    assetInfo.put("type", asset.getType());
+                    assetInfo.put("type", asset.getType() != null ? asset.getType().name().toLowerCase() : "database");
                     assetInfo.put("description", asset.getDescription());
                     assetInfo.put("tables", getTableNamesFromAsset(asset));
+                    assetInfo.put("userHasAccess", userHasAccess);
+                    if (userHasAccess) {
+                        assetInfo.put("existingTables", assetToExistingTables.getOrDefault(asset.getId(), List.of()));
+                    }
+                    List<String> ownerEmails = assetService.getAssetOwners(asset).stream()
+                            .map(User::getEmail)
+                            .toList();
+                    assetInfo.put("assetOwnerEmails", ownerEmails);
                     return assetInfo;
                 })
                 .toList();
@@ -574,6 +623,26 @@ public class JiraIntegrationService {
             log.warn("Failed to parse objectsJson for asset {}: {}", asset.getId(), e.getMessage());
             return List.of();
         }
+    }
+
+    /**
+     * Given an asset ID and a list of emails (e.g. Jira role members),
+     * return the first email that is an owner of the asset in the DAM system.
+     * Returns null if no match is found.
+     */
+    public String resolveAssetOwnerFromEmails(Long assetId, List<String> emails) {
+        if (assetId == null || emails == null || emails.isEmpty()) {
+            return null;
+        }
+        Asset asset = assetService.findById(assetId);
+        Set<String> ownerEmailsLower = assetService.getAssetOwners(asset).stream()
+                .filter(u -> u.getEmail() != null)
+                .map(u -> u.getEmail().toLowerCase())
+                .collect(java.util.stream.Collectors.toSet());
+        return emails.stream()
+                .filter(e -> e != null && ownerEmailsLower.contains(e.trim().toLowerCase()))
+                .findFirst()
+                .orElse(null);
     }
 
     // Helper methods

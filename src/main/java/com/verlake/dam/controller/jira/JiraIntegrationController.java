@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.verlake.dam.entity.assets.AccessRequest;
 import com.verlake.dam.entity.assets.dto.AccessRequestDTO;
 import com.verlake.dam.entity.jira.dto.JiraAccessConfigRequest;
+import com.verlake.dam.entity.jira.dto.JiraAssetOwnerRequest;
 import com.verlake.dam.entity.jira.dto.JiraProvisionRequest;
 import com.verlake.dam.entity.jira.dto.JiraRevokeRequest;
 import com.verlake.dam.enums.ApprovalStatus;
@@ -241,7 +242,7 @@ public class JiraIntegrationController {
             }
 
             log.info("User {} authenticated successfully via Forge signature, fetching assets", user.getEmail());
-            return ResponseEntity.ok(jiraIntegrationService.getAvailableAssets());
+            return ResponseEntity.ok(jiraIntegrationService.getAvailableAssets(user));
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
@@ -402,6 +403,40 @@ public class JiraIntegrationController {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to reject access request: " + e.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Resolve the asset owner from a list of Jira role member emails.
+     * The Forge app sends the emails of users in the hagrids.assetowner project role;
+     * the backend returns whichever one is actually assigned as owner of the given asset.
+     * Uses Forge signature auth: X-User-Id, X-Timestamp, X-User-Email, X-Signature
+     *
+     * POST /api/jira/asset-owner
+     */
+    @PostMapping("/asset-owner")
+    public ResponseEntity<Map<String, Object>> resolveAssetOwner(
+            @RequestBody JiraAssetOwnerRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String accountId,
+            @RequestHeader(value = "X-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-Signature", required = false) String signature) {
+
+        try {
+            jiraIntegrationService.verifyForgeRequestSignature(accountId, timestamp, signature);
+
+            String ownerEmail = jiraIntegrationService.resolveAssetOwnerFromEmails(
+                    request.getAssetId(), request.getEmails());
+
+            return ResponseEntity.ok(Map.of("ownerEmail", ownerEmail != null ? ownerEmail : ""));
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to resolve asset owner for assetId={}", request.getAssetId(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to resolve asset owner: " + e.getMessage()
             );
         }
     }
