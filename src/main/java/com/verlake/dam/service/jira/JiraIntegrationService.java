@@ -352,18 +352,11 @@ public class JiraIntegrationService {
         if (existingRequest.isPresent()) {
             accessRequest = existingRequest.get();
             
-            // Check if configuration is locked (already submitted for approval)
-            if (accessRequest.getAssetApproverStatus() != ApprovalStatus.REQUESTED 
-                    && accessRequest.getAssetApproverStatus() != null) {
-                throw new IllegalStateException(
-                        "Access configuration is locked. Cannot modify after submission.");
-            }
-            
             // Update existing request
             updateAccessRequest(accessRequest, request, asset);
         } else {
             // Create new access request
-            accessRequest = createAccessRequest(request, asset, requestor);
+            createAccessRequest(request, asset, requestor);
         }
         
         Map<String, Object> response = new HashMap<>(getAccessConfiguration(request.getIssueKey(), requestor));
@@ -519,6 +512,7 @@ public class JiraIntegrationService {
                 .map(User::getEmail)
                 .toList();
         config.put("assetOwnerEmails", assetOwnerEmails);
+        config.put("jiraRequesterId", accessRequest.getJiraRequesterId());
 
         return config;
     }
@@ -655,11 +649,12 @@ public class JiraIntegrationService {
         accessRequest.setRequestor(requestor);
         accessRequest.setJiraIssueKey(request.getIssueKey());
         accessRequest.setJiraIssueId(request.getIssueId());
+        accessRequest.setJiraRequesterId(request.getJiraAccountId());
         accessRequest.setJiraAccessLevel(JiraAccessLevel.fromString(request.getAccessLevel()));
         accessRequest.setRequestReason(request.getBusinessJustification());
         accessRequest.setRequestTime(LocalDateTime.now());
         accessRequest.setIsTempPassword(true);
-        accessRequest.setAssetApproverStatus(ApprovalStatus.REQUESTED);
+        accessRequest.setAssetApproverStatus(ApprovalStatus.APPROVAL_IN_PROGRESS);
         accessRequest.setAccessorApproverStatus(ApprovalStatus.APPROVED); // Auto-approve for Jira requests
         
         // Set expiry
@@ -697,6 +692,7 @@ public class JiraIntegrationService {
         accessRequest.setAsset(asset);
         accessRequest.setJiraAccessLevel(JiraAccessLevel.fromString(request.getAccessLevel()));
         accessRequest.setRequestReason(request.getBusinessJustification());
+        accessRequest.setAssetApproverStatus(ApprovalStatus.APPROVAL_IN_PROGRESS);
         
         if (request.getDurationHours() != null && request.getDurationHours() > 0) {
             accessRequest.setExpiryHours(request.getDurationHours());

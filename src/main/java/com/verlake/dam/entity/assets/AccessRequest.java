@@ -104,6 +104,9 @@ public class AccessRequest {
     @Column(name = "jira_issue_id", length = 50)
     private String jiraIssueId;
 
+    @Column(name = "jira_requester_id", length = 255)
+    private String jiraRequesterId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "jira_access_level", length = 20)
     private JiraAccessLevel jiraAccessLevel;

@@ -174,4 +174,6 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     // Jira integration queries
     Optional<AccessRequest> findByJiraIssueKey(String jiraIssueKey);
 
+    Optional<AccessRequest> findByJiraIssueId(String jiraIssueId);
+
 } 

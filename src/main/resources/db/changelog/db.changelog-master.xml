@@ -47,6 +47,7 @@
     <include file="db/changelog/common/db.046-changelog-add-jira-fields.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.047-changelog-add-jira-access-level.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/common/db.048-changelog-mongodb-collection-access-level.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/common/db.049-changelog-add-jira-requester-id.xml" relativeToChangelogFile="false"/>
     <!-- Include database-specific changelogs AFTER common changelogs -->
     <include file="db/changelog/mysql/db.changelog-mysql.xml" relativeToChangelogFile="false"/>
     

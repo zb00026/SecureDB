@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="add-jira-requester-id-to-access-requests" author="system">
+        <addColumn tableName="access_requests">
+            <column name="jira_requester_id" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <comment>Added jira_requester_id to store the Jira account ID of the accessor who raised the request, used to reassign the issue back to them after approval or rejection</comment>
+    </changeSet>
+
+</databaseChangeLog>
