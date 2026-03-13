@@ -109,6 +109,10 @@ public class DatabaseSchemaService {
                                                boolean hasAssetOwnerRole, boolean hasAccessorRole) throws CommonUtils.CryptoException {
         Asset asset = validateAsset(assetId);
         
+        if (!assetService.hasSyncedAssetObjects(assetId)) {
+            throw new DatabaseAccessException("Asset schema has not been synced. Please sync the asset objects first.", null);
+        }
+        
         // Check if asset is locked
         assetService.validateAssetNotLocked(asset, !hasAssetOwnerRole);
         
@@ -277,6 +281,10 @@ public class DatabaseSchemaService {
         
         AccessRequest accessRequest = assetValidationUtils.validateAccessRequest(requestId);
         AssetCredential credential = assetValidationUtils.validateAssetCredential(accessRequest);
+        
+        if (!assetService.hasSyncedAssetObjects(accessRequest.getAsset().getId())) {
+            throw new DatabaseAccessException("Asset schema has not been synced. Please sync the asset objects first.", null);
+        }
         
         // Check if asset is locked
         assetService.validateAssetNotLocked(accessRequest.getAsset(), true);

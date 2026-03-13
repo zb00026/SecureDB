@@ -31,6 +31,9 @@ public final class AuditDescriptionUtils {
         result = handleMaskingAction(upperAction);
         if (result != null) return result;
 
+        result = handleChatAction(upperAction);
+        if (result != null) return result;
+
         result = handleApprovalAction(upperAction, upperEntity);
         if (result != null) return result;
 
@@ -68,6 +71,13 @@ public final class AuditDescriptionUtils {
         }
         if (upperAction.contains("MASK") || upperAction.contains("AI_MASKING")) {
             return "Setup data masking policy";
+        }
+        return null;
+    }
+
+    private static String handleChatAction(String upperAction) {
+        if (upperAction.contains("AI_CHAT")) {
+            return "AI chat interaction";
         }
         return null;
     }

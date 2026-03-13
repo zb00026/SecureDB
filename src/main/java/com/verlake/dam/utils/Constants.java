@@ -106,6 +106,7 @@ public class Constants {
     public static final String AUDIT_ACTION_APPROVE = "APPROVE";
     public static final String AUDIT_ACTION_REJECT = "REJECT";
     public static final String AUDIT_ACTION_AI_MASKING_APPLIED = "AI_MASKING_APPLIED";
+    public static final String AUDIT_ACTION_AI_CHAT = "AI_CHAT";
     public static final String AUDIT_ACTION_ACCESSOR_QUERY_EXECUTION = "ACCESSOR_QUERY_EXECUTION";
     public static final String AUDIT_ACTION_ASSET_OWNER_QUERY_EXECUTION = "ASSET_OWNER_QUERY_EXECUTION";
 
@@ -293,6 +294,7 @@ public class Constants {
     public static final String MONGODB_COMMAND_USERS_INFO = "usersInfo";
     public static final String MONGODB_COMMAND_CREATE_USER = "createUser";
     public static final String MONGODB_COMMAND_UPDATE_USER = "updateUser";
+    public static final String MONGODB_COMMAND_CREATE_ROLE = "createRole";
     public static final String MONGODB_COMMAND_GRANT_ROLES_TO_USER = "grantRolesToUser";
     public static final String MONGODB_COMMAND_REVOKE_ROLES_FROM_USER = "revokeRolesFromUser";
     public static final String MONGODB_COMMAND_DROP_USER = "dropUser";
@@ -874,6 +876,7 @@ public class Constants {
     
     // AI intent types
     public static final String AI_INTENT_TYPE_CUSTOM = "custom";
+    public static final String AI_INTENT_TYPE_REMOVE_FIELD = "remove_field";
     
     // Session metadata field names
     public static final String SESSION_METADATA_CLIENT_IP = "clientIp";
@@ -1034,7 +1037,11 @@ public class Constants {
     public static final String SQL_KEYWORD_INSERT = "INSERT";
     public static final String SQL_KEYWORD_UPDATE = "UPDATE";
     public static final String SQL_KEYWORD_DELETE = "DELETE";
+    public static final String SQL_KEYWORD_REFERENCES = "REFERENCES";
     public static final String SQL_KEYWORD_LIMIT = "LIMIT";
+
+    // Crypto algorithm names
+    public static final String HMAC_SHA256 = "HmacSHA256";
     
     // Query result structure fields
     public static final String QUERY_RESULT_FIELD_RESULTS = "results";

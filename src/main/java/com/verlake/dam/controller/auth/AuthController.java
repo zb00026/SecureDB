@@ -289,7 +289,7 @@ public class AuthController {
         List<AccessRequest> accessRequests = accessRequestRepository
                 .findByExpiryDateBeforeAndAssetCredentialIsDeletedFalse(LocalDateTime.now());
         accessRequests.stream()
-                .filter(accessRequest -> accessRequest.getAsset().getId().equals(ownerCred.getAsset().getId()))
+                .filter(accessRequest -> accessRequest.getAsset().getId().equals(ownerCred.getAsset().getId()) && accessRequest.getAssetApproverStatus().equals(ApprovalStatus.APPROVED))
                 .forEach(accessRequest -> {
                     AssetCredential devCred = accessRequest.getAssetCredential();
                     try {

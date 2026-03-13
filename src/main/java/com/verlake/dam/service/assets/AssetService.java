@@ -43,6 +43,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -296,9 +297,31 @@ public class AssetService {
                 .toList();
     }
 
+    /**
+     * Returns true if the asset has at least one synced AssetObject (schema has been fetched).
+     */
+    public boolean hasSyncedAssetObjects(Long assetId) {
+        return assetObjectRepository.existsByAsset_Id(assetId);
+    }
+
+    /**
+     * Returns assets that have synced AssetObjects (schema has been fetched).
+     * Used by Jira and accessor lists - unsynced assets are not shown.
+     */
+    @Transactional(readOnly = true)
+    public List<Asset> getAllAssetListWithSyncedObjects() {
+        Set<Long> assetIdsWithObjects = assetObjectRepository.findDistinctAssetIdsWithObjects();
+        return assetRepository.findByDeletedFalse().stream()
+                .filter(asset -> assetIdsWithObjects.contains(asset.getId()) && !asset.isLocked() && asset.getType() != AssetType.UNIX_SERVER)
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public List<AssetDTO> getAllAssetsWithFetchAccessTemplate() {
-        List<Asset> lstAssets = assetRepository.findByDeletedFalse();
+        Set<Long> assetIdsWithObjects = assetObjectRepository.findDistinctAssetIdsWithObjects();
+        List<Asset> lstAssets = assetRepository.findByDeletedFalse().stream()
+                .filter(asset -> assetIdsWithObjects.contains(asset.getId()))
+                .toList();
         User requestor = userService.findByEmail(CommonUtils.getEmailFromSession());
         
         // Fetch all AccessRequests upfront in a single query to avoid N+1 and ResultSet closure issues
@@ -792,6 +815,14 @@ public class AssetService {
         return ownerCredentials.stream()
                 .anyMatch(cred -> cred.getUser() != null && 
                                 cred.getUser().getId().equals(user.getId()));
+    }
+
+    /**
+     * Check if user is owner of the asset
+     * Public method for use by other services
+     */
+    public boolean isUserAssetOwner(User user, Asset asset) {
+        return hasOwnerAccess(user, asset);
     }
 
     /**

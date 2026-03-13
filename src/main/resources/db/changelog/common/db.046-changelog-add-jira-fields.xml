@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="add-jira-fields-to-access-requests" author="system">
+        <addColumn tableName="access_requests">
+            <column name="jira_issue_key" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="jira_issue_id" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <createIndex tableName="access_requests" indexName="idx_access_requests_jira_issue_key">
+            <column name="jira_issue_key"/>
+        </createIndex>
+        
+        <comment>Added Jira integration fields to track Jira issue keys and IDs for access requests</comment>
+    </changeSet>
+
+</databaseChangeLog>

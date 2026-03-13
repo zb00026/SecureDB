@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="add-jira-access-level-to-access-requests" author="system">
+        <addColumn tableName="access_requests">
+            <column name="jira_access_level" type="VARCHAR(20)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <comment>Added jira_access_level to store Jira access level (READ_ONLY, READ_WRITE, FULL_ACCESS) for access requests</comment>
+    </changeSet>
+
+</databaseChangeLog>

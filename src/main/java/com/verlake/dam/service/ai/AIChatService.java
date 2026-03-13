@@ -15,6 +15,7 @@ import com.verlake.dam.service.users.UserService;
 import com.verlake.dam.utils.AuditDescriptionUtils;
 import com.verlake.dam.utils.CommonUtils;
 import com.verlake.dam.utils.Constants;
+import com.verlake.dam.utils.IpAddressUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -109,18 +110,23 @@ public class AIChatService {
      * Process user message and generate AI response
      */
     public ChatMessage processUserMessage(String sessionId, String userMessage) {
+        ChatContext context = null;
         try {
             // Validate session
-            ChatContext context = sessionContexts.get(sessionId);
+            context = sessionContexts.get(sessionId);
             if (context == null) {
-                return createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                ChatMessage errorMsg = createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                auditChatInteraction(null, sessionId, userMessage, errorMsg);
+                return errorMsg;
             }
 
             // Check session timeout
             if (isSessionExpired(context)) {
                 sessionContexts.remove(sessionId);
                 chatSessions.remove(sessionId);
-                return createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                ChatMessage errorMsg = createErrorMessage(sessionId, Constants.ERROR_SESSION_EXPIRED);
+                auditChatInteraction(null, sessionId, userMessage, errorMsg);
+                return errorMsg;
             }
 
             // Store user message
@@ -135,7 +141,9 @@ public class AIChatService {
 
             // Check if this is a location restriction error
             if (isLocationRestrictionError(intent)) {
-                return createLocationRestrictionMessage(sessionId);
+                ChatMessage locationMsg = createLocationRestrictionMessage(sessionId);
+                auditChatInteraction(context, sessionId, userMessage, locationMsg);
+                return locationMsg;
             }
 
             // Process suggestions based on intent
@@ -150,13 +158,18 @@ public class AIChatService {
 
             // If user already confirmed in this message, apply immediately
             if (isAffirmative(userMessage) && intent.getConfidence() >= confidenceThreshold && !suggestions.isEmpty()) {
-                return applyMaskingPolicy(sessionId, intent, suggestions);
+                ChatMessage applyResult = applyMaskingPolicy(sessionId, intent, suggestions);
+                auditChatInteraction(context, sessionId, userMessage, applyResult);
+                return applyResult;
             }
+            auditChatInteraction(context, sessionId, userMessage, aiResponse);
             return aiResponse;
 
         } catch (Exception e) {
             log.error("Error processing user message in session {}: {}", sessionId, e.getMessage());
-            return createErrorMessage(sessionId, "I encountered an error processing your request. Please try again.");
+            ChatMessage errorMsg = createErrorMessage(sessionId, "I encountered an error processing your request. Please try again.");
+            auditChatInteraction(context, sessionId, userMessage, errorMsg);
+            return errorMsg;
         }
     }
 
@@ -164,6 +177,22 @@ public class AIChatService {
      * Process suggestions based on user intent and confidence
      */
     private List<FieldSuggestion> processSuggestions(ChatContext context, String userMessage, MaskingIntent intent) {
+        // Handle "remove X from the list" - take last suggestions and exclude specified table.field
+        if (isRemoveFromListRequest(userMessage)) {
+            List<String[]> toRemove = parseTableFieldToRemove(userMessage);
+            if (!toRemove.isEmpty()) {
+                if (context.getLastSuggestions() != null && !context.getLastSuggestions().isEmpty()) {
+                    List<FieldSuggestion> filtered = filterOutFromSuggestions(context.getLastSuggestions(), toRemove);
+                    log.info("Removed {} field(s) from list for session {}, {} remaining",
+                            toRemove.size(), context.getAssetId(), filtered.size());
+                    return filtered;
+                }
+                // No previous list - return empty to avoid misinterpretation (AI would show only the removed field)
+                log.info("Remove requested but no previous suggestions for session {}", context.getAssetId());
+                return new ArrayList<>();
+            }
+        }
+
         List<FieldSuggestion> suggestions = new ArrayList<>();
 
         // Get schema suggestions if high confidence
@@ -180,6 +209,86 @@ public class AIChatService {
 
         // Apply category focus filtering
         return applyCategoryFocusFilter(intent, suggestions);
+    }
+
+    /**
+     * Detect if user wants to remove a column from the current masking list
+     */
+    private boolean isRemoveFromListRequest(String userMessage) {
+        if (userMessage == null || userMessage.isBlank()) return false;
+        String lower = userMessage.toLowerCase();
+        boolean hasRemoveKeyword = lower.contains("remove") || lower.contains("exclude") || lower.contains("drop")
+                || lower.contains("don't mask") || lower.contains("do not mask") || lower.contains("unmask");
+        boolean hasTableFieldPattern = containsTableFieldPattern(userMessage);
+        return hasRemoveKeyword && hasTableFieldPattern;
+    }
+
+    /**
+     * Check if string contains table.field pattern (e.g. lab_results.test_name) using linear scan. No regex to avoid ReDoS.
+     */
+    private static boolean containsTableFieldPattern(String s) {
+        if (s == null || s.length() < 3) return false;
+        for (int i = 1; i < s.length() - 1; i++) {
+            if (s.charAt(i) == '.' && isWordChar(s.charAt(i - 1)) && isWordChar(s.charAt(i + 1))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Parse table.field patterns from user message (e.g. lab_results.test_name) using linear scan. No regex to avoid ReDoS.
+     */
+    private List<String[]> parseTableFieldToRemove(String userMessage) {
+        List<String[]> result = new ArrayList<>();
+        if (userMessage == null || userMessage.length() < 3) return result;
+        for (int i = 1; i < userMessage.length() - 1; i++) {
+            if (userMessage.charAt(i) == '.' && isWordChar(userMessage.charAt(i - 1)) && isWordChar(userMessage.charAt(i + 1))) {
+                int tableStart = scanWordBackward(userMessage, i - 1);
+                int fieldEnd = scanWordForward(userMessage, i + 1);
+                if (tableStart >= 0 && fieldEnd < userMessage.length()) {
+                    String table = userMessage.substring(tableStart, i);
+                    String field = userMessage.substring(i + 1, fieldEnd + 1);
+                    result.add(new String[]{table, field});
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    private static int scanWordBackward(String s, int from) {
+        while (from >= 0 && isWordChar(s.charAt(from))) from--;
+        return from + 1;
+    }
+
+    private static int scanWordForward(String s, int from) {
+        while (from < s.length() && isWordChar(s.charAt(from))) from++;
+        return from - 1;
+    }
+
+    /**
+     * Filter out suggestions matching the specified table.field pairs
+     */
+    private List<FieldSuggestion> filterOutFromSuggestions(List<FieldSuggestion> suggestions, List<String[]> toRemove) {
+        return suggestions.stream()
+                .filter(s -> {
+                    String tn = s.getTableName() != null ? s.getTableName().toLowerCase() : "";
+                    String fn = s.getFieldName() != null ? s.getFieldName().toLowerCase() : "";
+                    for (String[] pair : toRemove) {
+                        String targetTable = pair[0].toLowerCase();
+                        String targetField = pair[1].toLowerCase();
+                        if ((tn.equals(targetTable) || tn.contains(targetTable) || targetTable.contains(tn))
+                                && (fn.equals(targetField) || fn.contains(targetField) || targetField.contains(fn))) {
+                            return false; // exclude this suggestion
+                        }
+                    }
+                    return true;
+                })
+                .toList();
     }
 
     /**
@@ -246,6 +355,29 @@ public class AIChatService {
             auditTrailService.save(audit);
         } catch (Exception ex) {
             log.warn("Failed to audit masking apply: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Audit every AI chat command and its output
+     */
+    private void auditChatInteraction(ChatContext context, String sessionId, String userCommand, ChatMessage response) {
+        try {
+            String outputContent = response != null && response.getContent() != null ? response.getContent() : "";
+            AuditTrail audit = AuditTrail.builder()
+                    .timestamp(LocalDateTime.now())
+                    .user(getCurrentUserEmail())
+                    .action(Constants.AUDIT_ACTION_AI_CHAT)
+                    .instanceId(sessionId != null ? "SESSION(" + sessionId + ")" : null)
+                    .previousValue(userCommand)
+                    .newValue(outputContent)
+                    .asset(context != null ? context.getAsset() : null)
+                    .ipAddress(IpAddressUtils.getCurrentIpAddress())
+                    .description(AuditDescriptionUtils.generateDescription(Constants.AUDIT_ACTION_AI_CHAT, Constants.ENTITY_TYPE_ASSET, null))
+                    .build();
+            auditTrailService.save(audit);
+        } catch (Exception ex) {
+            log.warn("Failed to audit AI chat interaction: {}", ex.getMessage());
         }
     }
 
@@ -613,12 +745,23 @@ public class AIChatService {
         }
 
         if (suggestions.isEmpty()) {
+            // Remove-from-list with no prior context - explain that a previous list is needed
+            if (Constants.AI_INTENT_TYPE_REMOVE_FIELD.equals(intent.getIntentType())
+                    || isRemoveFromListRequest(userMessage)) {
+                String removeNoContextContent = "I don't have a previous list to remove from. "
+                        + "Please first ask me to show or suggest fields to mask (e.g. \"Mask PII\" or \"Show sensitive fields\"), "
+                        + "then you can remove specific columns from that list.";
+                ChatMessage removeMsg = createMessage(sessionId, removeNoContextContent, Constants.AI_SENDER,
+                        ChatMessage.MessageType.CLARIFICATION);
+                removeMsg.setParsedIntent(intent);
+                return removeMsg;
+            }
             // No fields found - explain and suggest using database prompt
             Map<String, Object> promptParams = Map.of(
                     "originalRequest", intent.getOriginalRequest(),
-                    "intentType", intent.getIntentType().replace("_", " "),
-                    Constants.PROMPT_PARAM_STRATEGY, intent.getMaskingStrategy(),
-                    "userRole", intent.getUserRole());
+                    "intentType", intent.getIntentType() != null ? intent.getIntentType().replace("_", " ") : "unknown",
+                    Constants.PROMPT_PARAM_STRATEGY, intent.getMaskingStrategy() != null ? intent.getMaskingStrategy() : "",
+                    "userRole", intent.getUserRole() != null ? intent.getUserRole() : "");
             String noFieldsContent = promptService.getPrompt("NO_FIELDS_FOUND", promptParams);
 
             ChatMessage noFields = createMessage(sessionId, noFieldsContent, Constants.AI_SENDER,
