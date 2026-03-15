@@ -49,9 +49,6 @@
 ```properties
 jira.webhook.secret=${JIRA_WEBHOOK_SECRET}
 jira.api.url=${JIRA_API_URL:https://your-instance.atlassian.net}
-jira.oauth.client.id=${JIRA_OAUTH_CLIENT_ID}
-jira.oauth.client.secret=${JIRA_OAUTH_CLIENT_SECRET}
-jira.oauth.redirect.uri=${JIRA_OAUTH_REDIRECT_URI}
 ```
 
 ---
